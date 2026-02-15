@@ -1,0 +1,60 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+*.pnp
+.pnp.js
+pnpm-lock.yaml
+yarn.lock
+package-lock.json
+
+# Build outputs
+/frontend/dist
+/frontend/build
+/backend/dist
+/backend/build
+*.tsbuildinfo
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+/data
+/logs
+
+# IDE
+.vscode/
+!.vscode/settings.json
+!.vscode/launch.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+/coverage
+.nyc_output/
+*.lcov
+
+# PM2
+ecosystem.config.js
+ecosystem.json
+
+# Postgres
+/postgres-data
+
+# Docker
+/docker-compose.override.yml
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Temp
+*.tmp
+/tmp

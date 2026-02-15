@@ -1,0 +1,31 @@
+{
+  "name": "stormglass",
+  "version": "0.1.0",
+  "description": "Environmental condition tracking and symptom correlation for chronic illness",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npm run dev --workspaces",
+    "build": "npm run build --workspaces",
+    "start": "npm run start -w backend",
+    "test": "npm run test --workspaces",
+    "lint": "npm run lint --workspaces",
+    "format": "npm run format --workspaces",
+    "db:migrate": "npm run db:migrate -w backend",
+    "db:seed": "npm run db:seed -w backend"
+  },
+  "workspaces": [
+    "frontend",
+    "backend",
+    "shared"
+  ],
+  "keywords": [
+    "chronic-illness",
+    "weather",
+    "symptom-tracking",
+    "pwa",
+    "environmental-monitoring"
+  ],
+  "author": "",
+  "license": "MIT"
+}

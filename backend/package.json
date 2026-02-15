@@ -1,0 +1,35 @@
+{
+  "name": "@stormglass/backend",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "db:generate": "drizzle-kit generate:pg",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:studio": "drizzle-kit studio",
+    "lint": "eslint src --ext ts",
+    "format": "prettier --write src",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@fastify/cors": "^8.4.0",
+    "@fastify/websocket": "^10.0.0",
+    "@fastify/static": "^6.11.0",
+    "fastify": "^4.24.0",
+    "postgres": "^3.3.0",
+    "drizzle-orm": "^0.29.0",
+    "drizzle-kit": "^0.20.0",
+    "node-cron": "^3.0.0",
+    "mqtt": "^5.3.0",
+    "dotenv": "^16.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "tsx": "^3.14.0",
+    "vitest": "^0.34.0",
+    "@testing-library/node": "^20.0.0"
+  }
+}
