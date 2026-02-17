@@ -1,0 +1,20 @@
+{
+  "version": "5",
+  "dialect": "pg",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1771180557250,
+      "tag": "0000_flat_red_ghost",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1771346334114,
+      "tag": "0001_square_emma_frost",
+      "breakpoints": true
+    }
+  ]
+}

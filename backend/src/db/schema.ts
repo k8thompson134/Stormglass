@@ -103,7 +103,7 @@ export const airQualityData = pgTable(
 );
 
 // Geomagnetic data from NOAA
-export const geomagnticData = pgTable(
+export const geomagneticData = pgTable(
   'geomagnetic_data',
   {
     id: uuid('id').defaultRandom().primaryKey(),
@@ -119,6 +119,33 @@ export const geomagnticData = pgTable(
   (table) => ({
     userIdTimestampIdx: index('geomagnetic_data_user_id_timestamp_idx').on(
       table.userId,
+      table.timestamp
+    ),
+  })
+);
+
+// Pollen and Mold data from Tomorrow.io
+export const pollenData = pgTable(
+  'pollen_data',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    location: text('location').notNull(),
+    timestamp: timestamp('timestamp').notNull(),
+    treeIndex: integer('tree_index').notNull(), // 0-5
+    grassIndex: integer('grass_index').notNull(), // 0-5
+    weedIndex: integer('weed_index').notNull(), // 0-5
+    moldIndex: integer('mold_index').notNull(), // 0-5
+  },
+  (table) => ({
+    userIdTimestampIdx: index('pollen_data_user_id_timestamp_idx').on(
+      table.userId,
+      table.timestamp
+    ),
+    locationTimestampIdx: index('pollen_data_location_timestamp_idx').on(
+      table.location,
       table.timestamp
     ),
   })
