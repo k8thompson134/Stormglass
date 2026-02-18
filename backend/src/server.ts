@@ -82,6 +82,7 @@ app.post('/api/symptoms/logs', async (request, reply) => {
 if (env.NODE_ENV === 'production') {
   await app.register(fastifyStatic, {
     root: join(__dirname, '../../frontend/dist'),
+    wildcard: false,
   });
 
   app.get('/*', async (request, reply) => {
