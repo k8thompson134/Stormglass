@@ -1,4 +1,13 @@
 const API_BASE = '/api';
+const API_TOKEN = import.meta.env.VITE_API_TOKEN;
+
+const getHeaders = (headers: Record<string, string> = {}) => {
+  const h: Record<string, string> = { ...headers };
+  if (API_TOKEN) {
+    h['Authorization'] = `Bearer ${API_TOKEN}`;
+  }
+  return h;
+};
 
 export interface CurrentWeather {
   timestamp: string;
@@ -58,13 +67,17 @@ export interface WeatherHistory {
 }
 
 export async function fetchCurrentWeather(): Promise<CurrentWeather> {
-  const res = await fetch(`${API_BASE}/weather/current`);
+  const res = await fetch(`${API_BASE}/weather/current`, {
+    headers: getHeaders()
+  });
   if (!res.ok) throw new Error(`Failed to fetch current weather: ${res.status}`);
   return res.json();
 }
 
 export async function fetchWeatherHistory(hours: number = 24): Promise<WeatherHistory> {
-  const res = await fetch(`${API_BASE}/weather/history?hours=${hours}`);
+  const res = await fetch(`${API_BASE}/weather/history?hours=${hours}`, {
+    headers: getHeaders()
+  });
   if (!res.ok) throw new Error(`Failed to fetch weather history: ${res.status}`);
   return res.json();
 }
@@ -85,7 +98,9 @@ export interface GeoResult {
 }
 
 export async function fetchSettings(): Promise<Settings> {
-  const res = await fetch(`${API_BASE}/settings`);
+  const res = await fetch(`${API_BASE}/settings`, {
+    headers: getHeaders()
+  });
   if (!res.ok) throw new Error(`Failed to fetch settings: ${res.status}`);
   return res.json();
 }
@@ -93,7 +108,7 @@ export async function fetchSettings(): Promise<Settings> {
 export async function updateLocation(latitude: string, longitude: string, name?: string): Promise<{ success: boolean }> {
   const res = await fetch(`${API_BASE}/settings/location`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ latitude, longitude, name }),
   });
   if (!res.ok) throw new Error(`Failed to update location: ${res.status}`);
@@ -101,7 +116,9 @@ export async function updateLocation(latitude: string, longitude: string, name?:
 }
 
 export async function geocodeSearch(query: string): Promise<GeoResult[]> {
-  const res = await fetch(`${API_BASE}/geocode?q=${encodeURIComponent(query)}`);
+  const res = await fetch(`${API_BASE}/geocode?q=${encodeURIComponent(query)}`, {
+    headers: getHeaders()
+  });
   if (!res.ok) throw new Error(`Geocode failed: ${res.status}`);
   const data = await res.json();
   return data.results;

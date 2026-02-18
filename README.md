@@ -67,6 +67,7 @@ cd backend
 npm run db:migrate
 
 # Start backend
+cd backend
 npm run dev
 
 # In another terminal, start frontend

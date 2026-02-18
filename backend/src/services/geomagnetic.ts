@@ -1,6 +1,7 @@
 import { eq, and, gte, lte } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { geomagneticData } from '../db/schema.js';
+import { logger } from '../logger.js';
 
 const KP_URL = 'https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json';
 const PLASMA_URL = 'https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json';
@@ -59,7 +60,7 @@ export async function fetchGeomagneticData(userId: string): Promise<number> {
         }
     } catch {
         // Solar wind data is supplementary — don't fail if unavailable
-        console.warn('[geomagnetic] Solar wind plasma data unavailable, continuing with Kp only');
+        logger.warn({ service: 'geomagnetic' }, 'Solar wind plasma data unavailable, continuing with Kp only');
     }
 
     if (kpEntries.length === 0) return 0;

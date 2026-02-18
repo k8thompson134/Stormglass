@@ -4,6 +4,7 @@ import { computePressureDerivatives } from '../services/pressure.js';
 import { fetchAirQualityData } from '../services/airquality.js';
 import { fetchGeomagneticData } from '../services/geomagnetic.js';
 import { fetchPollenData } from '../services/tomorrow.js';
+import { logger } from '../logger.js';
 
 export interface PollConfig {
   userId: string;
@@ -21,21 +22,21 @@ async function runPoll(config: PollConfig): Promise<void> {
 
   try {
     const inserted = await fetchWeatherData(userId, latitude, longitude);
-    console.log(`[weather-poll] Fetched ${inserted} new weather readings`);
+    logger.info({ service: 'weather-poll', inserted }, 'Fetched new weather readings');
 
     const derivatives = await computePressureDerivatives(userId, location);
-    console.log(`[weather-poll] Computed ${derivatives} new pressure derivatives`);
+    logger.info({ service: 'weather-poll', derivatives }, 'Computed new pressure derivatives');
 
     const aqInserted = await fetchAirQualityData(userId, latitude, longitude);
-    console.log(`[air-quality-poll] Fetched ${aqInserted} new AQ readings`);
+    logger.info({ service: 'air-quality-poll', inserted: aqInserted }, 'Fetched new AQ readings');
 
     const geoInserted = await fetchGeomagneticData(userId);
-    console.log(`[geomagnetic-poll] Fetched ${geoInserted} new Kp readings`);
+    logger.info({ service: 'geomagnetic-poll', inserted: geoInserted }, 'Fetched new Kp readings');
 
     const pollenInserted = await fetchPollenData(userId, latitude, longitude);
-    console.log(`[pollen-poll] Fetched ${pollenInserted} new pollen readings`);
+    logger.info({ service: 'pollen-poll', inserted: pollenInserted }, 'Fetched new pollen readings');
   } catch (error) {
-    console.error('[weather-poll] Error:', error);
+    logger.error({ service: 'weather-poll', err: error }, 'Poll cycle failed');
   }
 }
 
@@ -50,7 +51,7 @@ export function startWeatherPolling(config: PollConfig): void {
     runPoll(config);
   });
 
-  console.log('[weather-poll] Scheduled every 30 minutes');
+  logger.info({ service: 'weather-poll' }, 'Scheduled every 30 minutes');
 }
 
 export async function restartWeatherPolling(newConfig: Partial<PollConfig>): Promise<PollConfig | null> {
@@ -66,7 +67,7 @@ export async function restartWeatherPolling(newConfig: Partial<PollConfig>): Pro
   currentConfig = { ...currentConfig, ...newConfig };
 
   if (currentConfig.name) {
-    console.log(`[weather-poll] Location name updated to: ${currentConfig.name}`);
+    logger.info({ service: 'weather-poll', name: currentConfig.name }, 'Location name updated');
   }
 
   // Fetch data for new location before returning
@@ -77,7 +78,7 @@ export async function restartWeatherPolling(newConfig: Partial<PollConfig>): Pro
     runPoll(currentConfig!);
   });
 
-  console.log(`[weather-poll] Restarted with location: ${currentConfig.latitude},${currentConfig.longitude}`);
+  logger.info({ service: 'weather-poll', location: `${currentConfig.latitude},${currentConfig.longitude}` }, 'Restarted polling');
 
   return currentConfig;
 }

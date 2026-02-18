@@ -23,7 +23,6 @@ interface Props {
 }
 
 const TIME_RANGES = [
-  { label: '1h', value: 1 },
   { label: '6h', value: 6 },
   { label: '24h', value: 24 },
   { label: '48h', value: 48 },
@@ -72,11 +71,23 @@ function formatTooltipDate(label: string): string {
   } catch { return ''; }
 }
 
+interface ValidDataPoint extends WeatherPoint {
+  pressureNum: number;
+  tempNum: number;
+}
+
+interface ChartDataPoint extends ValidDataPoint {
+  pressureChart?: number;
+  temperatureF?: number;
+  forecastPressure?: number;
+  forecastTemperatureF?: number;
+}
+
 interface TooltipPayloadEntry {
   dataKey: string;
   value: number;
   name: string;
-  payload: any;
+  payload: ChartDataPoint;
 }
 
 interface TooltipProps {
@@ -88,15 +99,22 @@ interface TooltipProps {
 function CustomTooltip({ active, payload, label }: TooltipProps) {
   if (!active || !payload?.length) return null;
 
-  const pressureEntry = payload.find((e) => e.dataKey === 'pressure');
-  const tempEntry = payload.find((e) => e.dataKey === 'temperatureF');
+  const pressureEntry = payload.find((e) => e.dataKey === 'pressureChart' && e.value != null)
+    || payload.find((e) => e.dataKey === 'forecastPressure' && e.value != null);
+  const tempEntry = payload.find((e) => e.dataKey === 'temperatureF' && e.value != null)
+    || payload.find((e) => e.dataKey === 'forecastTemperatureF' && e.value != null);
   const deltaEntry = payload.find((e) => e.dataKey === 'delta1h');
+  const isForecast = payload.some((e) => e.dataKey === 'forecastPressure' && e.value != null
+    && !payload.some((p) => p.dataKey === 'pressure' && p.value != null));
   const delta = deltaEntry?.value ?? null;
   const { text: severityText, color: severityColor } = deltaLabel(delta);
 
   return (
     <div className="bg-gray-950/95 border border-gray-700/50 rounded-lg p-3 text-xs shadow-2xl backdrop-blur-sm min-w-[180px]">
-      <p className="text-gray-400 font-semibold mb-2 text-[11px] tracking-wide">{formatTooltipDate(label || '')}</p>
+      <p className="text-gray-400 font-semibold mb-2 text-[11px] tracking-wide">
+        {isForecast && <span className="text-cyan-400 mr-1.5">FORECAST</span>}
+        {formatTooltipDate(label || '')}
+      </p>
       <div className="space-y-1.5">
         {pressureEntry && (
           <div className="flex justify-between gap-6">
@@ -132,7 +150,7 @@ function CustomTooltip({ active, payload, label }: TooltipProps) {
 }
 
 // Custom dot to show "now" marker on the current data point
-function NowDot(props: { cx?: number; cy?: number; payload?: any; nowPoint?: any }) {
+function NowDot(props: { cx?: number; cy?: number; payload?: ChartDataPoint; nowPoint?: ValidDataPoint | null }) {
   const { cx, cy, payload, nowPoint } = props;
   if (!nowPoint || !payload?.timestamp || payload.timestamp !== nowPoint.timestamp) return null;
   return (
@@ -142,8 +160,9 @@ function NowDot(props: { cx?: number; cy?: number; payload?: any; nowPoint?: any
 
 export default function PressureChart({ data, loading, hours, onHoursChange }: Props) {
   const [showTemp, setShowTemp] = useState(true);
+  const [showForecast, setShowForecast] = useState(false);
 
-  // Filter and validate data immediately
+  // Filter and validate all data (past + future)
   const validData = useMemo(() => {
     return (Array.isArray(data) ? data : [])
       .filter(d => d && d.timestamp && !isNaN(new Date(d.timestamp).getTime()))
@@ -155,14 +174,7 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
       .filter(d => !isNaN(d.pressureNum) && d.pressureNum > 800 && d.pressureNum < 1100);
   }, [data]);
 
-  if (validData.length === 0) {
-    if (loading) return <div className="bg-gray-800/20 rounded-2xl h-[420px] animate-pulse" />;
-    return (
-      <div className="bg-gray-800/40 rounded-2xl h-[420px] flex items-center justify-center text-gray-500 text-xs uppercase font-bold tracking-widest text-center px-8">
-        No Telemetry Data Available for Selected Timeframe
-      </div>
-    );
-  }
+  const nowTs = useMemo(() => Date.now(), [data]);
 
   const { pressures, minPressure, maxPressure, avgPressure, minP, maxP } = useMemo(() => {
     if (validData.length === 0) {
@@ -236,8 +248,16 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
         pressureChange: validData[endIdx].pressureNum - validData[zoneStartIdx].pressureNum
       });
     }
+
+    // Trim zones to only show past portion when forecast is off (except on 6h scale)
+    if (!showForecast && hours > 6) {
+      return zones.map(zone => ({
+        ...zone,
+        end: new Date(zone.end).getTime() > nowTs ? new Date(nowTs).toISOString() : zone.end
+      }));
+    }
     return zones;
-  }, [validData]);
+  }, [validData, showForecast, hours, nowTs]);
 
   // --- Detect front passage (deepest pressure trough) ---
   const frontPassage = useMemo(() => {
@@ -252,28 +272,65 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
   }, [pressureSwing, validData]);
 
   // Transform data for chart to include Fahrenheit
-  const chartData = useMemo(() => validData.map(d => ({
-    ...d,
-    pressure: d.pressureNum,
-    temperatureF: d.tempNum * 9 / 5 + 32
-  })), [validData]);
+  // Split data into past (solid) and forecast (dashed) segments
+  // The last past point is duplicated as the first forecast point to connect them
+  const chartData = useMemo(() => {
+    return validData.map(d => {
+      const ts = new Date(d.timestamp).getTime();
+      const isForecast = ts > nowTs;
+      return {
+        ...d,
+        pressureChart: isForecast ? undefined : d.pressureNum,
+        forecastPressure: isForecast ? d.pressureNum : undefined,
+        temperatureF: isForecast ? undefined : (d.tempNum * 9 / 5 + 32),
+        forecastTemperatureF: isForecast ? (d.tempNum * 9 / 5 + 32) : undefined,
+      };
+    });
+  }, [validData, nowTs]);
+
+  // Bridge: set forecast values on the last past point so the lines connect
+  const bridgedChartData = useMemo(() => {
+    if (chartData.length === 0) return chartData;
+    const result = chartData.map(d => ({ ...d }));
+    for (let i = 0; i < result.length - 1; i++) {
+      if (result[i].pressureChart !== undefined && result[i + 1].forecastPressure !== undefined) {
+        result[i].forecastPressure = result[i].pressureChart;
+        result[i].forecastTemperatureF = result[i].temperatureF;
+        break;
+      }
+    }
+    // Trim future data when forecast is off, except for 6h scale (6h is short enough)
+    if (!showForecast && hours > 6) {
+      return result.filter(d => new Date(d.timestamp).getTime() <= nowTs);
+    }
+    return result;
+  }, [chartData, showForecast, hours, nowTs]);
 
   // Find point closest to actual "Now" for markers
   const nowPoint = useMemo(() => {
-    const nowTs = Date.now();
-    return chartData.reduce((prev: any, curr: any) => {
+    if (validData.length === 0) return null;
+    return validData.reduce((prev, curr) => {
       const prevTime = new Date(prev.timestamp).getTime();
       const currTime = new Date(curr.timestamp).getTime();
       return Math.abs(currTime - nowTs) < Math.abs(prevTime - nowTs) ? curr : prev;
-    }, chartData[0]);
-  }, [chartData]);
+    }, validData[0]);
+  }, [validData, nowTs]);
+
+  // Early return AFTER all hooks to satisfy Rules of Hooks
+  if (validData.length === 0) {
+    if (loading) return <div className="bg-gray-800/20 rounded-2xl h-[420px] animate-pulse" />;
+    return (
+      <div className="bg-gray-800/40 rounded-2xl h-[420px] flex items-center justify-center text-gray-500 text-xs uppercase font-bold tracking-widest text-center px-8">
+        No Telemetry Data Available for Selected Timeframe
+      </div>
+    );
+  }
 
   return (
     <div className="bg-[#131d2e] rounded-2xl p-6 border border-[#1e2d45] shadow-xl overflow-hidden">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-gray-300 text-sm font-bold uppercase tracking-wider flex items-center gap-2">
           Pressure Dynamics
-          {validData.length > 0 && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
         </h2>
         <div className="flex bg-gray-900/50 p-1 rounded-md">
           {TIME_RANGES.map(r => (
@@ -342,7 +399,7 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
 
       <div className="h-[320px] w-full" role="img" aria-label={`Barometric pressure chart showing ${validData.length} readings over the selected time range. Pressure ranges from ${minPressure.toFixed(1)} to ${maxPressure.toFixed(1)} hPa.`}>
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={chartData}>
+          <ComposedChart data={bridgedChartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} opacity={0.3} />
             <XAxis
               dataKey="timestamp"
@@ -444,10 +501,11 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
               />
             )}
 
+            {/* Past pressure (solid) */}
             <Area
               yAxisId="left"
               type="monotone"
-              dataKey="pressure"
+              dataKey="pressureChart"
               name="Pressure"
               stroke="#818cf8"
               strokeWidth={2}
@@ -455,8 +513,27 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
               fillOpacity={0.06}
               dot={<NowDot nowPoint={nowPoint} />}
               activeDot={{ r: 4, fill: '#818cf8', stroke: '#c7d2fe', strokeWidth: 1 }}
+              connectNulls={false}
             />
 
+            {/* Forecast pressure (dashed) */}
+            {showForecast && (
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="forecastPressure"
+                name="Forecast"
+                stroke="#818cf8"
+                strokeWidth={2}
+                strokeDasharray="6 3"
+                opacity={0.5}
+                dot={false}
+                activeDot={{ r: 3, fill: '#818cf8', stroke: '#c7d2fe', strokeWidth: 1 }}
+                connectNulls={false}
+              />
+            )}
+
+            {/* Past temperature (solid) */}
             {showTemp && (
               <Line
                 yAxisId="temp"
@@ -467,6 +544,24 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
                 strokeWidth={1.5}
                 dot={false}
                 activeDot={{ r: 3, fill: '#fb923c', stroke: '#fed7aa', strokeWidth: 1 }}
+                connectNulls={false}
+              />
+            )}
+
+            {/* Forecast temperature (dashed) */}
+            {showTemp && showForecast && (
+              <Line
+                yAxisId="temp"
+                type="monotone"
+                dataKey="forecastTemperatureF"
+                name="Forecast Temp"
+                stroke="#fb923c"
+                strokeWidth={1.5}
+                strokeDasharray="6 3"
+                opacity={0.5}
+                dot={false}
+                activeDot={{ r: 3, fill: '#fb923c', stroke: '#fed7aa', strokeWidth: 1 }}
+                connectNulls={false}
               />
             )}
           </ComposedChart>
@@ -477,6 +572,7 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
       <div className="mt-4 flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-3">
           <button onClick={() => setShowTemp(!showTemp)} className={`text-[10px] font-bold uppercase tracking-widest ${showTemp ? 'text-orange-400' : 'text-gray-600'}`}>[ Temp ]</button>
+          <button onClick={() => setShowForecast(!showForecast)} className={`text-[10px] font-bold uppercase tracking-widest ${showForecast ? 'text-cyan-400' : 'text-gray-600'}`}>[ Forecast ]</button>
           <span className="text-gray-700 text-[10px]">|</span>
           <span className="flex items-center gap-1 text-[10px] text-gray-500">
             <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 inline-block" /> Pressure
@@ -484,6 +580,11 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
           {showTemp && (
             <span className="flex items-center gap-1 text-[10px] text-gray-500">
               <span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block" /> Temp
+            </span>
+          )}
+          {showForecast && (
+            <span className="flex items-center gap-1 text-[10px] text-gray-500">
+              <span className="w-3 h-0 border-t border-dashed border-indigo-400 inline-block" /> Forecast
             </span>
           )}
         </div>

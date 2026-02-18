@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { db } from './index.js';
 import { users } from './schema.js';
+import { logger } from '../logger.js';
 
 const DEFAULT_EMAIL = 'default@stormglass.local';
 
@@ -29,6 +30,6 @@ export async function ensureDefaultUser(): Promise<string> {
     })
     .returning({ id: users.id });
 
-  console.log(`Created default user: ${newUser.id}`);
+  logger.info({ userId: newUser.id }, 'Created default user');
   return newUser.id;
 }

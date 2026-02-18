@@ -1,6 +1,7 @@
 import { eq, and, gte, lte } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { pollenData } from '../db/schema.js';
+import { logger } from '../logger.js';
 
 const BASE_URL = 'https://api.tomorrow.io/v4/weather/forecast';
 
@@ -27,7 +28,7 @@ export async function fetchPollenData(
 ): Promise<number> {
     const apiKey = process.env.TOMORROW_API_KEY;
     if (!apiKey) {
-        console.warn('[tomorrow] API key not found in environment, skipping pollen fetch');
+        logger.warn({ service: 'tomorrow' }, 'API key not found, skipping pollen fetch');
         return 0;
     }
 
@@ -41,7 +42,7 @@ export async function fetchPollenData(
         const response = await fetch(url.toString());
         if (!response.ok) {
             if (response.status === 403) {
-                console.warn('[tomorrow] Forbidden: Your API key may not have access to Pollen (Premium).');
+                logger.warn({ service: 'tomorrow' }, 'Forbidden: API key may not have access to Pollen (Premium)');
                 return 0;
             }
             throw new Error(`Tomorrow.io API error: ${response.status} ${response.statusText}`);
@@ -93,7 +94,7 @@ export async function fetchPollenData(
         await db.insert(pollenData).values(newRows);
         return newRows.length;
     } catch (error) {
-        console.error('[tomorrow] Error fetching pollen data:', error);
+        logger.error({ service: 'tomorrow', err: error }, 'Error fetching pollen data');
         return 0;
     }
 }
