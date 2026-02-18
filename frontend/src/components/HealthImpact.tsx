@@ -288,7 +288,7 @@ export default function HealthImpact({ data, loading }: Props) {
         : `${elevatedRisks.map(r => r.condition).join(', ')} ${elevatedRisks.length === 1 ? 'is' : 'are'} elevated due to current conditions. ${highestRisk.description}`;
 
     return (
-        <div className="bg-[#131d2e] rounded-2xl p-6 border border-[#1e2d45] shadow-xl">
+        <div className="bg-[#131d2e] rounded-2xl p-4 sm:p-6 border border-[#1e2d45] shadow-xl">
             <h2 className="text-gray-400 text-xs font-medium tracking-wider uppercase mb-4">Health Impact Forecast</h2>
 
             {/* Body Impact Summary — Meter Bar Design */}
@@ -346,7 +346,7 @@ export default function HealthImpact({ data, loading }: Props) {
             </div>
 
             {/* Risk Cards — Horizontal Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {sortedRisks.map((risk, i) => (
                     <RiskCard key={i} risk={risk} onClick={() => setSelectedRisk(risk)} />
                 ))}

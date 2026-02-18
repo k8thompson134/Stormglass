@@ -57,27 +57,30 @@ function App() {
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-50 px-4 py-2 bg-blue-600 text-white rounded-md font-bold shadow-lg ring-2 ring-white/20">
         Skip to main content
       </a>
-      <main id="main-content" className="flex-1 p-8 max-w-7xl mx-auto w-full">
-        <header className="mb-8 flex items-end justify-between border-b border-gray-800/60 pb-6">
-          <div className="flex items-center gap-3">
+      <main id="main-content" className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+        <header className="mb-4 sm:mb-8 flex items-center justify-between gap-3 border-b border-gray-800/60 pb-4 sm:pb-6">
+          <div className="flex items-center gap-3 min-w-0">
             <img
               src={logo}
               alt="Stormglass logo"
-              className="w-10 h-10 object-contain drop-shadow-[0_0_8px_rgba(6,182,212,0.4)]"
+              className="w-9 h-9 sm:w-10 sm:h-10 object-contain drop-shadow-[0_0_8px_rgba(6,182,212,0.4)] shrink-0"
             />
-            <div>
-              <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-3">
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2 flex-wrap">
                 STORMGLASS
-                <span className="text-xs font-bold bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 uppercase tracking-widest">
+                <span className="text-xs font-bold bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 uppercase tracking-widest truncate max-w-[160px] sm:max-w-none">
                   {locationName || 'Live Reading'}
                 </span>
               </h1>
-              <p className="text-gray-500 text-xs font-mono uppercase tracking-[0.2em] mt-0.5">Barometric Pressure · Health Impact</p>
+              <p className="text-gray-500 text-[10px] sm:text-xs font-mono uppercase tracking-[0.2em] mt-0.5 hidden sm:block">Barometric Pressure · Health Impact</p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-            <p className="text-[10px] text-gray-600 font-mono uppercase tracking-wider">
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+            <p className="text-[10px] text-gray-600 font-mono uppercase tracking-wider hidden md:block">
               {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </p>
+            <p className="text-[10px] text-gray-600 font-mono uppercase tracking-wider md:hidden">
+              {new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
             </p>
             <button
               onClick={() => setSettingsOpen(true)}
