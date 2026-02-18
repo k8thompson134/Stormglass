@@ -87,7 +87,7 @@ function RiskCard({ risk, onClick }: { risk: HealthRisk; onClick: () => void }) 
                 </div>
 
                 {/* Description */}
-                <p className={`text-[10px] leading-relaxed line-clamp-2 flex-1 ${theme.desc}`}>
+                <p className={`text-[10px] leading-relaxed flex-1 ${theme.desc}`}>
                     {risk.description}
                 </p>
 
@@ -346,7 +346,7 @@ export default function HealthImpact({ data, loading }: Props) {
             </div>
 
             {/* Risk Cards — Horizontal Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                 {sortedRisks.map((risk, i) => (
                     <RiskCard key={i} risk={risk} onClick={() => setSelectedRisk(risk)} />
                 ))}
