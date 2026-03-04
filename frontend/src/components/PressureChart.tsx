@@ -14,6 +14,7 @@ import {
   Label
 } from 'recharts';
 import type { WeatherPoint } from '../services/api';
+import { classifyPressureRate, type EnvSeverity } from '../utils/severity';
 
 interface Props {
   data: WeatherPoint[];
@@ -44,22 +45,22 @@ function formatDate(isoString: string): string {
 }
 
 function deltaColor(delta: number | null): string {
-  if (delta === null || isNaN(delta)) return '#374151';
-  const abs = Math.abs(delta);
-  if (abs >= 1.0) return '#f87171';
-  if (abs >= 0.5) return '#fbbf24';
-  if (abs >= 0.2) return '#60a5fa';
+  const severity = classifyPressureRate(delta);
+  if (!severity) return '#374151';
+  if (severity === 'severe') return '#f87171';
+  if (severity === 'high') return '#fbbf24';
+  if (severity === 'moderate') return '#60a5fa';
   return '#34d399';
 }
 
 function deltaLabel(delta: number | null): { text: string; color: string } {
   if (delta === null || isNaN(delta)) return { text: 'No data', color: '#6b7280' };
-  const abs = Math.abs(delta);
+  const severity = classifyPressureRate(delta);
   const dir = delta > 0.01 ? '↑ Rising' : delta < -0.01 ? '↓ Falling' : '→ Stable';
-  if (abs >= 1.0) return { text: `${dir} (Extreme)`, color: '#f87171' };
-  if (abs >= 0.5) return { text: `${dir} (Significant)`, color: '#fbbf24' };
-  if (abs >= 0.2) return { text: `${dir} (Moderate)`, color: '#60a5fa' };
-  return { text: `${dir} (Stable)`, color: '#34d399' };
+  if (!severity || severity === 'low') return { text: `${dir} (Low)`, color: '#34d399' };
+  if (severity === 'moderate') return { text: `${dir} (Moderate)`, color: '#60a5fa' };
+  if (severity === 'high') return { text: `${dir} (High)`, color: '#fbbf24' };
+  return { text: `${dir} (Severe)`, color: '#f87171' };
 }
 
 function formatTooltipDate(label: string): string {
@@ -213,13 +214,14 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
 
   // --- Detect volatile periods for chart highlighting ---
   const volatileZones = useMemo(() => {
-    const zones: { start: string; end: string; severity: string; pressureChange: number }[] = [];
+    const zones: { start: string; end: string; severity: EnvSeverity; pressureChange: number }[] = [];
     let zoneStartIdx: number | null = null;
     let maxAbsDelta = 0;
     let gapCount = 0;
     for (let i = 0; i < validData.length; i++) {
       const absDelta = Math.abs(validData[i].delta1h ?? 0);
-      if (absDelta >= 0.3) {
+      const sev = classifyPressureRate(absDelta);
+      if (sev && sev !== 'low') {
         gapCount = 0;
         if (zoneStartIdx === null) zoneStartIdx = i;
         maxAbsDelta = Math.max(maxAbsDelta, absDelta);
@@ -227,7 +229,7 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
         gapCount++;
         if (gapCount > 3) {
           const endIdx = i - gapCount;
-          const sev = maxAbsDelta >= 1.0 ? 'extreme' : maxAbsDelta >= 0.5 ? 'significant' : 'moderate';
+          const sev = classifyPressureRate(maxAbsDelta) ?? 'moderate';
           zones.push({
             start: validData[zoneStartIdx].timestamp,
             end: validData[endIdx].timestamp,
@@ -240,7 +242,7 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
     }
     if (zoneStartIdx !== null) {
       const endIdx = validData.length - 1;
-      const sev = maxAbsDelta >= 1.0 ? 'extreme' : maxAbsDelta >= 0.5 ? 'significant' : 'moderate';
+      const sev = classifyPressureRate(maxAbsDelta) ?? 'moderate';
       zones.push({
         start: validData[zoneStartIdx].timestamp,
         end: validData[endIdx].timestamp,
@@ -373,8 +375,8 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
             const zEnd = new Date(zone.end);
             const hrs = Math.max(1, Math.round((zEnd.getTime() - zStart.getTime()) / 3600000));
             return (
-              <div key={i} className={`text-[11px] px-2.5 py-1 rounded-md border inline-flex items-center gap-1.5 ${zone.severity === 'extreme' ? 'bg-red-500/10 border-red-500/20 text-red-300' :
-                zone.severity === 'significant' ? 'bg-amber-500/10 border-amber-500/20 text-amber-300' :
+            <div key={i} className={`text-[11px] px-2.5 py-1 rounded-md border inline-flex items-center gap-1.5 ${zone.severity === 'severe' ? 'bg-red-500/10 border-red-500/20 text-red-300' :
+                zone.severity === 'high' ? 'bg-amber-500/10 border-amber-500/20 text-amber-300' :
                   'bg-blue-500/10 border-blue-500/20 text-blue-300'
                 }`}>
                 <span className="font-semibold">
@@ -388,8 +390,8 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
                 </span>
                 <span className="opacity-60 text-[10px]">({hrs}h)</span>
                 <span className="font-mono">{zone.pressureChange > 0 ? '↗' : '↘'} {Math.abs(zone.pressureChange).toFixed(1)} hPa</span>
-                <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${zone.severity === 'extreme' ? 'bg-red-500/20' :
-                  zone.severity === 'significant' ? 'bg-amber-500/20' : 'bg-blue-500/20'
+                <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${zone.severity === 'severe' ? 'bg-red-500/20' :
+                  zone.severity === 'high' ? 'bg-amber-500/20' : 'bg-blue-500/20'
                   }`}>{zone.severity}</span>
               </div>
             );
@@ -483,7 +485,7 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
                 yAxisId="left"
                 x1={zone.start}
                 x2={zone.end}
-                fill={zone.severity === 'extreme' ? '#ef4444' : zone.severity === 'significant' ? '#f59e0b' : '#60a5fa'}
+                fill={zone.severity === 'severe' ? '#ef4444' : zone.severity === 'high' ? '#f59e0b' : '#60a5fa'}
                 fillOpacity={0.07}
                 strokeOpacity={0}
               />

@@ -60,7 +60,7 @@ function App() {
       <main id="main-content" className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
         <header className="mb-4 sm:mb-8 border-b border-gray-800/60 pb-4 sm:pb-6">
           {/* Row 1: Logo + Title + Settings gear */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3 min-w-0">
               <img
                 src={logo}
@@ -71,7 +71,7 @@ function App() {
                 STORMGLASS
               </h1>
             </div>
-            <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+            <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4 w-full sm:w-auto">
               <p className="text-[10px] text-gray-600 font-mono uppercase tracking-wider hidden md:block">
                 {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
               </p>
@@ -88,7 +88,7 @@ function App() {
             </div>
           </div>
           {/* Row 2: Location badge + subtitle */}
-          <div className="flex items-center gap-2 mt-1.5 ml-0 sm:ml-12 lg:ml-[52px] flex-wrap">
+          <div className="flex flex-col items-start gap-1.5 sm:flex-row sm:items-center sm:gap-2 mt-1.5 ml-0 sm:ml-12 lg:ml-[52px]">
             <span className="text-[10px] font-bold bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 uppercase tracking-widest break-words max-w-full sm:max-w-none">
               {locationName || 'Live Reading'}
             </span>

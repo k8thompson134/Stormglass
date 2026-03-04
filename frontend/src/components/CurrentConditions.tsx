@@ -1,35 +1,23 @@
 import type { CurrentWeather, WeatherPoint } from '../services/api';
 import { toF } from '../utils/conversions';
+import { classifyPressureRate, type EnvSeverity } from '../utils/severity';
 
 interface Props {
   data: CurrentWeather | null;
   loading: boolean;
   history?: WeatherPoint[];
 }
-
-
-
-type Severity = 'calm' | 'mild' | 'moderate' | 'rapid';
-
-function getSeverity(delta1h: number): Severity {
-  const abs = Math.abs(delta1h);
-  if (abs >= 1.0) return 'rapid';
-  if (abs >= 0.5) return 'moderate';
-  if (abs >= 0.2) return 'mild';
-  return 'calm';
-}
-
-function severityLabel(severity: Severity, trend: string): string {
-  if (severity === 'rapid') return trend === 'falling' ? 'Rapid Drop' : 'Rapid Rise';
+function severityLabel(severity: EnvSeverity, trend: string): string {
+  if (severity === 'severe') return trend === 'falling' ? 'Severe Drop' : 'Severe Rise';
+  if (severity === 'high') return trend === 'falling' ? 'Sharp Drop' : 'Sharp Rise';
   if (severity === 'moderate') return trend === 'falling' ? 'Dropping' : 'Rising';
-  if (severity === 'mild') return trend === 'falling' ? 'Slight Drop' : 'Slight Rise';
   return 'Stable';
 }
 
-function severityConfig(severity: Severity) {
-  if (severity === 'rapid') return { bg: 'bg-red-500/15', text: 'text-red-300', border: 'border-red-500/30', shadow: 'shadow-glow-red' };
-  if (severity === 'moderate') return { bg: 'bg-amber-500/15', text: 'text-amber-300', border: 'border-amber-500/30', shadow: 'shadow-glow-amber' };
-  if (severity === 'mild') return { bg: 'bg-cyan-500/15', text: 'text-cyan-300', border: 'border-cyan-500/30', shadow: 'shadow-glow-cyan' };
+function severityConfig(severity: EnvSeverity) {
+  if (severity === 'severe') return { bg: 'bg-red-500/15', text: 'text-red-300', border: 'border-red-500/30', shadow: 'shadow-glow-red' };
+  if (severity === 'high') return { bg: 'bg-amber-500/15', text: 'text-amber-300', border: 'border-amber-500/30', shadow: 'shadow-glow-amber' };
+  if (severity === 'moderate') return { bg: 'bg-cyan-500/15', text: 'text-cyan-300', border: 'border-cyan-500/30', shadow: 'shadow-glow-cyan' };
   return { bg: 'bg-emerald-500/15', text: 'text-emerald-300', border: 'border-emerald-500/30', shadow: 'shadow-glow-emerald' };
 }
 
@@ -63,7 +51,7 @@ export default function CurrentConditions({ data, loading, history }: Props) {
 
   const trend = data.derivative?.trend || 'stable';
   const delta1h = data.derivative?.delta1h ?? 0;
-  const severity = getSeverity(delta1h);
+  const severity = classifyPressureRate(delta1h) ?? 'low';
   const config = severityConfig(severity);
 
   // "What changed" context from history

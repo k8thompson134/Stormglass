@@ -77,8 +77,8 @@ function RiskCard({ risk, onClick }: { risk: HealthRisk; onClick: () => void }) 
             {/* Card content */}
             <div className="flex-1 p-4 flex flex-col min-w-0">
                 {/* Title + Risk Level */}
-                <div className="flex items-start justify-between gap-2 mb-2">
-                    <h3 className={`font-bold text-[11px] uppercase tracking-widest leading-tight ${theme.title}`}>
+                <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1 mb-2 min-w-0">
+                    <h3 className={`font-bold text-[11px] uppercase tracking-widest leading-tight flex-1 min-w-0 break-words ${theme.title}`}>
                         {risk.condition}
                     </h3>
                     <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border shrink-0 ${theme.badge}`}>
