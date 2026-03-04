@@ -92,8 +92,8 @@ function RiskCard({ risk, onClick }: { risk: HealthRisk; onClick: () => void }) 
                 </p>
 
                 {/* Footer */}
-                <div className="mt-3 pt-2 border-t border-gray-700/20 flex items-center justify-between">
-                    <span className={`text-[10px] font-mono uppercase tracking-tight truncate max-w-[70%] ${theme.trigger}`}>
+                <div className="mt-3 pt-2 border-t border-gray-700/20 flex items-center justify-between gap-2">
+                    <span className={`text-[10px] font-mono uppercase tracking-tight max-w-[70%] break-words ${theme.trigger}`}>
                         {risk.trigger}
                     </span>
                     <span className={`text-[10px] font-medium opacity-0 group-hover:opacity-80 transition-all duration-300 ${theme.detail}`}>

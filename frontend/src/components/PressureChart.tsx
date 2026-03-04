@@ -318,16 +318,16 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
 
   // Early return AFTER all hooks to satisfy Rules of Hooks
   if (validData.length === 0) {
-    if (loading) return <div className="bg-gray-800/20 rounded-2xl h-[420px] animate-pulse" />;
+    if (loading) return <div className="bg-gray-800/20 rounded-2xl h-[260px] sm:h-[420px] animate-pulse" />;
     return (
-      <div className="bg-gray-800/40 rounded-2xl h-[420px] flex items-center justify-center text-gray-500 text-xs uppercase font-bold tracking-widest text-center px-8">
+      <div className="bg-gray-800/40 rounded-2xl h-[260px] sm:h-[420px] flex items-center justify-center text-gray-500 text-xs uppercase font-bold tracking-widest text-center px-8">
         No Telemetry Data Available for Selected Timeframe
       </div>
     );
   }
 
   return (
-    <div className="bg-[#131d2e] rounded-2xl p-6 border border-[#1e2d45] shadow-xl overflow-hidden">
+    <div className="bg-[#131d2e] rounded-2xl p-4 sm:p-6 border border-[#1e2d45] shadow-xl overflow-hidden">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-gray-300 text-sm font-bold uppercase tracking-wider flex items-center gap-2">
           Pressure Dynamics
@@ -347,7 +347,7 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
       </div>
 
       {/* Data summary bar */}
-      <div className="flex items-center gap-4 mb-4 text-[11px] font-mono text-gray-500">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 text-[11px] font-mono text-gray-500">
         <span>{validData.length} readings</span>
         <span className="text-gray-700">|</span>
         {firstTime && lastTime && (
@@ -397,7 +397,7 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
         </div>
       )}
 
-      <div className="h-[320px] w-full" role="img" aria-label={`Barometric pressure chart showing ${validData.length} readings over the selected time range. Pressure ranges from ${minPressure.toFixed(1)} to ${maxPressure.toFixed(1)} hPa.`}>
+      <div className="h-[260px] sm:h-[320px] w-full" role="img" aria-label={`Barometric pressure chart showing ${validData.length} readings over the selected time range. Pressure ranges from ${minPressure.toFixed(1)} to ${maxPressure.toFixed(1)} hPa.`}>
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={bridgedChartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" vertical={false} opacity={0.3} />
@@ -593,7 +593,7 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
       </div>
 
       {/* Min / Max summary */}
-      <div className="mt-3 flex items-center gap-4 text-[10px] font-mono">
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-mono">
         <span className="text-gray-500">Low: <span className="text-blue-300">{minPressure.toFixed(1)}</span></span>
         <span className="text-gray-500">Avg: <span className="text-indigo-300">{avgPressure.toFixed(1)}</span></span>
         <span className="text-gray-500">High: <span className="text-purple-300">{maxPressure.toFixed(1)}</span></span>

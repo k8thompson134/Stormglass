@@ -60,14 +60,14 @@ function App() {
       <main id="main-content" className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
         <header className="mb-4 sm:mb-8 border-b border-gray-800/60 pb-4 sm:pb-6">
           {/* Row 1: Logo + Title + Settings gear */}
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
               <img
                 src={logo}
                 alt="Stormglass logo"
                 className="w-9 h-9 sm:w-10 sm:h-10 object-contain drop-shadow-[0_0_8px_rgba(6,182,212,0.4)] shrink-0"
               />
-              <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+              <h1 className="text-lg sm:text-2xl font-black tracking-tight text-white">
                 STORMGLASS
               </h1>
             </div>
@@ -88,8 +88,8 @@ function App() {
             </div>
           </div>
           {/* Row 2: Location badge + subtitle */}
-          <div className="flex items-center gap-2 mt-1.5 ml-12 sm:ml-[52px] flex-wrap">
-            <span className="text-[10px] font-bold bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 uppercase tracking-widest">
+          <div className="flex items-center gap-2 mt-1.5 ml-0 sm:ml-12 lg:ml-[52px] flex-wrap">
+            <span className="text-[10px] font-bold bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 uppercase tracking-widest break-words max-w-full sm:max-w-none">
               {locationName || 'Live Reading'}
             </span>
             <p className="text-gray-500 text-[10px] font-mono uppercase tracking-[0.2em] hidden sm:block">Barometric Pressure · Health Impact</p>
