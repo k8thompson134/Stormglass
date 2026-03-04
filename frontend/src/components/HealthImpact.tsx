@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 import { createPortal } from 'react-dom';
 import type { CurrentWeather } from '../services/api';
-import type { HealthRisk, RiskLevel } from '../types/health';
+import type { HealthRisk, RiskLevel, HealthToggles } from '../types/health';
+import { SEVERITY_THEME } from '../utils/severity';
 import {
     getMigraineRisk,
     getPOTSRisk,
@@ -15,6 +17,7 @@ import {
 interface Props {
     data: CurrentWeather | null;
     loading: boolean;
+    healthToggles: HealthToggles;
 }
 
 function RiskCard({ risk, onClick }: { risk: HealthRisk; onClick: () => void }) {
@@ -24,8 +27,8 @@ function RiskCard({ risk, onClick }: { risk: HealthRisk; onClick: () => void }) 
             stripe: 'bg-emerald-500/50',
             title: 'text-gray-300',
             badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-            desc: 'text-gray-500',
-            trigger: 'text-gray-600',
+            desc: 'text-gray-400',
+            trigger: 'text-gray-500',
             detail: 'text-emerald-300',
             glow: 'hover:shadow-glow-emerald',
         },
@@ -107,42 +110,7 @@ function RiskCard({ risk, onClick }: { risk: HealthRisk; onClick: () => void }) 
 
 function DetailModal({ risk, onClose }: { risk: HealthRisk | null; onClose: () => void }) {
     const modalRef = useRef<HTMLDivElement>(null);
-
-    // Focus trap and keyboard handling
-    useEffect(() => {
-        if (!risk) return;
-
-        const previouslyFocused = document.activeElement as HTMLElement | null;
-
-        // Focus the modal on open
-        const timer = setTimeout(() => modalRef.current?.focus(), 0);
-
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') { onClose(); return; }
-            if (e.key !== 'Tab' || !modalRef.current) return;
-
-            const focusable = modalRef.current.querySelectorAll<HTMLElement>(
-                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-            );
-            if (focusable.length === 0) return;
-
-            const first = focusable[0];
-            const last = focusable[focusable.length - 1];
-
-            if (e.shiftKey && document.activeElement === first) {
-                e.preventDefault(); last.focus();
-            } else if (!e.shiftKey && document.activeElement === last) {
-                e.preventDefault(); first.focus();
-            }
-        };
-
-        document.addEventListener('keydown', handleKeyDown);
-        return () => {
-            clearTimeout(timer);
-            document.removeEventListener('keydown', handleKeyDown);
-            previouslyFocused?.focus();
-        };
-    }, [risk, onClose]);
+    useFocusTrap(!!risk, modalRef, { onEscape: onClose });
 
     if (!risk) return null;
 
@@ -177,12 +145,12 @@ function DetailModal({ risk, onClose }: { risk: HealthRisk | null; onClose: () =
                                 <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border ${theme.badge}`}>
                                     {risk.risk} risk
                                 </span>
-                                <span className="text-[10px] text-gray-500 font-mono uppercase">Trigger: {risk.trigger}</span>
+                                <span className="text-[10px] text-gray-400 font-mono uppercase">Trigger: {risk.trigger}</span>
                             </div>
                         </div>
                         <button
                             onClick={onClose}
-                            className="text-gray-500 hover:text-white transition-colors text-xl leading-none w-8 h-8 flex items-center justify-center hover:bg-gray-800/50 rounded-lg"
+                            className="text-gray-400 hover:text-white transition-colors text-xl leading-none w-8 h-8 flex items-center justify-center hover:bg-gray-800/50 rounded-lg"
                             aria-label="Close"
                         >
                             ×
@@ -197,7 +165,7 @@ function DetailModal({ risk, onClose }: { risk: HealthRisk | null; onClose: () =
 
                     {/* Detailed Explanation */}
                     <div className="border-t border-gray-700/30 pt-4">
-                        <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.15em] mb-2">Why This Affects Symptoms</h3>
+                        <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] mb-2">Why This Affects Symptoms</h3>
                         <p className="text-gray-300 text-[13px] leading-relaxed">{risk.detailedExplanation}</p>
                     </div>
 
@@ -205,7 +173,7 @@ function DetailModal({ risk, onClose }: { risk: HealthRisk | null; onClose: () =
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t border-gray-700/30 pt-4">
                         {/* Current Factors */}
                         <div>
-                            <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.15em] mb-2.5">Current Factors</h3>
+                            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] mb-2.5">Current Factors</h3>
                             <ul className="space-y-2">
                                 {risk.currentFactors.map((factor, idx) => (
                                     <li key={idx} className="flex items-start gap-2 text-gray-300">
@@ -218,7 +186,7 @@ function DetailModal({ risk, onClose }: { risk: HealthRisk | null; onClose: () =
 
                         {/* Recommendations */}
                         <div>
-                            <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-[0.15em] mb-2.5">Recommendations</h3>
+                            <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.15em] mb-2.5">Recommendations</h3>
                             <ul className="space-y-2">
                                 {risk.recommendations.map((rec, idx) => (
                                     <li key={idx} className="flex items-start gap-2 text-gray-300">
@@ -236,7 +204,7 @@ function DetailModal({ risk, onClose }: { risk: HealthRisk | null; onClose: () =
     );
 }
 
-export default function HealthImpact({ data, loading }: Props) {
+export default function HealthImpact({ data, loading, healthToggles }: Props) {
     const [selectedRisk, setSelectedRisk] = useState<HealthRisk | null>(null);
 
     if (loading) {
@@ -258,15 +226,25 @@ export default function HealthImpact({ data, loading }: Props) {
     const delta3h = d?.delta3h ?? 0;
     const delta6h = d?.delta6h ?? 0;
 
-    const risks = [
-        getMigraineRisk(delta1h),
-        getPOTSRisk(delta1h, data.humidity, data.temperature),
-        getMECFSRisk(delta1h, delta3h, delta6h),
-        getJointPainRisk(delta1h, data.humidity, data.temperature),
-        getAQIRisk(data.aqi ?? null),
-        getGeomagneticRisk(data.geomagnetic ?? null),
-        getPollenRisk(data.pollen ?? null),
-    ];
+    const risks: HealthRisk[] = [];
+    if (healthToggles.migraine) risks.push(getMigraineRisk(delta1h));
+    if (healthToggles.pots) risks.push(getPOTSRisk(delta1h, data.humidity, data.temperature));
+    if (healthToggles.mecfs) risks.push(getMECFSRisk(delta1h, delta3h, delta6h));
+    if (healthToggles.joints) risks.push(getJointPainRisk(delta1h, data.humidity, data.temperature));
+    if (healthToggles.aqi) risks.push(getAQIRisk(data.aqi ?? null));
+    if (healthToggles.geomagnetic) risks.push(getGeomagneticRisk(data.geomagnetic ?? null));
+    if (healthToggles.pollen) risks.push(getPollenRisk(data.pollen ?? null));
+
+    if (risks.length === 0) {
+        return (
+            <div className="bg-[#131d2e] rounded-2xl p-4 sm:p-6 border border-[#1e2d45] shadow-xl">
+                <h2 className="text-gray-400 text-xs font-medium tracking-wider uppercase mb-2">Health Impact Forecast</h2>
+                <p className="text-[12px] text-gray-400">
+                    All health factors are currently disabled in settings. Turn some on to see weather-related impact.
+                </p>
+            </div>
+        );
+    }
 
     // Sort by severity: severe > high > moderate > low
     const riskOrder: Record<RiskLevel, number> = { severe: 3, high: 2, moderate: 1, low: 0 };
@@ -274,18 +252,17 @@ export default function HealthImpact({ data, loading }: Props) {
     const elevatedRisks = sortedRisks.filter(r => r.risk !== 'low');
     const highestRisk = sortedRisks[0];
 
-    // Body Impact Summary config
+    // Body Impact Summary config – use consistent level naming
     const summaryMap: Record<RiskLevel, { label: string; text: string; bar: string; gradient: string; chipBg: string; chipBorder: string; chipText: string }> = {
-        severe: { label: 'High Impact', text: 'text-red-400', bar: 'bg-red-500', gradient: 'from-red-500/8 via-transparent to-transparent', chipBg: 'bg-red-500/15', chipBorder: 'border-red-500/30', chipText: 'text-red-300' },
-        high: { label: 'Elevated Impact', text: 'text-orange-400', bar: 'bg-orange-500', gradient: 'from-orange-500/8 via-transparent to-transparent', chipBg: 'bg-orange-500/15', chipBorder: 'border-orange-500/30', chipText: 'text-orange-300' },
+        severe: { label: 'Severe Impact', text: 'text-red-400', bar: 'bg-red-500', gradient: 'from-red-500/8 via-transparent to-transparent', chipBg: 'bg-red-500/15', chipBorder: 'border-red-500/30', chipText: 'text-red-300' },
+        high: { label: 'High Impact', text: 'text-orange-400', bar: 'bg-orange-500', gradient: 'from-orange-500/8 via-transparent to-transparent', chipBg: 'bg-orange-500/15', chipBorder: 'border-orange-500/30', chipText: 'text-orange-300' },
         moderate: { label: 'Moderate Impact', text: 'text-amber-400', bar: 'bg-amber-500', gradient: 'from-amber-500/8 via-transparent to-transparent', chipBg: 'bg-amber-500/15', chipBorder: 'border-amber-500/30', chipText: 'text-amber-300' },
-        low: { label: 'All Clear', text: 'text-emerald-400', bar: 'bg-emerald-500', gradient: 'from-emerald-500/8 via-transparent to-transparent', chipBg: 'bg-emerald-500/15', chipBorder: 'border-emerald-500/30', chipText: 'text-emerald-300' },
+        low: { label: 'Low Impact', text: 'text-emerald-400', bar: 'bg-emerald-500', gradient: 'from-emerald-500/8 via-transparent to-transparent', chipBg: 'bg-emerald-500/15', chipBorder: 'border-emerald-500/30', chipText: 'text-emerald-300' },
     };
     const sc = summaryMap[highestRisk.risk];
     const severityIdx = riskOrder[highestRisk.risk]; // 0-3
-    const summaryText = elevatedRisks.length === 0
-        ? 'All environmental factors are within comfortable ranges. No weather-related symptom triggers detected.'
-        : `${elevatedRisks.map(r => r.condition).join(', ')} ${elevatedRisks.length === 1 ? 'is' : 'are'} elevated due to current conditions. ${highestRisk.description}`;
+    const elevatedCount = elevatedRisks.length;
+    const highestRiskLabel = `${highestRisk.condition} (${highestRisk.risk.charAt(0).toUpperCase() + highestRisk.risk.slice(1)})`;
 
     return (
         <div className="bg-[#131d2e] rounded-2xl p-4 sm:p-6 border border-[#1e2d45] shadow-xl">
@@ -297,13 +274,18 @@ export default function HealthImpact({ data, loading }: Props) {
 
                 <div className="relative p-5">
                     {/* Header + Label */}
-                    <div className="flex items-baseline justify-between mb-3">
-                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-500">Body Impact Level</span>
-                        <span className={`text-sm font-black tracking-tight ${sc.text}`}>{sc.label}</span>
+                    <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
+                        <div className="flex flex-col">
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Body Impact Level</span>
+                            <span className="text-[10px] text-gray-400 mt-0.5">
+                                Based on current conditions and short-term forecast
+                            </span>
+                        </div>
+                        <span className={`text-base sm:text-lg font-black tracking-tight ${sc.text}`}>{sc.label}</span>
                     </div>
 
                     {/* Severity Meter Bar */}
-                    <div className="flex gap-1 mb-1.5">
+                    <div className="flex gap-1 mb-2">
                         {[0, 1, 2, 3].map(i => (
                             <div
                                 key={i}
@@ -312,7 +294,7 @@ export default function HealthImpact({ data, loading }: Props) {
                             />
                         ))}
                     </div>
-                    <div className="flex justify-between text-[10px] font-mono uppercase tracking-widest text-gray-600 mb-4">
+                    <div className="flex justify-between text-[11px] font-mono uppercase tracking-widest text-gray-500 mb-3">
                         <span>Low</span>
                         <span>Moderate</span>
                         <span>High</span>
@@ -320,26 +302,37 @@ export default function HealthImpact({ data, loading }: Props) {
                     </div>
 
                     {/* Summary text */}
-                    <p className="text-[11px] text-gray-300/80 leading-relaxed">{summaryText}</p>
+                    <p className="text-[12px] sm:text-[13px] text-gray-300/85 leading-relaxed">
+                        {elevatedCount === 0 ? (
+                            <>All environmental factors are within comfortable ranges. No weather-related symptom triggers detected.</>
+                        ) : (
+                            <>
+                                <span className="font-semibold">{sc.label} today.</span>{' '}
+                                <span className="font-semibold">Highest impact area:</span>{' '}
+                                <span>{highestRiskLabel}.</span>{' '}
+                                {elevatedCount > 1 ? (
+                                    <span className="font-medium text-gray-300/90">
+                                        {elevatedCount} conditions show some weather-related stress.
+                                    </span>
+                                ) : (
+                                    <span className="font-medium text-gray-300/90">
+                                        Other tracked conditions are currently low.
+                                    </span>
+                                )}
+                            </>
+                        )}
+                    </p>
 
                     {/* Affected conditions chips */}
                     {elevatedRisks.length > 0 && (
                         <div className="flex gap-2 mt-3 flex-wrap">
-                            {elevatedRisks.map((r, i) => {
-                                const chipColor = {
-                                    low: 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300',
-                                    moderate: 'bg-yellow-500/15 border-yellow-500/30 text-yellow-300',
-                                    high: 'bg-orange-500/15 border-orange-500/30 text-orange-300',
-                                    severe: 'bg-red-500/15 border-red-500/30 text-red-300',
-                                }[r.risk];
-                                return (
-                                    <span key={i} className={`text-[10px] font-semibold px-3 py-1.5 rounded-lg border flex items-center gap-1.5 ${chipColor}`}>
+                            {elevatedRisks.map((r, i) => (
+                                    <span key={i} className={`text-[10px] font-semibold px-3 py-1.5 rounded-lg border flex items-center gap-1.5 ${SEVERITY_THEME[r.risk].chip}`}>
                                         <span>{r.condition}</span>
                                         <span className="opacity-40">·</span>
                                         <span className="capitalize opacity-70">{r.risk}</span>
                                     </span>
-                                );
-                            })}
+                            ))}
                         </div>
                     )}
                 </div>

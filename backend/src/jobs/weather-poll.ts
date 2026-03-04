@@ -24,16 +24,17 @@ async function runPoll(config: PollConfig): Promise<void> {
     const inserted = await fetchWeatherData(userId, latitude, longitude);
     logger.info({ service: 'weather-poll', inserted }, 'Fetched new weather readings');
 
-    const derivatives = await computePressureDerivatives(userId, location);
+    // Run derivatives and other data fetches in parallel (all depend only on userId/location)
+    const [derivatives, aqInserted, geoInserted, pollenInserted] = await Promise.all([
+      computePressureDerivatives(userId, location),
+      fetchAirQualityData(userId, latitude, longitude),
+      fetchGeomagneticData(userId),
+      fetchPollenData(userId, latitude, longitude),
+    ]);
+
     logger.info({ service: 'weather-poll', derivatives }, 'Computed new pressure derivatives');
-
-    const aqInserted = await fetchAirQualityData(userId, latitude, longitude);
     logger.info({ service: 'air-quality-poll', inserted: aqInserted }, 'Fetched new AQ readings');
-
-    const geoInserted = await fetchGeomagneticData(userId);
     logger.info({ service: 'geomagnetic-poll', inserted: geoInserted }, 'Fetched new Kp readings');
-
-    const pollenInserted = await fetchPollenData(userId, latitude, longitude);
     logger.info({ service: 'pollen-poll', inserted: pollenInserted }, 'Fetched new pollen readings');
   } catch (error) {
     logger.error({ service: 'weather-poll', err: error }, 'Poll cycle failed');

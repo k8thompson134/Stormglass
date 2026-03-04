@@ -27,34 +27,34 @@ export const MIGRAINE_CONFIG: RiskConfig = {
         {
             level: 'severe',
             min: 1.5,
-            description: 'Extremely rapid pressure change detected. High risk of severe migraine.',
-            detailedExplanation: 'Barometric pressure is changing extremely rapidly (>1.5 hPa/hour). This rapid shift causes blood vessels in the brain to expand or contract quickly, triggering the trigeminal nerve which releases inflammatory substances. This cascade effect is a primary trigger for migraine headaches.',
-            factors: ['Blood vessel dilation/constriction likely occurring', 'Trigeminal nerve activation probable'],
-            recommendations: ['Take preventive medication if prescribed', 'Stay in a dark, quiet room', 'Apply cold compress to forehead', 'Stay well-hydrated']
+            description: 'Extreme, fast pressure swings. Very high chance of barometric migraine for sensitive people.',
+            detailedExplanation: 'Barometric pressure is changing extremely quickly (>1.5 hPa/hour). Rapid shifts in outside pressure can change pressure in the sinuses and around blood vessels in the brain. In people prone to migraines this can activate pain pathways (including the trigeminal nerve) and trigger a severe attack.',
+            factors: ['Very rapid change in barometric pressure', 'Strong stimulus to migraine-sensitive pain pathways'],
+            recommendations: ['Use any prescribed preventive or rescue medication early', 'Reduce light, noise, and screen exposure', 'Rest in a quiet space if possible', 'Stay well-hydrated and avoid skipping meals']
         },
         {
             level: 'high',
             min: 0.8,
-            description: 'Significant pressure shift. Migraine triggers are likely.',
-            detailedExplanation: 'Significant barometric pressure changes (0.8-1.5 hPa/hour) can trigger migraines by affecting the pressure differential between the atmosphere and the sinuses/inner ear. This imbalance stimulates nerve endings and can cause vascular changes in the brain.',
-            factors: ['Sinus pressure imbalance possible', 'Vascular changes in progress'],
-            recommendations: ['Monitor for early warning signs', 'Avoid bright lights and loud noises', 'Consider preventive measures', 'Keep rescue medication accessible']
+            description: 'Large pressure shift. Migraine risk is elevated, especially if you are weather-sensitive.',
+            detailedExplanation: 'Significant barometric changes (around 0.8–1.5 hPa/hour) can disturb the balance between outside pressure and pressure in the sinuses and inner ear. This can stress blood vessels and nerves in the head and raise the chance of a migraine if you are pressure-sensitive.',
+            factors: ['Noticeable barometric pressure swing', 'Sinus and inner-ear pressure likely changing'],
+            recommendations: ['Watch for early migraine warning signs', 'Limit bright light and loud environments', 'Keep rescue medication close at hand', 'Prioritize rest and regular hydration']
         },
         {
             level: 'moderate',
             min: 0.4,
-            description: 'Moderate pressure instability. Sensitive individuals may feel symptoms.',
-            detailedExplanation: 'Moderate pressure changes (0.4-0.8 hPa/hour) may trigger migraines in sensitive individuals. The changing atmospheric pressure affects oxygen levels in the blood and can cause slight swelling of blood vessels in the brain, particularly in those predisposed to migraines.',
-            factors: ['Minor vascular changes possible'],
-            recommendations: ['Stay hydrated', 'Maintain regular sleep schedule', 'Avoid known dietary triggers']
+            description: 'Moderate pressure instability. Migraine risk is mild but present for sensitive individuals.',
+            detailedExplanation: 'Moderate pressure changes (about 0.4–0.8 hPa/hour) are enough to bother some migraine-prone people, even if most others feel fine. Small shifts in vessel size and sinus pressure can tip you toward a headache when combined with other triggers like poor sleep or stress.',
+            factors: ['Ongoing but moderate change in barometric pressure'],
+            recommendations: ['Stay hydrated and eat regularly', 'Maintain a consistent sleep schedule', 'Avoid your known personal migraine triggers where possible']
         },
         {
             level: 'low',
             min: 0,
-            description: 'Pressure is stable. Low risk of barometric migraines.',
-            detailedExplanation: 'Barometric pressure is stable. When pressure changes are minimal (<0.4 hPa/hour), there is little atmospheric stress on the body. Blood vessels and sinus cavities maintain equilibrium with the environment, reducing migraine triggers.',
-            factors: ['Atmospheric conditions favorable'],
-            recommendations: ['Good time for outdoor activities', 'Maintain healthy routines']
+            description: 'Pressure is stable. Low risk of barometric migraine from current conditions.',
+            detailedExplanation: 'Barometric pressure is changing very little (<0.4 hPa/hour), so there is minimal environmental stress from pressure itself. This reduces the chance that weather alone will trigger a migraine, though other personal triggers may still matter.',
+            factors: ['Stable barometric pressure', 'Minimal pressure-related stress on the body'],
+            recommendations: ['Good conditions for normal activities', 'Continue usual migraine prevention habits']
         }
     ]
 };
@@ -67,32 +67,32 @@ export const MECFS_CONFIG: RiskConfig = {
         {
             level: 'severe',
             min: 2.5,
-            description: 'Extreme atmospheric turbulence. High likelihood of post-exertional malaise flare.',
-            detailedExplanation: 'Sustained atmospheric instability places significant stress on the body\'s regulatory systems. For those with ME/CFS or Long COVID, this environmental volatility can trigger post-exertional malaise (PEM) even without physical exertion. The body expends extra energy trying to maintain homeostasis during pressure fluctuations, depleting already limited energy reserves and potentially triggering a crash.',
-            factors: ['High metabolic stress from environmental adaptation', 'Energy envelope severely challenged'],
-            recommendations: ['Cancel non-essential activities', 'Rest in bed if possible', 'Avoid all physical and cognitive exertion', 'Prepare for potential PEM crash', 'Have support available for basic needs']
+            description: 'Extreme atmospheric volatility. Very high risk of symptom flare or PEM for sensitive individuals.',
+            detailedExplanation: 'Strong, sustained swings in pressure create ongoing work for the body to keep temperature, blood pressure, and circulation stable. For people with ME/CFS or Long COVID, this extra load can quickly exceed limited energy reserves and trigger a significant flare or post‑exertional malaise, even without extra activity.',
+            factors: ['Heavy regulatory stress from unstable pressure', 'Energy envelope under severe strain'],
+            recommendations: ['Cancel non‑essential plans and rest as much as possible', 'Avoid both physical and cognitive overexertion', 'Prepare support for meals and basic needs if available', 'Use any pacing or PEM‑prevention strategies that work for you']
         },
         {
             level: 'high',
             min: 1.5,
-            description: 'Significant sustained pressure changes. Conserve energy.',
-            detailedExplanation: 'Prolonged atmospheric changes require the body to continuously adjust, consuming energy reserves. This sustained stress can lower the threshold for PEM and increase baseline fatigue, brain fog, and other ME/CFS symptoms.',
-            factors: ['Increased energy expenditure for homeostasis'],
-            recommendations: ['Reduce activity by 50% or more', 'Pace carefully and take frequent breaks', 'Prioritize essential tasks only', 'Monitor for early PEM warning signs']
+            description: 'Strong, sustained pressure changes. Symptoms may worsen unless you conserve energy.',
+            detailedExplanation: 'Prolonged atmospheric instability forces the body to keep adjusting circulation and fluid balance. For ME/CFS or Long COVID, this can raise baseline fatigue, brain fog, and pain, and lower the threshold for PEM.',
+            factors: ['Ongoing pressure volatility increasing energy use', 'Lowered margin for activity before symptoms flare'],
+            recommendations: ['Scale back activity significantly (for example by ~50%)', 'Prioritize only essential tasks and add extra rest breaks', 'Monitor closely for early PEM warning signs and respond quickly']
         },
         {
             level: 'moderate',
             min: 0.8,
-            description: 'Moderate instability might increase baseline fatigue.',
-            detailedExplanation: 'Moderate atmospheric changes may increase baseline symptoms. While not severe, individuals with ME/CFS may notice increased fatigue, reduced cognitive function, or heightened sensitivity to stimuli.',
-            recommendations: ['Pace activities carefully', 'Stay within energy envelope', 'Plan for extra rest periods']
+            description: 'Moderate instability. Some increase in fatigue or sensitivity is possible.',
+            detailedExplanation: 'Moderate atmospheric changes can gently raise background load on the body. People with ME/CFS or Long COVID may notice a little more fatigue, brain fog, or sensory sensitivity than usual.',
+            recommendations: ['Pace activities a bit more conservatively', 'Stay within your usual energy envelope', 'Plan a little extra rest into the day']
         },
         {
             level: 'low',
             min: 0,
-            description: 'Stable environment. Low external risk for PEM crash.',
-            detailedExplanation: 'Atmospheric conditions are stable, minimizing environmental stress on the body. This is an optimal time for those with ME/CFS to engage in carefully paced activities within their energy envelope.',
-            recommendations: ['Good conditions for paced activities', 'Still respect energy limits']
+            description: 'Stable environment. Weather is unlikely to drive PEM on its own.',
+            detailedExplanation: 'Pressure is relatively steady, so there is little extra stress from the weather itself. This is a better time to do gently paced activity within your normal limits, while still respecting your energy boundaries.',
+            recommendations: ['Good conditions for carefully paced activity', 'Continue listening to your body and avoid overexertion']
         }
     ]
 };
@@ -105,34 +105,34 @@ export const GEOMAGNETIC_CONFIG: RiskConfig = {
         {
             level: 'severe',
             min: 7,
-            description: 'Severe G3+ storm. High risk of headache and fatigue.',
-            detailedExplanation: 'A severe geomagnetic storm (G3 or higher) is occurring. Strong solar activity creates disturbances in Earth\'s magnetic field. Some individuals report increased headaches, migraines, fatigue, sleep disturbances, anxiety, and worsening of chronic pain conditions during these events. The mechanism may involve melatonin disruption, changes in blood pressure, or effects on the nervous system.',
-            factors: ['Strong geomagnetic disturbances', 'Melatonin production may be affected', 'Sleep quality may decrease', 'Headache and fatigue triggers present'],
-            recommendations: ['Prioritize sleep and rest', 'Reduce screen time before bed', 'Stay hydrated', 'Manage stress levels', 'Track symptoms for patterns']
+            description: 'Severe geomagnetic storm. Sensitive individuals may have strong headache, fatigue, or sleep disruption.',
+            detailedExplanation: 'A strong geomagnetic storm (G3 or higher) is disturbing Earth’s magnetic field. Some people report more headaches, fatigue, poor sleep, or mood changes during these events. Possible reasons include changes in melatonin, blood pressure, or how the nervous system responds to magnetic shifts.',
+            factors: ['Strong disturbance in Earth’s magnetic field', 'Higher chance of disrupted sleep and nervous system irritation'],
+            recommendations: ['Prioritize good sleep routines and wind‑down time', 'Reduce evening screen exposure if you are sensitive', 'Stay hydrated and manage stress as well as you can', 'Note any symptom patterns you see during strong storms']
         },
         {
             level: 'high',
             min: 5,
-            description: 'G1 Minor storm. Sensitive individuals may feel effects.',
-            detailedExplanation: 'A minor to moderate geomagnetic storm (G1-G2) is occurring. Geomagnetic disturbances can affect sensitive individuals, potentially causing headaches, sleep disruption, mood changes, or increased fatigue. Not everyone is affected, but those who are electromagnetically sensitive may notice symptoms.',
-            factors: ['Moderate geomagnetic activity', 'Sleep patterns may be disrupted', 'Sensitive individuals affected'],
-            recommendations: ['Monitor sleep quality', 'Maintain regular sleep schedule', 'Note any symptom changes', 'Practice stress reduction']
+            description: 'Minor to moderate storm. Sensitive individuals may notice symptoms.',
+            detailedExplanation: 'A minor to moderate geomagnetic storm (G1–G2) is in progress. Many people feel nothing, but those who are sensitive may experience headaches, lighter sleep, or more fatigue than usual.',
+            factors: ['Moderate geomagnetic activity above quiet background levels'],
+            recommendations: ['Maintain a steady sleep schedule', 'Use relaxing evening routines if you struggle with sleep', 'Pay attention to any repeatable patterns with your symptoms']
         },
         {
             level: 'moderate',
             min: 4,
-            description: 'Unsettled geomagnetic activity.',
-            detailedExplanation: 'Geomagnetic activity is unsettled. While not a full storm, some electromagnetically sensitive individuals may notice mild symptoms such as slight headaches, restlessness, or minor sleep disturbances.',
-            factors: ['Mild geomagnetic disturbances'],
-            recommendations: ['Monitor for symptoms', 'Maintain healthy sleep habits']
+            description: 'Unsettled geomagnetic activity. Mild effects are possible in very sensitive people.',
+            detailedExplanation: 'The geomagnetic field is more active than usual but not in a full storm state. A small subset of very sensitive people may notice mild headaches, restlessness, or trouble falling asleep.',
+            factors: ['Slightly elevated geomagnetic activity'],
+            recommendations: ['Keep general sleep and stress‑management habits in place', 'Notice but do not over‑interpret minor changes in how you feel']
         },
         {
             level: 'low',
             min: 0,
-            description: 'Geomagnetic field is quiet.',
-            detailedExplanation: 'Geomagnetic conditions are quiet and stable. Solar activity is low, and Earth\'s magnetic field is calm. This minimizes any potential effects on sensitive individuals.',
-            factors: ['Stable geomagnetic field', 'Minimal electromagnetic disturbances'],
-            recommendations: ['Normal conditions for all activities', 'Good time for restorative sleep']
+            description: 'Geomagnetic field is quiet and stable.',
+            detailedExplanation: 'Solar and geomagnetic activity are low, so the magnetic environment around Earth is calm. This minimizes any potential impact on headache, sleep, or mood for sensitive individuals.',
+            factors: ['Stable geomagnetic field with minimal disturbance'],
+            recommendations: ['Normal conditions for daily activity', 'Good backdrop for restorative sleep routines']
         }
     ]
 };
@@ -145,37 +145,37 @@ export const AQI_CONFIG: RiskConfig = {
         {
             level: 'severe',
             min: 200,
-            description: 'Health alert: increased risk of health effects for everyone.',
-            detailedExplanation: 'Air quality is very unhealthy. High levels of particulate matter (PM2.5, PM10) and pollutants can trigger respiratory distress, worsen asthma and COPD, increase cardiovascular strain, trigger migraines, and cause systemic inflammation. Everyone, especially those with chronic conditions, is at risk.',
-            recommendations: ['Stay indoors with windows closed', 'Use air purifiers if available', 'Avoid all outdoor physical activity', 'Use N95 masks if must go outside', 'Monitor symptoms closely']
+            description: 'Very unhealthy air. Everyone is at increased risk of symptoms or flare‑ups.',
+            detailedExplanation: 'Air quality is very poor (US AQI ≥ 200). High levels of fine particles and gases can irritate the lungs and airways, strain the heart and blood vessels, and trigger headaches or fatigue. People with asthma, COPD, heart disease, or migraine are especially vulnerable, but even healthy people may feel effects.',
+            recommendations: ['Stay indoors with windows closed as much as possible', 'Use an air purifier or filter if available', 'Avoid outdoor physical activity; if you must go out, limit time and intensity', 'Use a well‑fitting respirator (such as N95) if you need to be outside for long', 'Monitor your symptoms and follow any action plans from your clinician']
         },
         {
             level: 'high',
             min: 150,
-            description: 'Unhealthy. Sensitive groups should avoid outdoor exertion.',
-            detailedExplanation: 'Air quality is unhealthy. Particulate matter and pollutants can aggravate respiratory conditions, trigger asthma attacks, worsen cardiovascular symptoms, and increase inflammation. Sensitive individuals (children, elderly, those with chronic conditions) are at significant risk.',
-            recommendations: ['Limit outdoor activities', 'Keep rescue inhalers accessible', 'Close windows, run air filtration', 'Sensitive groups stay indoors']
+            description: 'Unhealthy air. Sensitive groups should limit outdoor time and exertion.',
+            detailedExplanation: 'Air quality is unhealthy (US AQI roughly 150–199). Pollutants and fine particles can aggravate asthma, COPD, and heart conditions, and may trigger headaches or fatigue in sensitive people.',
+            recommendations: ['Limit time spent outdoors, especially for exercise', 'Keep windows closed and use air filtration if you have it', 'Ensure rescue inhalers or other medications are accessible', 'Children, older adults, and people with chronic conditions should stay indoors when possible']
         },
         {
             level: 'moderate',
             min: 100,
-            description: 'Moderate. Acceptable for most, but risk for sensitive groups.',
-            detailedExplanation: 'Air quality is moderate. While acceptable for most people, those with respiratory conditions, cardiovascular disease, or heightened sensitivity may experience mild symptoms such as coughing, shortness of breath, or fatigue.',
-            recommendations: ['Sensitive groups limit prolonged outdoor exertion', 'Monitor symptoms', 'Consider indoor exercise alternatives']
+            description: 'Air quality is acceptable for most, but sensitive people may feel mild effects.',
+            detailedExplanation: 'US AQI around 100–149 is considered moderate to unhealthy for sensitive groups. Most people can be active outside, but those with respiratory or heart conditions may notice coughing, shortness of breath, or tiredness sooner than usual.',
+            recommendations: ['Sensitive groups should limit long or intense outdoor exertion', 'Monitor your breathing and energy; ease up if symptoms appear', 'Consider moving strenuous exercise indoors']
         },
         {
             level: 'low',
             min: 51,
-            description: 'Moderate range — generally acceptable for most people.',
-            detailedExplanation: 'Air quality is in the moderate-to-good range. Most people will not be affected. However, those unusually sensitive to air pollution may experience minor symptoms like mild irritation.',
-            recommendations: ['Safe for most outdoor activities', 'Unusually sensitive individuals may want to limit prolonged exertion']
+            description: 'Slightly elevated pollution. Generally fine, with only mild risk for unusually sensitive people.',
+            detailedExplanation: 'Air quality is in the upper “moderate” band (US AQI 51–99). Most people will not notice any effect, but those who are very sensitive to pollution may feel mild irritation or discomfort during long outdoor activities.',
+            recommendations: ['Safe for most outdoor activities', 'If you are very sensitive, consider shortening or spacing out intense outdoor exercise']
         },
         {
             level: 'low',
             min: 0,
-            description: 'Air quality is satisfactory.',
-            detailedExplanation: 'Air quality is good. Low levels of pollutants pose little to no risk to health. This is optimal for outdoor activities and respiratory health.',
-            recommendations: ['Good conditions for outdoor activities', 'Enjoy fresh air safely']
+            description: 'Air quality is good.',
+            detailedExplanation: 'Pollution levels are low. This is an ideal backdrop for outdoor activity and for people with breathing‑related conditions.',
+            recommendations: ['Excellent conditions for most outdoor activities', 'Good time for movement and fresh air if you feel up to it']
 
         }
     ]

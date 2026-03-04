@@ -11,6 +11,7 @@ import {
   type CurrentWeather,
   type WeatherPoint,
 } from './services/api';
+import type { HealthToggles } from './types/health';
 
 function App() {
   const [current, setCurrent] = useState<CurrentWeather | null>(null);
@@ -20,6 +21,30 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const defaultHealthToggles: HealthToggles = {
+    migraine: true,
+    pots: true,
+    mecfs: true,
+    joints: true,
+    aqi: true,
+    geomagnetic: true,
+    pollen: true,
+  };
+
+  const [healthToggles, setHealthToggles] = useState<HealthToggles>(() => {
+    const stored = typeof window !== 'undefined' ? window.localStorage.getItem('stormglass_health_toggles') : null;
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as Partial<HealthToggles>;
+        if (parsed && typeof parsed === 'object') {
+          return { ...defaultHealthToggles, ...parsed };
+        }
+      } catch {
+        // fall through to default
+      }
+    }
+    return defaultHealthToggles;
+  });
 
   const loadData = useCallback(async (h: number) => {
     try {
@@ -48,9 +73,21 @@ function App() {
     return () => clearInterval(interval);
   }, [hours, loadData]);
 
+  // Persist health toggles when they change
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem('stormglass_health_toggles', JSON.stringify(healthToggles));
+    } catch {
+      // ignore persistence errors
+    }
+  }, [healthToggles]);
+
   const handleHoursChange = (h: number) => {
     setHours(h);
   };
+
+  const usingDefaultLocation = !locationName;
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-slate-900 text-white font-sans selection:bg-blue-500/30">
@@ -59,43 +96,104 @@ function App() {
       </a>
       <main id="main-content" className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
         <header className="mb-4 sm:mb-8 border-b border-gray-800/60 pb-4 sm:pb-6">
-          {/* Row 1: Logo + Title + Settings gear */}
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3 min-w-0">
-              <img
-                src={logo}
-                alt="Stormglass logo"
-                className="w-9 h-9 sm:w-10 sm:h-10 object-contain drop-shadow-[0_0_8px_rgba(6,182,212,0.4)] shrink-0"
-              />
-              <h1 className="text-lg sm:text-2xl font-black tracking-tight text-white">
-                STORMGLASS
-              </h1>
-            </div>
-            <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4 w-full sm:w-auto">
-              <p className="text-[10px] text-gray-600 font-mono uppercase tracking-wider hidden md:block">
-                {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-              </p>
+          {/* Mobile header (<= md) */}
+          <div className="md:hidden">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <img
+                  src={logo}
+                  alt="Stormglass logo"
+                  className="w-8 h-8 object-contain drop-shadow-[0_0_8px_rgba(6,182,212,0.4)] shrink-0"
+                />
+                <span className="text-base font-black tracking-tight text-white truncate">
+                  STORMGLASS
+                </span>
+              </div>
               <button
                 onClick={() => setSettingsOpen(true)}
-                className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-700/50 hover:border-blue-500/50 bg-gray-800/40 hover:bg-blue-500/15 text-gray-400 hover:text-blue-300 transition-all duration-200 shadow-glow-blue hover:shadow-glow-blue"
+                className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-700/50 hover:border-blue-500/50 bg-gray-800/40 hover:bg-blue-500/15 text-gray-400 hover:text-blue-300 transition-all duration-200 shadow-glow-blue hover:shadow-glow-blue shrink-0"
                 title="Settings"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
                   <circle cx="12" cy="12" r="3" />
                 </svg>
               </button>
             </div>
+            <div className="mt-2 space-y-1">
+              <p className="text-[11px] font-semibold text-blue-300 truncate">
+                {locationName || 'Default location'}
+              </p>
+              {/* Restore subtitle visibility for tablet (sm–md) widths */}
+              <p className="hidden sm:block text-[10px] text-gray-400 font-mono uppercase tracking-[0.2em]">
+                Barometric Pressure · Health Impact
+              </p>
+              <p className="text-[10px] text-gray-400 font-mono uppercase tracking-widest">
+                {new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+              </p>
+              {usingDefaultLocation && (
+                <button
+                  type="button"
+                  onClick={() => setSettingsOpen(true)}
+                  className="mt-0.5 inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300"
+                >
+                  Set your location
+                </button>
+              )}
+            </div>
           </div>
-          {/* Row 2: Location badge + subtitle */}
-          <div className="flex flex-col items-start gap-1.5 sm:flex-row sm:items-center sm:gap-2 mt-1.5 ml-0 sm:ml-12 lg:ml-[52px]">
-            <span className="text-[10px] font-bold bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 uppercase tracking-widest break-words max-w-full sm:max-w-none">
-              {locationName || 'Live Reading'}
-            </span>
-            <p className="text-gray-500 text-[10px] font-mono uppercase tracking-[0.2em] hidden sm:block">Barometric Pressure · Health Impact</p>
-            <p className="text-[10px] text-gray-600 font-mono uppercase tracking-wider md:hidden">
-              {new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-            </p>
+
+          {/* Desktop header (>= md) */}
+          <div className="hidden md:block">
+            <div className="flex items-start justify-between gap-8">
+              {/* Left: logo, title, subtitle, location */}
+              <div className="flex items-start gap-4 min-w-0">
+                <img
+                  src={logo}
+                  alt="Stormglass logo"
+                  className="w-10 h-10 object-contain drop-shadow-[0_0_8px_rgba(6,182,212,0.4)] shrink-0"
+                />
+                <div className="space-y-1 min-w-0">
+                  <h1 className="text-2xl font-black tracking-tight text-white">
+                    STORMGLASS
+                  </h1>
+                  <p className="text-[10px] text-gray-400 font-mono uppercase tracking-[0.22em]">
+                    Barometric Pressure · Health Impact
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-bold bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 uppercase tracking-widest">
+                      {locationName || 'Default location'}
+                    </span>
+                    {usingDefaultLocation && (
+                      <button
+                        type="button"
+                        onClick={() => setSettingsOpen(true)}
+                        className="text-[10px] font-semibold text-amber-300 px-2 py-0.5 rounded-full border border-amber-400/40 bg-amber-500/10 hover:bg-amber-500/20 transition-colors"
+                      >
+                        Set your location
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right: date + settings */}
+              <div className="flex flex-col items-end gap-2 shrink-0 text-right">
+                <p className="text-[10px] text-gray-400 font-mono uppercase tracking-wider">
+                  {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                </p>
+                <button
+                  onClick={() => setSettingsOpen(true)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-700/50 hover:border-blue-500/50 bg-gray-800/40 hover:bg-blue-500/15 text-gray-400 hover:text-blue-300 transition-all duration-200 shadow-glow-blue hover:shadow-glow-blue"
+                  title="Settings"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
         </header>
 
@@ -123,13 +221,15 @@ function App() {
         </div>
 
         {/* Bottom Section: Health Impact */}
-        <HealthImpact data={current} loading={loading} />
+        <HealthImpact data={current} loading={loading} healthToggles={healthToggles} />
 
         {/* Settings Modal */}
         <Settings
           open={settingsOpen}
           onClose={() => setSettingsOpen(false)}
           onLocationChanged={() => loadData(hours)}
+          healthToggles={healthToggles}
+          onHealthTogglesChange={setHealthToggles}
         />
       </main>
     </div>

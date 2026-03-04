@@ -57,11 +57,11 @@ export function getGeomagneticRisk(geo: { kpIndex: number; solarWindSpeed: numbe
         condition: 'Geomagnetic Storm',
         risk: 'low',
         trigger: 'Solar Activity',
-        description: 'No geomagnetic data available.',
+      description: 'Geomagnetic data is currently unavailable.',
         icon: '🧲',
-        detailedExplanation: 'Geomagnetic data is currently unavailable.',
-        currentFactors: ['Data unavailable — API connection pending'],
-        recommendations: ['Monitor space weather if sensitive']
+      detailedExplanation: 'The app could not retrieve current geomagnetic information. Conditions may still be quiet, but the system cannot rate this risk level right now.',
+      currentFactors: ['No recent geomagnetic readings available'],
+      recommendations: ['If you know you are sensitive to geomagnetic changes, you can check a trusted space‑weather source directly']
     };
 
     const risk = evaluateRisk(geo.kpIndex, GEOMAGNETIC_CONFIG);
@@ -85,11 +85,11 @@ export function getAQIRisk(aqiData: { usAqi: number; pm25: number; pm10: number;
         condition: 'Air Quality',
         risk: 'low',
         trigger: 'Particulate Matter',
-        description: 'No air quality data available.',
+      description: 'Air quality data is currently unavailable.',
         icon: '🌫️',
-        detailedExplanation: 'Air quality data is currently unavailable.',
-        currentFactors: ['Data unavailable'],
-        recommendations: ['Check local air quality reports']
+      detailedExplanation: 'The app could not retrieve current air quality information, so this risk estimate is based only on other factors.',
+      currentFactors: ['No recent AQI readings from the data source'],
+      recommendations: ['If air quality is a key trigger for you, check a local AQI or pollution report']
     };
 
     const risk = evaluateRisk(aqiData.usAqi, AQI_CONFIG);
@@ -139,23 +139,25 @@ export function getPOTSRisk(delta: number, humidity: number, temp: number): Heal
     const primaryStressor = isVeryHot || isHot ? 'heat' : (isVeryCold || isCold ? 'cold' : 'pressure');
 
     let risk: RiskLevel = 'low';
-    let description = 'Environmental factors for dysautonomia are stable.';
-    let detailedExplanation = 'Environmental conditions are currently stable and favorable for maintaining autonomic balance.';
+  let description = 'Environmental factors for dysautonomia look relatively stable.';
+  let detailedExplanation = 'Right now, temperature, humidity, and pressure changes are not adding much extra load on your autonomic nervous system.';
     const currentFactors: string[] = [];
     const recommendations: string[] = [];
 
     // Severity calculation strategy
     if (score >= 5) {
         risk = 'severe';
-        description = 'Extreme heat/cold and pressure volatility. High risk of POTS symptoms.';
-        detailedExplanation = 'Multiple environmental stressors (temperature and pressure volatility) are combining, which can significantly challenge autonomic regulation and increase symptom severity.';
-        recommendations.push(primaryStressor === 'heat' ? 'Stay in cool environment' : 'Stay warm');
+      description = 'Strong combination of heat/cold, humidity, and pressure swings. High risk of POTS symptom flare.';
+      detailedExplanation = 'Several stressors are stacking at once (temperature extremes, humidity, and rapid pressure changes). Together they can make it harder for your body to regulate heart rate and blood pressure, increasing chances of dizziness, tachycardia, and fatigue.';
+      recommendations.push(primaryStressor === 'heat' ? 'Stay in the coolest comfortable environment you can' : 'Stay in a warm, draft‑free space');
     } else if (score >= 3) {
         risk = 'high';
-        description = 'Weather conditions may worsen orthostatic intolerance.';
+      description = 'Weather conditions may noticeably worsen orthostatic intolerance.';
+      detailedExplanation = 'Heat, cold, humidity, and pressure shifts are adding clear extra load for your autonomic nervous system. This can make standing or being upright more draining, and you may notice more dizziness, brain fog, or heart‑rate spikes than usual.';
     } else if (score >= 1) {
         risk = 'moderate';
-        description = 'Minor weather stressors present.';
+      description = 'Mild weather stressors are present and could nudge symptoms upward.';
+      detailedExplanation = 'There are some mild temperature, humidity, or pressure changes today. On their own they are not extreme, but they can slightly increase orthostatic stress, especially if you are already pushing your limits.';
     }
 
     currentFactors.push(`Temperature: ${tempF}°F`);
@@ -168,7 +170,7 @@ export function getPOTSRisk(delta: number, humidity: number, temp: number): Heal
         trigger: 'Combined Factors',
         description,
         icon: '🫀',
-        detailedExplanation: detailedExplanation || description, // fallback
+      detailedExplanation: detailedExplanation || description, // fallback
         currentFactors,
         recommendations: ['Stay hydrated', 'Monitor symptoms', ...recommendations]
     };
@@ -191,11 +193,13 @@ export function getJointPainRisk(delta: number, humidity: number, temp: number):
         condition: 'Joint Pain (Arthritis)',
         risk,
         trigger: 'Pressure/Cold/Humidity',
-        description: risk === 'low' ? 'Conditions favorable for joint comfort.' : 'Weather may aggravate joint pain.',
-        icon: '🦴',
-        detailedExplanation: 'Pressure changes, cold, and humidity can affect joint comfort.',
-        currentFactors: [`Temp: ${tempF}°F`, `Humidity: ${humidity.toFixed(0)}%`, `Pressure Δ: ${delta.toFixed(2)}`],
-        recommendations: ['Stay warm', 'Gentle movement']
+      description: risk === 'low'
+          ? 'Conditions look friendly for joint comfort.'
+          : 'Today’s pressure, temperature, and humidity may aggravate joint pain.',
+      icon: '🦴',
+      detailedExplanation: 'Rapid pressure shifts, cold air, and damp conditions can change how joints and surrounding tissues feel. In people with arthritis or similar conditions, this may show up as stiffness, aching, or swelling.',
+      currentFactors: [`Temperature: ${tempF}°F`, `Humidity: ${humidity.toFixed(0)}%`, `Pressure change: ${delta.toFixed(2)} hPa/hour`],
+      recommendations: ['Keep joints warm and protected', 'Use gentle movement or stretching within your comfort range']
     };
 }
 
@@ -206,18 +210,18 @@ export function getPollenRisk(pollen: { treeIndex: number; grassIndex: number; w
 
     const maxIndex = Math.max(pollen.treeIndex, pollen.grassIndex, pollen.weedIndex, pollen.moldIndex);
     let risk: RiskLevel = 'low';
-    if (maxIndex >= 5) risk = 'severe';
-    else if (maxIndex >= 4) risk = 'high';
-    else if (maxIndex >= 3) risk = 'moderate';
+  if (maxIndex >= 5) risk = 'severe';
+  else if (maxIndex >= 4) risk = 'high';
+  else if (maxIndex >= 3) risk = 'moderate';
 
     return {
         condition: 'Pollen & Mold',
         risk,
         trigger: 'Allergen Index',
-        description: `Allergen levels are ${['None', 'Very Low', 'Low', 'Medium', 'High', 'Very High'][maxIndex] || 'Unknown'}.`,
+      description: `Airborne allergen levels are ${['none', 'very low', 'low', 'medium', 'high', 'very high'][maxIndex] || 'unknown'}.`,
         icon: '🌿',
-        detailedExplanation: 'Pollen and mold can trigger inflammation.',
-        currentFactors: [`Max Index: ${maxIndex}`],
-        recommendations: ['Monitor local reports']
+      detailedExplanation: 'Tree, grass, weed pollen and mold spores can irritate the nose, sinuses, lungs, and eyes. For people with allergies, this may increase congestion, sneezing, cough, or asthma symptoms.',
+      currentFactors: [`Highest allergen index today: ${maxIndex}`],
+      recommendations: ['Monitor local pollen reports if allergies are a major trigger for you']
     };
 }

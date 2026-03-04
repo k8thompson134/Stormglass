@@ -1,13 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { fetchSettings, updateLocation, geocodeSearch, type GeoResult } from '../services/api';
+import type { HealthToggles, HealthConditionKey } from '../types/health';
+import { useFocusTrap } from '../hooks/useFocusTrap';
 
 interface SettingsProps {
     open: boolean;
     onClose: () => void;
     onLocationChanged: () => void;
+    healthToggles: HealthToggles;
+    onHealthTogglesChange: (toggles: HealthToggles) => void;
 }
 
-export default function Settings({ open, onClose, onLocationChanged }: SettingsProps) {
+export default function Settings({ open, onClose, onLocationChanged, healthToggles, onHealthTogglesChange }: SettingsProps) {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<GeoResult[]>([]);
     const [searching, setSearching] = useState(false);
@@ -18,39 +22,7 @@ export default function Settings({ open, onClose, onLocationChanged }: SettingsP
     const [saved, setSaved] = useState(false);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const modalRef = useRef<HTMLDivElement>(null);
-
-    // Focus trap
-    useEffect(() => {
-        if (!open) return;
-
-        const previouslyFocused = document.activeElement as HTMLElement | null;
-        const timer = setTimeout(() => modalRef.current?.focus(), 0);
-
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key !== 'Tab' || !modalRef.current) return;
-
-            const focusable = modalRef.current.querySelectorAll<HTMLElement>(
-                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-            );
-            if (focusable.length === 0) return;
-
-            const first = focusable[0];
-            const last = focusable[focusable.length - 1];
-
-            if (e.shiftKey && document.activeElement === first) {
-                e.preventDefault(); last.focus();
-            } else if (!e.shiftKey && document.activeElement === last) {
-                e.preventDefault(); first.focus();
-            }
-        };
-
-        document.addEventListener('keydown', handleKeyDown);
-        return () => {
-            clearTimeout(timer);
-            document.removeEventListener('keydown', handleKeyDown);
-            previouslyFocused?.focus();
-        };
-    }, [open]);
+    useFocusTrap(open, modalRef, { onEscape: onClose });
 
     // Load current settings
     useEffect(() => {
@@ -101,16 +73,6 @@ export default function Settings({ open, onClose, onLocationChanged }: SettingsP
         return () => document.removeEventListener('mousedown', handleClick);
     }, [open, onClose]);
 
-    // Close on Escape
-    useEffect(() => {
-        if (!open) return;
-        const handleKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose();
-        };
-        document.addEventListener('keydown', handleKey);
-        return () => document.removeEventListener('keydown', handleKey);
-    }, [open, onClose]);
-
     const selectLocation = async (result: GeoResult) => {
         setSaving(true);
         setSaved(false);
@@ -134,7 +96,7 @@ export default function Settings({ open, onClose, onLocationChanged }: SettingsP
     if (!open) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto py-6 sm:py-10">
             {/* Backdrop */}
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
 
@@ -145,7 +107,7 @@ export default function Settings({ open, onClose, onLocationChanged }: SettingsP
                 aria-modal="true"
                 aria-label="Settings"
                 tabIndex={-1}
-                className="relative w-full max-w-lg mx-4 bg-[#131d2e] border border-[#1e2d45] rounded-2xl shadow-2xl overflow-hidden outline-none"
+                className="relative w-full max-w-lg mx-4 bg-[#131d2e] border border-[#1e2d45] rounded-2xl shadow-2xl outline-none max-h-[90vh] flex flex-col"
             >
                 {/* Header */}
                 <div className="flex items-center justify-between p-5 border-b border-[#1e2d45]">
@@ -153,27 +115,31 @@ export default function Settings({ open, onClose, onLocationChanged }: SettingsP
                     <button
                         onClick={onClose}
                         aria-label="Close settings"
-                        className="text-gray-500 hover:text-white transition-colors text-lg leading-none w-8 h-8 flex items-center justify-center hover:bg-white/5 rounded-lg"
+                        className="text-gray-400 hover:text-white transition-colors text-lg leading-none w-8 h-8 flex items-center justify-center hover:bg-white/5 rounded-lg"
                     >
                         ×
                     </button>
                 </div>
 
-                <div className="p-5 space-y-5">
+                <div className="p-5 space-y-5 overflow-y-auto">
                     {/* Current Location */}
                     <div>
-                        <label className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block mb-2">
+                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-2">
                             Current Location
                         </label>
-                        <div className="bg-[#0f172a] rounded-xl p-4 border border-[#1e2d45]">
+                        <div className="bg-[#0f172a] rounded-xl p-4 border border-[#1e2d45] space-y-1.5">
                             {currentName ? (
                                 <div className="text-white text-sm font-semibold">{currentName}</div>
                             ) : (
-                                <div className="text-gray-400 text-sm font-mono">
-                                    {currentLat}, {currentLon}
-                                </div>
+                                <>
+                                    <div className="text-gray-300 text-sm font-semibold">Default location</div>
+                                    <p className="text-[11px] text-amber-300">
+                                        Stormglass is using a built-in default location. Use{" "}
+                                        <span className="font-semibold">Change Location</span> below to set your own.
+                                    </p>
+                                </>
                             )}
-                            <div className="text-[10px] text-gray-600 font-mono mt-1">
+                            <div className="text-[10px] text-gray-500 font-mono">
                                 {currentLat}°N, {currentLon}°W
                             </div>
                         </div>
@@ -183,7 +149,7 @@ export default function Settings({ open, onClose, onLocationChanged }: SettingsP
                     <div>
                         <label
                             htmlFor="location-search"
-                            className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block mb-2"
+                            className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-2"
                         >
                             Change Location
                         </label>
@@ -216,9 +182,9 @@ export default function Settings({ open, onClose, onLocationChanged }: SettingsP
                                         <div className="text-white text-sm font-medium group-hover:text-blue-300 transition-colors">
                                             {r.name}
                                         </div>
-                                        <div className="text-[10px] text-gray-500 mt-0.5">
+                                        <div className="text-[10px] text-gray-400 mt-0.5">
                                             {r.state ? `${r.state}, ` : ''}{r.country}
-                                            <span className="text-gray-700 ml-2 font-mono">
+                                            <span className="text-gray-500 ml-2 font-mono">
                                                 {r.latitude.toFixed(2)}°, {r.longitude.toFixed(2)}°
                                             </span>
                                         </div>
@@ -228,8 +194,69 @@ export default function Settings({ open, onClose, onLocationChanged }: SettingsP
                         )}
 
                         {query.length >= 2 && !searching && results.length === 0 && (
-                            <div className="mt-2 text-gray-600 text-xs px-1">No results found</div>
+                            <div className="mt-2 text-gray-500 text-xs px-1">No results found</div>
                         )}
+                    </div>
+
+                    {/* Health factors */}
+                    <div>
+                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-2">
+                            Health Factors Shown
+                        </label>
+                        <p className="text-[11px] text-gray-400 mb-3">
+                            Choose which conditions to show in the Health Impact Forecast.
+                        </p>
+                        <div className="bg-[#0f172a] rounded-xl border border-[#1e2d45] overflow-hidden">
+                            {[
+                                ['migraine', 'Migraines'],
+                                ['pots', 'POTS / Dysautonomia'],
+                                ['mecfs', 'ME/CFS / PEM'],
+                                ['joints', 'Joint Pain (Arthritis)'],
+                                ['aqi', 'Air Quality'],
+                                ['geomagnetic', 'Geomagnetic Storms'],
+                                ['pollen', 'Pollen & Mold'],
+                            ].map(([key, label]) => {
+                                const k = key as HealthConditionKey;
+                                const isOn = healthToggles[k];
+                                return (
+                                    <label
+                                        key={k}
+                                        className={`
+                                            flex items-center gap-3 cursor-pointer select-none
+                                            px-4 py-3 border-b border-[#1e2d45] last:border-b-0
+                                            transition-colors duration-200
+                                            hover:bg-blue-500/5
+                                            ${isOn ? 'bg-blue-500/10' : ''}
+                                        `}
+                                    >
+                                        <span
+                                            className={`
+                                                flex h-4 w-4 shrink-0 items-center justify-center rounded border
+                                                transition-colors duration-200
+                                                ${isOn
+                                                    ? 'border-blue-500/50 bg-blue-500/20 text-blue-300'
+                                                    : 'border-[#1e2d45] bg-[#131d2e]'
+                                                }
+                                            `}
+                                            aria-hidden
+                                        >
+                                            {isOn && (
+                                                <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                </svg>
+                                            )}
+                                        </span>
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only"
+                                            checked={isOn}
+                                            onChange={e => onHealthTogglesChange({ ...healthToggles, [k]: e.target.checked })}
+                                        />
+                                        <span className="text-sm font-medium text-gray-200">{label}</span>
+                                    </label>
+                                );
+                            })}
+                        </div>
                     </div>
 
                     {/* Status */}
@@ -251,7 +278,7 @@ export default function Settings({ open, onClose, onLocationChanged }: SettingsP
 
                     {/* Feedback */}
                     <div className="border-t border-[#1e2d45] pt-5">
-                        <label className="text-[10px] text-gray-500 font-bold uppercase tracking-wider block mb-2">
+                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-2">
                             Help Us Improve
                         </label>
                         <a
@@ -266,7 +293,7 @@ export default function Settings({ open, onClose, onLocationChanged }: SettingsP
                                 <path d="M7 17L17 7" />
                             </svg>
                         </a>
-                        <p className="text-[10px] text-gray-600 mt-2">Share your experience and help shape Stormglass</p>
+                        <p className="text-[10px] text-gray-400 mt-2">Share your experience and help shape Stormglass</p>
                     </div>
                 </div>
 
@@ -274,7 +301,7 @@ export default function Settings({ open, onClose, onLocationChanged }: SettingsP
                 <div className="px-5 py-3 border-t border-[#1e2d45] flex justify-end">
                     <button
                         onClick={onClose}
-                        className="text-xs text-gray-500 hover:text-white px-4 py-2 rounded-lg hover:bg-white/5 transition-colors"
+                        className="text-xs text-gray-400 hover:text-white px-4 py-2 rounded-lg hover:bg-white/5 transition-colors"
                     >
                         Close
                     </button>

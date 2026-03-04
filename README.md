@@ -60,7 +60,7 @@ cd ../backend && npm install
 
 # Set up environment
 cp backend/.env.example backend/.env
-# Edit .env with your database connection
+# Edit .env with your database connection (see Environment Variables below)
 
 # Set up database
 cd backend
@@ -117,6 +117,26 @@ stormglass/
 ├── Dockerfile             # Backend container
 └── .env.example           # Example environment variables
 ```
+
+## Environment Variables
+
+Backend reads from `backend/.env` or a `.env` in the project root. All variables are validated at startup via `backend/src/env.ts`.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DATABASE_URL` | Yes | — | PostgreSQL connection string (e.g. `postgresql://user:pass@host:port/dbname`). |
+| `NODE_ENV` | No | `development` | `production` enables stricter env checks (see below). |
+| `PORT` | No | `3000` | Server listen port. |
+| `HOST` | No | `0.0.0.0` | Server listen host. |
+| `DEFAULT_LATITUDE` | No | `40.7128` | Default location latitude for weather polling. |
+| `DEFAULT_LONGITUDE` | No | `-74.0060` | Default location longitude. |
+| `CORS_ORIGIN` | **In prod** | — | Comma-separated allowed origins (e.g. `https://app.example.com`). Required when `NODE_ENV=production`. |
+| `API_TOKEN` | **In prod** | — | Bearer token for `/api/*` routes. Required when `NODE_ENV=production`; if unset in dev, API is unauthenticated. |
+| `TOMORROW_API_KEY` | No | — | Optional. If set, enables pollen data from Tomorrow.io; otherwise pollen is skipped. |
+
+Frontend (Vite) uses env vars prefixed with `VITE_` (e.g. `VITE_API_URL`, `VITE_API_TOKEN`). Set these when building for production so the client talks to the correct API and sends the token if required.
+
+**Deployment:** Do not commit `.env` (it is in `.gitignore`). Configure production secrets via your platform’s environment (e.g. Docker env, PaaS config, or secrets manager). The app fails fast on missing required variables.
 
 ## Data Model
 

@@ -37,6 +37,8 @@ await app.register(fastifyRateLimit, {
 
 await app.register(fastifyWebsocket);
 
+// WebSocket /ws is intentionally unauthenticated and must not be used for
+// user-specific or sensitive data. Auth applies only to /api/* routes below.
 // Auth: bearer token check on /api/* routes (skipped when API_TOKEN is not set)
 if (env.API_TOKEN) {
   app.addHook('onRequest', async (request, reply) => {
@@ -57,7 +59,7 @@ app.get('/health', async (request, reply) => {
   return { status: 'ok', timestamp: new Date().toISOString() };
 });
 
-// WebSocket endpoint
+// WebSocket endpoint (public; do not send sensitive or user-specific data)
 app.get('/ws', { websocket: true }, (connection) => {
   connection.on('message', (data: Buffer) => {
     const message = data.toString();
@@ -68,6 +70,25 @@ app.get('/ws', { websocket: true }, (connection) => {
   connection.on('close', () => {
     app.log.info('Client disconnected');
   });
+});
+
+// Stricter rate limit for geocoding (proxy to third-party API)
+const geocodeLimit = new Map<string, { count: number; resetAt: number }>();
+const GEOCODE_MAX = 20;
+const GEOCODE_WINDOW_MS = 60_000;
+app.addHook('onRequest', async (request, reply) => {
+  if (request.url?.startsWith('/api/geocode') !== true) return;
+  const ip = request.ip;
+  const now = Date.now();
+  let entry = geocodeLimit.get(ip);
+  if (!entry || now >= entry.resetAt) {
+    entry = { count: 0, resetAt: now + GEOCODE_WINDOW_MS };
+    geocodeLimit.set(ip, entry);
+  }
+  entry.count++;
+  if (entry.count > GEOCODE_MAX) {
+    return reply.status(429).send({ error: 'Too many geocode requests', retryAfter: 60 });
+  }
 });
 
 // API routes

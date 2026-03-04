@@ -1,6 +1,6 @@
 import type { CurrentWeather, WeatherPoint } from '../services/api';
 import { toF } from '../utils/conversions';
-import { classifyPressureRate, type EnvSeverity } from '../utils/severity';
+import { classifyPressureRate, SEVERITY_THEME, type EnvSeverity } from '../utils/severity';
 
 interface Props {
   data: CurrentWeather | null;
@@ -15,10 +15,7 @@ function severityLabel(severity: EnvSeverity, trend: string): string {
 }
 
 function severityConfig(severity: EnvSeverity) {
-  if (severity === 'severe') return { bg: 'bg-red-500/15', text: 'text-red-300', border: 'border-red-500/30', shadow: 'shadow-glow-red' };
-  if (severity === 'high') return { bg: 'bg-amber-500/15', text: 'text-amber-300', border: 'border-amber-500/30', shadow: 'shadow-glow-amber' };
-  if (severity === 'moderate') return { bg: 'bg-cyan-500/15', text: 'text-cyan-300', border: 'border-cyan-500/30', shadow: 'shadow-glow-cyan' };
-  return { bg: 'bg-emerald-500/15', text: 'text-emerald-300', border: 'border-emerald-500/30', shadow: 'shadow-glow-emerald' };
+  return SEVERITY_THEME[severity].badge;
 }
 
 function trendIcon(trend: string) {
@@ -74,7 +71,7 @@ export default function CurrentConditions({ data, loading, history }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-gray-400 text-xs font-medium tracking-wider uppercase">Current Conditions</h2>
-        <span className="text-[10px] text-gray-600 font-mono">
+        <span className="text-[10px] text-gray-500 font-mono">
           {new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </span>
       </div>
@@ -83,34 +80,38 @@ export default function CurrentConditions({ data, loading, history }: Props) {
       <div className="mb-4">
         <div className="flex items-baseline gap-2">
           <span className="text-4xl font-bold text-white tracking-tight">{data.pressure.toFixed(1)}</span>
-          <span className="text-sm text-gray-500 font-medium">hPa</span>
-          <span className={`ml-auto px-3 py-1 rounded-lg text-[10px] font-bold border ${config.bg} ${config.text} ${config.border} ${config.shadow} transition-shadow`}>
+          <span className="text-sm text-gray-400 font-medium">hPa</span>
+          <span
+            className={`ml-auto px-3 py-1 rounded-lg text-[10px] font-bold border ${config.bg} ${config.text} ${config.border} ${config.shadow} transition-shadow`}
+            role="status"
+            aria-label={`Pressure change severity: ${severity}. ${severityLabel(severity, trend)} over the last hour.`}
+          >
             {trendIcon(trend)} {severityLabel(severity, trend)}
           </span>
         </div>
         <p className={`text-xs font-medium mt-1 ${config.text}`}>
           {delta1h >= 0 ? '+' : ''}{delta1h.toFixed(2)} hPa/h
-          <span className="text-gray-600 text-[10px] font-normal ml-1">last hour</span>
+          <span className="text-gray-500 text-[10px] font-normal ml-1">last hour</span>
         </p>
       </div>
 
       {/* Secondary metrics grid */}
       <div className="grid grid-cols-2 gap-2">
         <div className="bg-gray-900/40 rounded-lg p-2.5 border border-gray-700/30">
-          <p className="text-[10px] text-gray-500 font-mono uppercase tracking-widest">Temp</p>
-          <p className="text-base font-bold text-gray-200 mt-0.5">{toF(data.temperature)}<span className="text-xs text-gray-500 font-normal">°F</span></p>
+          <p className="text-[10px] text-gray-400 font-mono uppercase tracking-widest">Temp</p>
+          <p className="text-base font-bold text-gray-200 mt-0.5">{toF(data.temperature)}<span className="text-xs text-gray-400 font-normal">°F</span></p>
         </div>
         <div className="bg-gray-900/40 rounded-lg p-2.5 border border-gray-700/30">
           <p className="text-[10px] text-gray-500 font-mono uppercase tracking-widest">Humidity</p>
           <p className="text-base font-bold text-gray-200 mt-0.5">{data.humidity.toFixed(0)}<span className="text-xs text-gray-500 font-normal">%</span></p>
         </div>
         <div className="bg-gray-900/40 rounded-lg p-2.5 border border-gray-700/30">
-          <p className="text-[10px] text-gray-500 font-mono uppercase tracking-widest">Dew Point</p>
-          <p className="text-base font-bold text-gray-200 mt-0.5">{toF(data.dewPoint)}<span className="text-xs text-gray-500 font-normal">°F</span></p>
+          <p className="text-[10px] text-gray-400 font-mono uppercase tracking-widest">Dew Point</p>
+          <p className="text-base font-bold text-gray-200 mt-0.5">{toF(data.dewPoint)}<span className="text-xs text-gray-400 font-normal">°F</span></p>
         </div>
         <div className="bg-gray-900/40 rounded-lg p-2.5 border border-gray-700/30">
-          <p className="text-[10px] text-gray-500 font-mono uppercase tracking-widest">Wind</p>
-          <p className="text-base font-bold text-gray-200 mt-0.5">{data.windSpeed.toFixed(1)} <span className="text-[10px] text-gray-500 font-normal">m/s</span></p>
+          <p className="text-[10px] text-gray-400 font-mono uppercase tracking-widest">Wind</p>
+          <p className="text-base font-bold text-gray-200 mt-0.5">{data.windSpeed.toFixed(1)} <span className="text-[10px] text-gray-400 font-normal">m/s</span></p>
         </div>
       </div>
 
@@ -123,7 +124,7 @@ export default function CurrentConditions({ data, loading, history }: Props) {
               <span>{context.pChange > 0 ? '↑' : '↓'} {Math.abs(context.pChange).toFixed(1)} hPa vs High</span>
               {context.tRange >= 5 && <span className="text-gray-400">{context.lowTF}° – {context.highTF}°F</span>}
             </div>
-            <div className="text-gray-600">
+            <div className="text-gray-500">
               <span>Range: {context.lowP.toFixed(1)} – {context.highP.toFixed(1)} hPa</span>
             </div>
           </div>
@@ -133,7 +134,7 @@ export default function CurrentConditions({ data, loading, history }: Props) {
         {data.aqi && (
           <div className="border-t border-gray-700/20 py-2.5 flex items-center justify-between flex-wrap gap-1.5 text-[10px]">
             <div className="flex items-center gap-1.5">
-              <span className="text-gray-500 font-mono uppercase tracking-wider text-[10px]">AQI</span>
+              <span className="text-gray-400 font-mono uppercase tracking-wider text-[10px]">AQI</span>
               <span className={`font-bold ${data.aqi.usAqi >= 200 ? 'text-red-300' :
                 data.aqi.usAqi >= 150 ? 'text-orange-300' :
                   data.aqi.usAqi >= 100 ? 'text-amber-300' :
@@ -150,7 +151,7 @@ export default function CurrentConditions({ data, loading, history }: Props) {
                   data.aqi.usAqi >= 100 ? 'Sensitive' : data.aqi.usAqi >= 51 ? 'Moderate' : 'Good'}
               </span>
             </div>
-            <span className="text-gray-600 font-mono text-[10px]">PM2.5: {data.aqi.pm25.toFixed(1)} · PM10: {data.aqi.pm10.toFixed(1)}</span>
+            <span className="text-gray-500 font-mono text-[10px]">PM2.5: {data.aqi.pm25.toFixed(1)} · PM10: {data.aqi.pm10.toFixed(1)}</span>
           </div>
         )}
       </div>

@@ -79,3 +79,7 @@ ehthumbs.db
 # Temp
 /tmp/
 *.tmp
+
+# Cache / tooling
+.cache/
+.turbo/
