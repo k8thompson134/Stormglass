@@ -1,183 +1,241 @@
 # Stormglass
 
-A progressive web app that tracks environmental conditions and correlates them with chronic illness symptoms. Designed for people with ME/CFS, Long COVID, POTS, fibromyalgia, and other conditions where weather patterns drive symptom flares.
+> A progressive web app that tracks environmental conditions and correlates them with chronic illness symptoms.
 
-## Key Features
+Designed for people living with **ME/CFS, Long COVID, POTS, fibromyalgia**, and other conditions where weather patterns drive symptom flares.
 
-- **Real-time barometric pressure dashboard** with rate-of-change visualization and forecast overlay
-- **Correlation analysis view** overlaying symptom severity scores on environmental timelines with adjustable time-lag shifting
-- **User-configurable alerts** when environmental conditions cross personal thresholds
-- **Low-friction symptom logging** with quick-entry sliders, preset tags, offline support, and flexible timestamps
-- **Optional Raspberry Pi sensor integration** for hyper-local per-minute data (pressure, temperature, humidity)
-- **Works offline** with Workbox PWA support
-- **Multi-user architecture** supporting server-side location-based polling
+---
+
+## Table of Contents
+
+- [Features](#features)
+- [Tech Stack](#tech-stack)
+- [Quick Start](#quick-start)
+- [Project Structure](#project-structure)
+- [Environment Variables](#environment-variables)
+- [Data Model](#data-model)
+- [Architecture Decisions](#architecture-decisions)
+- [Storage Estimates](#storage-estimates)
+- [Contributing](#contributing)
+- [License](#license)
+
+---
+
+## Features
+
+- **Barometric pressure dashboard** — real-time rate-of-change visualization with forecast overlay
+- **Correlation analysis** — overlay symptom severity scores on environmental timelines with adjustable time-lag shifting
+- **Configurable alerts** — notifications when conditions cross your personal thresholds
+- **Low-friction symptom logging** — quick-entry sliders, preset tags, offline support, and flexible timestamps
+- **Raspberry Pi sensor integration** — optional hyper-local per-minute data (pressure, temperature, humidity)
+- **Offline-first PWA** — Workbox service worker keeps the app functional without a connection
+- **Multi-user support** — server-side location-based polling per account
+
+---
 
 ## Tech Stack
 
 ### Frontend
-- React 18 + TypeScript + Vite
-- Recharts for interactive time-series charts
-- Tailwind CSS for styling
-- Workbox (via vite-plugin-pwa) for PWA/offline support
-- WebSocket for real-time sensor updates
+
+| Tool | Purpose |
+|------|---------|
+| React 18 + TypeScript + Vite | UI framework |
+| Recharts | Interactive time-series charts |
+| Tailwind CSS | Styling |
+| Workbox / vite-plugin-pwa | PWA & offline support |
+| WebSocket | Real-time sensor updates |
 
 ### Backend
-- Node.js + Fastify + TypeScript
-- PostgreSQL 16 with Drizzle ORM
-- Cron jobs for data ingestion and computations
-- MQTT broker (Mosquitto) for Pi sensor communication
-- WebSocket support for real-time updates
+
+| Tool | Purpose |
+|------|---------|
+| Node.js + Fastify + TypeScript | HTTP server |
+| PostgreSQL 16 + Drizzle ORM | Database |
+| Cron jobs | Data ingestion & computations |
+| Mosquitto MQTT | Raspberry Pi sensor communication |
+| WebSocket | Real-time push updates |
 
 ### Infrastructure
-- Docker + Docker Compose
-- Caddy reverse proxy with auto HTTPS
-- PM2 for process management
-- DigitalOcean or Hetzner VPS
+
+| Tool | Purpose |
+|------|---------|
+| Docker + Docker Compose | Container orchestration |
+| Caddy | Reverse proxy with auto HTTPS |
+| PM2 | Process management |
+| DigitalOcean / Hetzner VPS | Hosting |
 
 ### Data Sources (All Free)
-- **Open-Meteo** — hourly/15-min pressure, temp, humidity, wind, UV, cloud cover, precipitation, 80+ year archive
-- **Open-Meteo Air Quality** — PM2.5, PM10, ozone, NO2, SO2, CO, AQI (hourly, 11km resolution)
-- **NOAA Space Weather** — Kp index (geomagnetic activity), solar wind data
 
-### Future Integrations
-- Google Pollen API (tree, grass, weed pollen at 1km)
-- AirNow (EPA ground measurements)
-- OpenAQ (community air quality)
+| Source | Data |
+|--------|------|
+| [Open-Meteo](https://open-meteo.com) | Hourly/15-min pressure, temp, humidity, wind, UV, cloud cover, precipitation, 80+ year archive |
+| [Open-Meteo Air Quality](https://open-meteo.com/en/docs/air-quality-api) | PM2.5, PM10, ozone, NO2, SO2, CO, AQI (hourly, 11 km resolution) |
+| [NOAA Space Weather](https://www.swpc.noaa.gov) | Kp index (geomagnetic activity), solar wind data |
+
+### Planned Integrations
+
+- Google Pollen API — tree, grass, and weed pollen at 1 km resolution
+- AirNow — EPA ground measurements
+- OpenAQ — community air quality data
+
+---
 
 ## Quick Start
 
 ### Prerequisites
+
 - Node.js 18+
 - PostgreSQL 16
-- Docker & Docker Compose (optional)
+- Docker & Docker Compose *(optional but recommended)*
 
 ### Local Development
 
 ```bash
-# Install dependencies
-cd frontend && npm install
-cd ../backend && npm install
+# Clone the repo
+git clone https://github.com/<your-org>/stormglass.git
+cd stormglass
 
-# Set up environment
+# Install all workspace dependencies (frontend, backend, shared)
+npm install
+
+# Configure the backend environment
 cp backend/.env.example backend/.env
-# Edit .env with your database connection (see Environment Variables below)
+# Edit backend/.env — at minimum set DATABASE_URL
 
-# Set up database
-cd backend
+# Run database migrations
 npm run db:migrate
 
-# Start backend
-cd backend
-npm run dev
-
-# In another terminal, start frontend
-cd frontend
+# Start the full stack (frontend + backend in parallel)
 npm run dev
 ```
+
+Frontend will be available at `http://localhost:5173` and the backend API at `http://localhost:3000`.
+
+### Docker Compose
+
+```bash
+docker compose up --build
+```
+
+---
 
 ## Project Structure
 
 ```
 stormglass/
-├── frontend/              # React PWA
+├── frontend/                  # React PWA
 │   ├── src/
-│   │   ├── components/   # Reusable UI components
-│   │   ├── pages/        # Page components
-│   │   ├── hooks/        # Custom React hooks
-│   │   ├── services/     # API clients, WebSocket
-│   │   ├── stores/       # State management
-│   │   ├── types/        # TypeScript types
-│   │   └── utils/        # Utilities
-│   ├── public/           # Static assets
-│   └── tests/            # Frontend tests
+│   │   ├── components/        # Reusable UI components
+│   │   ├── hooks/             # Custom React hooks
+│   │   ├── services/          # API clients, WebSocket
+│   │   ├── types/             # TypeScript types
+│   │   └── utils/             # Utilities
+│   └── public/                # Static assets
 │
-├── backend/               # Node.js + Fastify server
+├── backend/                   # Node.js + Fastify API server
 │   ├── src/
-│   │   ├── api/          # Fastify routes
-│   │   ├── services/     # Business logic (alerts, correlation, polling)
-│   │   ├── db/           # Drizzle schema and migrations
-│   │   ├── jobs/         # Cron job definitions
-│   │   ├── mqtt/         # MQTT client setup
-│   │   ├── types/        # TypeScript types
-│   │   └── utils/        # Utilities
-│   ├── tests/            # Backend tests
-│   └── migrations/       # Database migrations
+│   │   ├── api/               # Fastify route definitions
+│   │   ├── db/                # Drizzle schema & migrations
+│   │   ├── jobs/              # Cron job definitions
+│   │   ├── services/          # Business logic (alerts, correlation, polling)
+│   │   └── mqtt/              # MQTT client setup
+│   └── migrations/            # Database migration files
 │
-├── shared/                # Shared types and utilities
-│   ├── types/            # Shared TypeScript types
-│   └── utils/            # Shared utilities
+├── shared/                    # Shared types & utilities
+│   ├── types/
+│   └── utils/
 │
-├── docs/                  # Documentation
-│   ├── architecture/      # System design docs
-│   ├── deployment/        # Deployment guides
-│   └── api-specs/         # API specifications
+├── docs/                      # Documentation
+│   ├── architecture/          # System design docs
+│   ├── deployment/            # Deployment guides
+│   └── api-specs/             # API specifications
 │
-├── .github/workflows/     # CI/CD workflows
-├── docker-compose.yml     # Multi-container dev setup
-├── Dockerfile             # Backend container
-└── .env.example           # Example environment variables
+├── docker-compose.yml
+├── mosquitto.conf
+└── package.json               # Root workspace config
 ```
+
+---
 
 ## Environment Variables
 
-Backend reads from `backend/.env` or a `.env` in the project root. All variables are validated at startup via `backend/src/env.ts`.
+Backend reads from `backend/.env`. All variables are validated at startup via `backend/src/env.ts`.
 
 | Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `DATABASE_URL` | Yes | — | PostgreSQL connection string (e.g. `postgresql://user:pass@host:port/dbname`). |
-| `NODE_ENV` | No | `development` | `production` enables stricter env checks (see below). |
-| `PORT` | No | `3000` | Server listen port. |
-| `HOST` | No | `0.0.0.0` | Server listen host. |
-| `DEFAULT_LATITUDE` | No | `40.7128` | Default location latitude for weather polling. |
-| `DEFAULT_LONGITUDE` | No | `-74.0060` | Default location longitude. |
-| `CORS_ORIGIN` | **In prod** | — | Comma-separated allowed origins (e.g. `https://app.example.com`). Required when `NODE_ENV=production`. |
-| `API_TOKEN` | **In prod** | — | Bearer token for `/api/*` routes. Required when `NODE_ENV=production`; if unset in dev, API is unauthenticated. |
-| `TOMORROW_API_KEY` | No | — | Optional. If set, enables pollen data from Tomorrow.io; otherwise pollen is skipped. |
+|----------|:--------:|---------|-------------|
+| `DATABASE_URL` | Yes | — | PostgreSQL connection string, e.g. `postgresql://user:pass@host:5432/dbname` |
+| `NODE_ENV` | No | `development` | Set to `production` for stricter startup checks |
+| `PORT` | No | `3000` | Server listen port |
+| `HOST` | No | `0.0.0.0` | Server listen host |
+| `DEFAULT_LATITUDE` | No | `40.7128` | Default latitude for weather polling |
+| `DEFAULT_LONGITUDE` | No | `-74.0060` | Default longitude for weather polling |
+| `CORS_ORIGIN` | Prod only | — | Comma-separated allowed origins, e.g. `https://app.example.com` |
+| `API_TOKEN` | Prod only | — | Bearer token for `/api/*` routes. If unset in dev, API is unauthenticated |
+| `TOMORROW_API_KEY` | No | — | Enables pollen data from Tomorrow.io when set |
 
-Frontend (Vite) uses env vars prefixed with `VITE_` (e.g. `VITE_API_URL`, `VITE_API_TOKEN`). Set these when building for production so the client talks to the correct API and sends the token if required.
+Frontend (Vite) uses `VITE_`-prefixed variables. Set `VITE_API_URL` and `VITE_API_TOKEN` when building for production.
 
-**Deployment:** Do not commit `.env` (it is in `.gitignore`). Configure production secrets via your platform’s environment (e.g. Docker env, PaaS config, or secrets manager). The app fails fast on missing required variables.
+> **Note:** Never commit `.env` files. Configure production secrets via your platform's secret management (Docker env, PaaS config, etc.). The app fails fast on missing required variables.
+
+---
 
 ## Data Model
 
 ### Core Tables
-- `sensor_readings` — local Raspberry Pi measurements
-- `weather_data` — Open-Meteo API data
-- `air_quality_data` — AQI and pollutant levels
-- `geomagnetic_data` — Kp index and solar wind
-- `pressure_derivatives` — pre-computed 1h, 3h, 6h rate of change
-- `symptom_logs` — user-submitted symptom scores
-- `user_alert_rules` — configurable thresholds
-- `alert_history` — triggered alerts for analysis
+
+| Table | Description |
+|-------|-------------|
+| `sensor_readings` | Local Raspberry Pi measurements |
+| `weather_data` | Open-Meteo API data |
+| `air_quality_data` | AQI and pollutant levels |
+| `geomagnetic_data` | Kp index and solar wind |
+| `pressure_derivatives` | Pre-computed 1 h, 3 h, 6 h rates of change |
+| `symptom_logs` | User-submitted symptom scores |
+| `user_alert_rules` | Configurable threshold rules |
+| `alert_history` | Triggered alert records for analysis |
 
 ### Computed Metrics
-- Pressure rate of change (1h, 3h, 6h windows)
+
+- Pressure rate of change (1 h, 3 h, 6 h windows)
 - Temperature deltas
-- Pressure trend (rising/falling/stable)
-- Indoor vs outdoor differentials (with Pi sensor)
+- Pressure trend classification (rising / falling / stable)
+- Indoor vs. outdoor differentials (when Pi sensor is connected)
 
-## Key Architecture Decisions
+---
 
-1. **Server-side polling per user location** to start, with path to client-side + server caching at scale
-2. **Pressure rate of change** as primary health correlate (research suggests >1 hPa/hr is clinically significant)
-3. **PWA with offline support** for reliability during symptom flares
-4. **Optional Pi sensor** adds 60x resolution vs weather APIs (per-minute local vs hourly modeled)
-5. **Type-safe database** with Drizzle ORM for migrations and queries
-6. **Real-time WebSocket** for live sensor updates and alert notifications
+## Architecture Decisions
+
+1. **Server-side location polling per user** — straightforward to start; designed with a path to client-side requests + server caching at scale.
+2. **Pressure rate of change as primary correlate** — research suggests changes >1 hPa/hr are clinically significant for many conditions.
+3. **PWA with offline support** — ensures the app stays usable during symptom flares when connectivity may be unreliable.
+4. **Optional Pi sensor** — adds ~60x data resolution vs. weather APIs (per-minute local readings vs. hourly modeled data).
+5. **Drizzle ORM** — type-safe schema, migrations, and queries with minimal overhead.
+6. **WebSocket for real-time updates** — live sensor data and alert notifications without polling.
+
+---
 
 ## Storage Estimates
-~3 MB per user per month across all data sources. Years of data for hundreds of users on basic PostgreSQL.
+
+~3 MB per user per month across all data sources. Basic PostgreSQL handles years of data for hundreds of users comfortably.
+
+---
 
 ## Contributing
 
-See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
+See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for development guidelines, branch conventions, and PR requirements.
+
+---
 
 ## License
 
-MIT (pending decision on health data handling)
+MIT — see [LICENSE](LICENSE) for details.
+
+> Health data handling policy is pending review. Do not store identifiable health information in production until a privacy policy is in place.
+
+---
 
 ## Support & Resources
 
-- **Documentation**: See `docs/` folder
-- **Issues**: GitHub Issues
-- **Discussions**: GitHub Discussions
+- **Documentation:** `docs/` folder
+- **Bug reports:** [GitHub Issues](../../issues)
+- **Questions & discussion:** [GitHub Discussions](../../discussions)
