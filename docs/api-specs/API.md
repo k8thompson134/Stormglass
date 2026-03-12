@@ -123,24 +123,10 @@ Authorization: Bearer <API_TOKEN>
 
 ---
 
-### Other
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| POST | `/api/symptoms/logs` | Yes* | Symptom logging — **501 Not Implemented** (handled by another app). |
-
-**Response** `501`
-
-```json
-{ "error": "Not Implemented", "message": "Symptom logging is handled by a separate application." }
-```
-
----
-
 ## WebSocket
 
 | Path | Auth | Description |
 |------|------|-------------|
 | GET /ws | No | WebSocket upgrade. **Public**; do not send user-specific or sensitive data. |
 
-Message handling is echo-style; production features (e.g. live sensor data) would be added later with appropriate scoping.
+Message handling is currently echo-style.

@@ -209,23 +209,3 @@ export const alertHistory = pgTable(
   })
 );
 
-// Sensor readings from Raspberry Pi (optional)
-export const sensorReadings = pgTable(
-  'sensor_readings',
-  {
-    id: uuid('id').defaultRandom().primaryKey(),
-    userId: uuid('user_id')
-      .references(() => users.id, { onDelete: 'cascade' })
-      .notNull(),
-    timestamp: timestamp('timestamp').notNull(),
-    pressure: numeric('pressure', { precision: 6, scale: 2 }).notNull(), // hPa
-    temperature: numeric('temperature', { precision: 5, scale: 2 }).notNull(), // °C
-    humidity: numeric('humidity', { precision: 5, scale: 2 }).notNull(), // %
-  },
-  (table) => ({
-    userIdTimestampIdx: index('sensor_readings_user_id_timestamp_idx').on(
-      table.userId,
-      table.timestamp
-    ),
-  })
-);

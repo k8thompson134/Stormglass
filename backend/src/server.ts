@@ -95,10 +95,6 @@ app.addHook('onRequest', async (request, reply) => {
 await app.register(weatherRoutes);
 await app.register(settingsRoutes);
 
-app.post('/api/symptoms/logs', async (request, reply) => {
-  return reply.status(501).send({ error: 'Not Implemented', message: 'Symptom logging is handled by a separate application.' });
-});
-
 // Serve frontend in production
 if (env.NODE_ENV === 'production') {
   await app.register(fastifyStatic, {

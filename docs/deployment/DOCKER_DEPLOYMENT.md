@@ -9,8 +9,6 @@ This guide covers deploying Stormglass using Docker and Docker Compose on a VPS.
 - Docker and Docker Compose installed
 - VPS with at least 2GB RAM
 - Domain name (for HTTPS)
-- PostgreSQL (managed service or self-hosted)
-- Mosquitto MQTT broker (optional, for Pi sensors)
 
 ## Production Docker Setup
 
@@ -58,7 +56,6 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: ${DATABASE_URL}
-      MQTT_BROKER_URL: ${MQTT_BROKER_URL}
       PORT: 3000
     ports:
       - "127.0.0.1:3000:3000"
@@ -120,7 +117,8 @@ Create `.env.production`:
 NODE_ENV=production
 PORT=3000
 DATABASE_URL=postgresql://user:password@postgres:5432/stormglass
-MQTT_BROKER_URL=mqtt://mosquitto:1883
+CORS_ORIGIN=https://example.com
+API_TOKEN=your-secret-token
 VITE_API_URL=https://example.com
 VITE_WS_URL=wss://example.com
 ```
@@ -134,7 +132,6 @@ ssh root@your-vps
 apt update && apt upgrade -y
 apt install -y docker.io docker-compose curl
 
-# Enable Docker daemon
 systemctl enable docker
 systemctl start docker
 ```
@@ -146,8 +143,6 @@ cd /opt
 git clone <your-repo> stormglass
 cd stormglass
 cp .env.production .env
-
-# Edit .env with your secrets
 nano .env
 ```
 
@@ -164,18 +159,10 @@ docker-compose exec app npm run db:migrate
 ### 4. Enable Caddy
 
 ```bash
-# Install Caddy
 apt install -y caddy
-
-# Copy config
 cp Caddyfile /etc/caddy/
-
-# Enable auto-renewal
 systemctl enable caddy
 systemctl start caddy
-
-# Check status
-systemctl status caddy
 ```
 
 ## Monitoring
@@ -183,9 +170,9 @@ systemctl status caddy
 ### View Logs
 
 ```bash
-docker-compose logs app              # App logs
-docker-compose logs postgres         # Database logs
-docker-compose logs -f               # Follow all logs
+docker-compose logs app
+docker-compose logs postgres
+docker-compose logs -f
 ```
 
 ### Health Check
@@ -212,44 +199,4 @@ git pull origin main
 docker-compose up -d --build
 docker-compose exec app npm run db:migrate
 docker-compose restart app
-```
-
-## Scaling Considerations
-
-### Horizontal Scaling (Multiple Instances)
-- Use load balancer (nginx, HAProxy)
-- Share PostgreSQL instance
-- Use Redis for session state (if needed)
-
-### Database Optimization
-- Index frequently queried columns
-- Archive old data periodically
-- Monitor query performance
-
-## Security
-
-- Use strong database passwords
-- Enable HTTPS (Caddy handles this)
-- Restrict MQTT access (firewall rules)
-- Keep Docker images updated
-- Use secrets management for production keys
-
-## Troubleshooting
-
-### App won't start
-```bash
-docker-compose logs app
-docker-compose exec app npm run db:migrate
-```
-
-### Database connection failed
-```bash
-docker-compose logs postgres
-docker-compose exec postgres psql -U stormglass -c "SELECT 1;"
-```
-
-### SSL certificate issues
-```bash
-caddy reload
-certbot renew --dry-run
 ```

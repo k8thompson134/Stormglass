@@ -17,31 +17,8 @@ services:
       timeout: 5s
       retries: 5
 
-  mosquitto:
-    image: eclipse-mosquitto:latest
-    ports:
-      - "1883:1883"
-      - "9001:9001"
-    volumes:
-      - mosquitto_data:/mosquitto/data
-      - mosquitto_logs:/mosquitto/log
-      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
-    healthcheck:
-      test: ["CMD", "mosquitto_sub", "-h", "localhost", "-t", "test"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  # Optional: Redis for caching (if you need it later)
-  # redis:
-  #   image: redis:7-alpine
-  #   ports:
-  #     - "6379:6379"
-
 volumes:
   postgres_data:
-  mosquitto_data:
-  mosquitto_logs:
 
 networks:
   default:

@@ -15,6 +15,13 @@
       "when": 1771346334114,
       "tag": "0001_square_emma_frost",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1773348717172,
+      "tag": "0002_marvelous_guardsmen",
+      "breakpoints": true
     }
   ]
 }

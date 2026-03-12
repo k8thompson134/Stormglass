@@ -26,15 +26,7 @@ cp .env.example .env
 
 3. Start services:
 ```bash
-# Terminal 1: Database and MQTT
-docker-compose up
-
-# Terminal 2: Backend
-cd backend
-npm run dev
-
-# Terminal 3: Frontend
-cd frontend
+# Start both frontend and backend
 npm run dev
 ```
 
