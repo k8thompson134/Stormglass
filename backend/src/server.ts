@@ -12,6 +12,7 @@ import type { FastifyInstance } from 'fastify';
 import { ensureDefaultUser } from './db/seed.js';
 import { weatherRoutes } from './api/weather.js';
 import { settingsRoutes } from './api/settings.js';
+import { symptomRoutes } from './api/symptoms.js';
 import { startWeatherPolling, stopPolling } from './jobs/weather-poll.js';
 import { client } from './db/index.js';
 
@@ -94,6 +95,7 @@ app.addHook('onRequest', async (request, reply) => {
 // API routes
 await app.register(weatherRoutes);
 await app.register(settingsRoutes);
+await app.register(symptomRoutes);
 
 // Serve frontend in production
 if (env.NODE_ENV === 'production') {

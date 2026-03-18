@@ -163,6 +163,7 @@ export const symptomLogs = pgTable(
     severity: integer('severity').notNull(), // 1-10
     tags: jsonb('tags').$type<string[]>().default([]),
     notes: text('notes'),
+    environmentalSnapshot: jsonb('environmental_snapshot'),
     syncedAt: timestamp('synced_at'),
   },
   (table) => ({

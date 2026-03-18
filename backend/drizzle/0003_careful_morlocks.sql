@@ -1,0 +1,1 @@
+ALTER TABLE "symptom_logs" ADD COLUMN "environmental_snapshot" jsonb;

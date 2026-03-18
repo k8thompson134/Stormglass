@@ -61,6 +61,43 @@ export interface GeomagnticData {
   solarWindDensity: number; // particles/cm³
 }
 
+export interface EnvironmentalSnapshot {
+  pressure: number;        // hPa
+  temperature: number;     // °C
+  humidity: number;        // %
+  windSpeed: number;       // m/s
+  dewPoint: number;        // °C
+  uvIndex: number;
+  cloudCover: number;      // %
+  precipitation: number;   // mm
+  derivative: {
+    delta1h: number;
+    delta3h: number;
+    delta6h: number;
+    trend: 'rising' | 'falling' | 'stable';
+  } | null;
+  aqi: {
+    usAqi: number;
+    pm25: number;
+    pm10: number;
+    ozone: number;
+    no2: number;
+    so2: number;
+    co: number;
+  } | null;
+  geomagnetic: {
+    kpIndex: number;
+    solarWindSpeed: number;
+    solarWindDensity: number;
+  } | null;
+  pollen: {
+    treeIndex: number;
+    grassIndex: number;
+    weedIndex: number;
+    moldIndex: number;
+  } | null;
+}
+
 export interface SymptomLog {
   id: string;
   userId: string;
@@ -68,6 +105,7 @@ export interface SymptomLog {
   severity: number; // 1-10 scale
   tags: string[];
   notes?: string;
+  environmentalSnapshot?: EnvironmentalSnapshot;
   syncedAt?: Date;
 }
 

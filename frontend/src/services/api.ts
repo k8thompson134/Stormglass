@@ -115,6 +115,85 @@ export async function updateLocation(latitude: string, longitude: string, name?:
   return res.json();
 }
 
+// Symptoms
+export interface EnvironmentalSnapshot {
+  pressure: number;
+  temperature: number;
+  humidity: number;
+  windSpeed: number;
+  dewPoint: number;
+  uvIndex: number;
+  cloudCover: number;
+  precipitation: number;
+  derivative: {
+    delta1h: number;
+    delta3h: number;
+    delta6h: number;
+    trend: 'rising' | 'falling' | 'stable';
+  } | null;
+  aqi: {
+    usAqi: number;
+    pm25: number;
+    pm10: number;
+    ozone: number;
+    no2: number;
+    so2: number;
+    co: number;
+  } | null;
+  geomagnetic: {
+    kpIndex: number;
+    solarWindSpeed: number;
+    solarWindDensity: number;
+  } | null;
+  pollen: {
+    treeIndex: number;
+    grassIndex: number;
+    weedIndex: number;
+    moldIndex: number;
+  } | null;
+}
+
+export interface SymptomLogEntry {
+  id: string;
+  userId: string;
+  timestamp: string;
+  severity: number;
+  tags: string[];
+  notes: string | null;
+  environmentalSnapshot: EnvironmentalSnapshot | null;
+}
+
+export async function createSymptomLog(data: {
+  severity: number;
+  tags: string[];
+  notes?: string;
+}): Promise<SymptomLogEntry> {
+  const res = await fetch(`${API_BASE}/symptoms`, {
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw new Error(`Failed to create symptom log: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchSymptomLogs(days: number = 30): Promise<SymptomLogEntry[]> {
+  const res = await fetch(`${API_BASE}/symptoms?days=${days}`, {
+    headers: getHeaders(),
+  });
+  if (!res.ok) throw new Error(`Failed to fetch symptom logs: ${res.status}`);
+  const data = await res.json();
+  return data.logs;
+}
+
+export async function deleteSymptomLog(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/symptoms/${id}`, {
+    method: 'DELETE',
+    headers: getHeaders(),
+  });
+  if (!res.ok) throw new Error(`Failed to delete symptom log: ${res.status}`);
+}
+
 export async function geocodeSearch(query: string): Promise<GeoResult[]> {
   const res = await fetch(`${API_BASE}/geocode?q=${encodeURIComponent(query)}`, {
     headers: getHeaders()
