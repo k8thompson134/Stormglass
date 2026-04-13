@@ -1,3 +1,6 @@
+// NOTE: These risk functions are duplicated from frontend/src/utils/healthLogic.ts.
+// If you update thresholds or logic here, update the frontend copy too (and vice versa).
+// Long-term home for this logic is the shared/ package once its build is wired up.
 import type { HealthRisk, RiskLevel } from './healthTypes.js';
 import { MIGRAINE_CONFIG, MECFS_CONFIG, GEOMAGNETIC_CONFIG, AQI_CONFIG, type RiskConfig } from './healthRisks.js';
 import { toF } from './conversions.js';

@@ -130,7 +130,7 @@ export async function briefingRoutes(app: FastifyInstance): Promise<void> {
         },
         weather: {
           tempC: temp,
-          humidity: parseFloat(latest.humidity),
+          humidity,
           windMs: parseFloat(latest.windSpeed),
           uvIndex: parseFloat(latest.uvIndex),
           precipMm: parseFloat(latest.precipitation),
