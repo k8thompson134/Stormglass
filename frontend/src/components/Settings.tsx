@@ -209,9 +209,15 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                         <div className="bg-[#0f172a] rounded-xl border border-[#1e2d45] overflow-hidden">
                             {[
                                 ['migraine', 'Migraines'],
+                                ['cluster', 'Cluster Headache'],
+                                ['sinus', 'Sinus / Sinusitis'],
                                 ['pots', 'POTS / Dysautonomia'],
                                 ['mecfs', 'ME/CFS / PEM'],
                                 ['joints', 'Joint Pain (Arthritis)'],
+                                ['fibromyalgia', 'Fibromyalgia'],
+                                ['eds', 'EDS / Hypermobility'],
+                                ['raynauds', "Raynaud's"],
+                                ['sleep', 'Sleep Quality'],
                                 ['aqi', 'Air Quality'],
                                 ['geomagnetic', 'Geomagnetic Storms'],
                                 ['pollen', 'Pollen & Mold'],

@@ -4,6 +4,7 @@ import CurrentConditions from './components/CurrentConditions';
 import PressureChart from './components/PressureChart';
 import HealthImpact from './components/HealthImpact';
 import Settings from './components/Settings';
+import Onboarding from './components/Onboarding';
 import SymptomLogger from './components/SymptomLogger';
 import SymptomDebugLog from './components/SymptomDebugLog';
 import {
@@ -25,15 +26,21 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [symptomLoggerOpen, setSymptomLoggerOpen] = useState(false);
   const [debugLogOpen, setDebugLogOpen] = useState(false);
-  const defaultHealthToggles: HealthToggles = {
-    migraine: true,
-    pots: true,
-    mecfs: true,
-    joints: true,
-    aqi: true,
-    geomagnetic: true,
-    pollen: true,
+
+  const allTogglesOn: HealthToggles = {
+    migraine: true, cluster: true, sinus: true,
+    pots: true, mecfs: true,
+    joints: true, fibromyalgia: true, eds: true, raynauds: true,
+    sleep: true, aqi: true, geomagnetic: true, pollen: true,
   };
+  const allTogglesOff: HealthToggles = Object.fromEntries(
+    Object.keys(allTogglesOn).map(k => [k, false])
+  ) as HealthToggles;
+
+  const onboardingDone =
+    typeof window !== 'undefined' && !!window.localStorage.getItem('stormglass_onboarding_done');
+
+  const [onboardingOpen, setOnboardingOpen] = useState(!onboardingDone);
 
   const [healthToggles, setHealthToggles] = useState<HealthToggles>(() => {
     const stored = typeof window !== 'undefined' ? window.localStorage.getItem('stormglass_health_toggles') : null;
@@ -41,14 +48,20 @@ function App() {
       try {
         const parsed = JSON.parse(stored) as Partial<HealthToggles>;
         if (parsed && typeof parsed === 'object') {
-          return { ...defaultHealthToggles, ...parsed };
+          return { ...allTogglesOn, ...parsed };
         }
-      } catch {
-        // fall through to default
-      }
+      } catch { /* fall through */ }
     }
-    return defaultHealthToggles;
+    // New user — start with everything off until onboarding picks their conditions
+    return onboardingDone ? allTogglesOn : allTogglesOff;
   });
+
+  const handleOnboardingComplete = (toggles: HealthToggles) => {
+    setHealthToggles(toggles);
+    window.localStorage.setItem('stormglass_health_toggles', JSON.stringify(toggles));
+    window.localStorage.setItem('stormglass_onboarding_done', '1');
+    setOnboardingOpen(false);
+  };
 
   const loadData = useCallback(async (h: number) => {
     try {
@@ -92,6 +105,10 @@ function App() {
   };
 
   const usingDefaultLocation = !locationName;
+
+  if (onboardingOpen) {
+    return <Onboarding onComplete={handleOnboardingComplete} />;
+  }
 
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-slate-900 text-white font-sans selection:bg-blue-500/30">
