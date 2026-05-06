@@ -18,22 +18,29 @@ interface PlasmaEntry {
     speed: number;
 }
 
-function parseKpData(raw: string[][]): KpEntry[] {
-    // First row is the header: ["time_tag","Kp","a_running","station_count"]
-    return raw.slice(1).map((row) => ({
-        timeTag: row[0],
-        kp: parseFloat(row[1]),
-        aRunning: parseFloat(row[2]),
-        stationCount: parseInt(row[3], 10),
+interface NoaaKpObject {
+    time_tag: string;
+    Kp: number;
+    a_running: number;
+    station_count: number;
+}
+
+function parseKpData(raw: NoaaKpObject[]): KpEntry[] {
+    return raw.map((row) => ({
+        timeTag: row.time_tag,
+        kp: row.Kp,
+        aRunning: row.a_running,
+        stationCount: row.station_count,
     }));
 }
 
-function parseLatestPlasma(raw: string[][]): PlasmaEntry | null {
+function parseLatestPlasma(raw: (string | number)[][]): PlasmaEntry | null {
     // First row is header: ["time_tag","density","speed","temperature"]
     // Walk backwards to find the latest row with non-null density and speed
     for (let i = raw.length - 1; i >= 1; i--) {
-        const density = parseFloat(raw[i][1]);
-        const speed = parseFloat(raw[i][2]);
+        const row = raw[i];
+        const density = parseFloat(String(row[1]));
+        const speed = parseFloat(String(row[2]));
         if (!isNaN(density) && !isNaN(speed)) {
             return { density, speed };
         }
@@ -47,7 +54,7 @@ export async function fetchGeomagneticData(userId: string): Promise<number> {
     if (!kpResponse.ok) {
         throw new Error(`NOAA Kp API error: ${kpResponse.status} ${kpResponse.statusText}`);
     }
-    const kpRaw: string[][] = await kpResponse.json();
+    const kpRaw: NoaaKpObject[] = await kpResponse.json();
     const kpEntries = parseKpData(kpRaw);
 
     // Fetch latest solar wind plasma data
