@@ -1,20 +1,30 @@
 import { useState, useRef } from 'react';
 import { createSymptomLog } from '../services/api';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import type { HealthToggles } from '../types/health';
 
 interface SymptomLoggerProps {
     open: boolean;
     onClose: () => void;
     onLogged: () => void;
+    selectedConditions: HealthToggles;
 }
 
-const PRESET_TAGS = [
-    'Migraine',
-    'POTS / Dysautonomia',
-    'ME/CFS',
-    'Joint Pain',
-    'Asthma',
-];
+const CONDITION_LABELS: Record<keyof HealthToggles, string> = {
+    migraine: 'Migraines',
+    cluster: 'Cluster Headache',
+    pots: 'POTS / Dysautonomia',
+    mecfs: 'ME/CFS',
+    fibromyalgia: 'Fibromyalgia',
+    joints: 'Joint Pain',
+    eds: 'EDS',
+    raynauds: "Raynaud's",
+    sinus: 'Sinus',
+    sleep: 'Sleep Quality',
+    aqi: 'Air Quality',
+    geomagnetic: 'Geomagnetic',
+    pollen: 'Pollen',
+};
 
 const SEVERITY_COLORS: Record<number, string> = {
     1: 'bg-emerald-500',
@@ -29,7 +39,7 @@ const SEVERITY_COLORS: Record<number, string> = {
     10: 'bg-red-600',
 };
 
-export default function SymptomLogger({ open, onClose, onLogged }: SymptomLoggerProps) {
+export default function SymptomLogger({ open, onClose, onLogged, selectedConditions }: SymptomLoggerProps) {
     const [severity, setSeverity] = useState(5);
     const [selectedTags, setSelectedTags] = useState<string[]>([]);
     const [customTag, setCustomTag] = useState('');
@@ -39,6 +49,10 @@ export default function SymptomLogger({ open, onClose, onLogged }: SymptomLogger
     const [error, setError] = useState<string | null>(null);
     const modalRef = useRef<HTMLDivElement>(null);
     useFocusTrap(open, modalRef, { onEscape: onClose });
+
+    const presetTags = (Object.entries(selectedConditions)
+        .filter(([, isSelected]) => isSelected)
+        .map(([key]) => CONDITION_LABELS[key as keyof HealthToggles]));
 
     const toggleTag = (tag: string) => {
         setSelectedTags(prev =>
@@ -146,7 +160,7 @@ export default function SymptomLogger({ open, onClose, onLogged }: SymptomLogger
                             Symptoms
                         </label>
                         <div className="flex flex-wrap gap-2">
-                            {PRESET_TAGS.map(tag => {
+                            {presetTags.map(tag => {
                                 const active = selectedTags.includes(tag);
                                 return (
                                     <button
@@ -165,9 +179,9 @@ export default function SymptomLogger({ open, onClose, onLogged }: SymptomLogger
                                     </button>
                                 );
                             })}
-                            {/* Show custom tags that aren't presets */}
+                            {/* Show custom tags that aren't in preset list */}
                             {selectedTags
-                                .filter(t => !PRESET_TAGS.includes(t))
+                                .filter(t => !presetTags.includes(t))
                                 .map(tag => (
                                     <button
                                         key={tag}
@@ -190,7 +204,7 @@ export default function SymptomLogger({ open, onClose, onLogged }: SymptomLogger
                                         addCustomTag();
                                     }
                                 }}
-                                placeholder="Custom tag..."
+                                placeholder="Add any condition..."
                                 className="flex-1 bg-[#0f172a] border border-[#1e2d45] rounded-lg px-3 py-1.5 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500/50"
                             />
                             <button

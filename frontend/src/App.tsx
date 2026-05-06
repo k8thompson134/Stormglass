@@ -312,6 +312,7 @@ function App() {
           open={symptomLoggerOpen}
           onClose={() => setSymptomLoggerOpen(false)}
           onLogged={() => loadData(hours)}
+          selectedConditions={healthToggles}
         />
 
         {/* Symptom Debug Log Modal */}
