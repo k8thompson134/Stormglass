@@ -56,11 +56,18 @@ function App() {
     return onboardingDone ? allTogglesOn : allTogglesOff;
   });
 
-  const handleOnboardingComplete = (toggles: HealthToggles) => {
+  const handleOnboardingComplete = async (toggles: HealthToggles) => {
     setHealthToggles(toggles);
     window.localStorage.setItem('stormglass_health_toggles', JSON.stringify(toggles));
     window.localStorage.setItem('stormglass_onboarding_done', '1');
     setOnboardingOpen(false);
+    // Reload settings to display the location the user just set
+    try {
+      const settings = await fetchSettings();
+      setLocationName(settings.name);
+    } catch {
+      // Settings will load on next data refresh
+    }
   };
 
   const loadData = useCallback(async (h: number) => {
