@@ -86,123 +86,95 @@ export default function Onboarding({ onComplete }: Props) {
     };
 
     return (
-        <div className="fixed inset-0 z-50 bg-[#0b1220] overflow-y-auto">
-            <div className="min-h-full flex flex-col items-center px-4 py-10">
-                <div className="w-full max-w-xl">
+        <div className="fixed inset-0 z-50 bg-gradient-to-br from-gray-900 via-gray-900 to-slate-900 flex flex-col items-center justify-center p-4">
+            <div className="w-full max-w-2xl">
+                {/* Header */}
+                <div className="text-center mb-5">
+                    <h1 className="text-2xl font-black tracking-tight text-white mb-1">
+                        Welcome to Stormglass
+                    </h1>
+                    <p className="text-gray-400 text-xs leading-relaxed">
+                        Select which health conditions you'd like to track. You can change these anytime in Settings.
+                    </p>
+                </div>
 
-                    {/* Header */}
-                    <div className="text-center mb-8">
-                        <div className="text-4xl mb-3">🌩️</div>
-                        <h1 className="text-white text-2xl font-bold tracking-tight mb-2">
-                            Welcome to Stormglass
-                        </h1>
-                        <p className="text-gray-400 text-sm leading-relaxed max-w-md mx-auto">
-                            Stormglass tracks how weather and environmental conditions affect your health.
-                            Select the conditions that apply to you — you can always change these in Settings.
-                        </p>
-                    </div>
+                {/* Quick actions */}
+                <div className="flex justify-center gap-2 mb-5">
+                    <button
+                        onClick={selectAll}
+                        className="text-xs font-semibold text-blue-300 hover:text-blue-200 transition-colors border border-blue-500/30 hover:border-blue-500/50 px-3 py-1.5 rounded-lg bg-blue-500/5 hover:bg-blue-500/10"
+                    >
+                        Select all
+                    </button>
+                    <button
+                        onClick={clearAll}
+                        className="text-xs font-semibold text-gray-400 hover:text-gray-300 transition-colors border border-gray-700/50 hover:border-gray-600 px-3 py-1.5 rounded-lg bg-gray-800/30 hover:bg-gray-800/50"
+                    >
+                        Clear
+                    </button>
+                </div>
 
-                    {/* Select all / clear */}
-                    <div className="flex items-center justify-between mb-5">
-                        <span className="text-[11px] text-gray-400 font-bold uppercase tracking-wider">
-                            Which conditions affect you?
-                        </span>
-                        <div className="flex gap-3">
+                {/* Conditions grid */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-5 max-h-[55vh] overflow-y-auto pr-2">
+                    {GROUPS.flatMap(group => group.conditions).map(cond => {
+                        const isOn = selected.has(cond.key);
+                        return (
                             <button
-                                onClick={selectAll}
-                                className="text-[11px] text-blue-400 hover:text-blue-300 transition-colors"
+                                key={cond.key}
+                                type="button"
+                                onClick={() => toggle(cond.key)}
+                                className={`
+                                    flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all duration-150
+                                    ${isOn
+                                        ? 'bg-blue-500/15 border border-blue-500/30 hover:bg-blue-500/20'
+                                        : 'bg-gray-800/30 border border-gray-700/40 hover:bg-gray-800/50 hover:border-gray-700/60'
+                                    }
+                                `}
                             >
-                                Select all
+                                {/* Checkbox */}
+                                <span className={`
+                                    flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors duration-150
+                                    ${isOn ? 'border-blue-500/60 bg-blue-500/25 text-blue-300' : 'border-gray-700/50 bg-gray-900/50'}
+                                `}>
+                                    {isOn && (
+                                        <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    )}
+                                </span>
+
+                                {/* Label only */}
+                                <span className={`text-xs font-medium line-clamp-2 transition-colors ${isOn ? 'text-white' : 'text-gray-300'}`}>
+                                    {cond.label}
+                                </span>
                             </button>
-                            <span className="text-gray-600">·</span>
-                            <button
-                                onClick={clearAll}
-                                className="text-[11px] text-gray-500 hover:text-gray-300 transition-colors"
-                            >
-                                Clear
-                            </button>
-                        </div>
-                    </div>
+                        );
+                    })}
+                </div>
 
-                    {/* Groups */}
-                    <div className="space-y-5">
-                        {GROUPS.map(group => (
-                            <div key={group.heading}>
-                                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500 mb-2 px-1">
-                                    {group.heading}
-                                </p>
-                                <div className="bg-[#131d2e] border border-[#1e2d45] rounded-xl overflow-hidden">
-                                    {group.conditions.map((cond, i) => {
-                                        const isOn = selected.has(cond.key);
-                                        return (
-                                            <button
-                                                key={cond.key}
-                                                type="button"
-                                                onClick={() => toggle(cond.key)}
-                                                className={`
-                                                    w-full flex items-center gap-3 px-4 py-3 text-left
-                                                    transition-colors duration-150
-                                                    ${i > 0 ? 'border-t border-[#1e2d45]' : ''}
-                                                    ${isOn ? 'bg-blue-500/10 hover:bg-blue-500/15' : 'hover:bg-white/3'}
-                                                `}
-                                            >
-                                                {/* Checkbox */}
-                                                <span className={`
-                                                    flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors duration-150
-                                                    ${isOn ? 'border-blue-500/50 bg-blue-500/20 text-blue-300' : 'border-[#2e3d55] bg-[#0f172a]'}
-                                                `}>
-                                                    {isOn && (
-                                                        <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                                        </svg>
-                                                    )}
-                                                </span>
-
-                                                {/* Label + hint */}
-                                                <span className="flex-1 min-w-0">
-                                                    <span className={`text-sm font-medium block ${isOn ? 'text-white' : 'text-gray-300'}`}>
-                                                        {cond.label}
-                                                    </span>
-                                                    <span className="text-[10px] text-gray-500 font-mono">
-                                                        {cond.hint}
-                                                    </span>
-                                                </span>
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Footer */}
-                    <div className="mt-8 flex flex-col items-center gap-3">
-                        <button
-                            onClick={handleComplete}
-                            disabled={selected.size === 0}
-                            className="w-full py-3 rounded-xl font-semibold text-sm transition-all duration-200
-                                bg-blue-600 hover:bg-blue-500 text-white
-                                disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
-                        >
-                            {selected.size === 0
-                                ? 'Select at least one condition'
-                                : `Get Started with ${selected.size} condition${selected.size === 1 ? '' : 's'}`}
-                        </button>
-                        <button
-                            onClick={() => {
-                                selectAll();
-                                // brief delay so state updates before completing
-                                setTimeout(() => {
-                                    const toggles = Object.fromEntries(ALL_KEYS.map(k => [k, true])) as HealthToggles;
-                                    onComplete(toggles);
-                                }, 0);
-                            }}
-                            className="text-[11px] text-gray-500 hover:text-gray-300 transition-colors"
-                        >
-                            Enable everything and decide later
-                        </button>
-                    </div>
-
+                {/* Footer buttons */}
+                <div className="flex flex-col gap-2">
+                    <button
+                        onClick={handleComplete}
+                        disabled={selected.size === 0}
+                        className="w-full py-2.5 rounded-lg font-semibold text-sm transition-all duration-200
+                            bg-blue-600 hover:bg-blue-500 text-white
+                            disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-600"
+                    >
+                        {selected.size === 0 ? 'Select at least one' : `Start with ${selected.size}`}
+                    </button>
+                    <button
+                        onClick={() => {
+                            selectAll();
+                            setTimeout(() => {
+                                const toggles = Object.fromEntries(ALL_KEYS.map(k => [k, true])) as HealthToggles;
+                                onComplete(toggles);
+                            }, 0);
+                        }}
+                        className="w-full py-1.5 text-xs text-gray-400 hover:text-gray-300 transition-colors font-medium"
+                    >
+                        Or enable all and customize later
+                    </button>
                 </div>
             </div>
         </div>
