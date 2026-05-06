@@ -6,9 +6,15 @@ import type { HealthRisk, RiskLevel, HealthToggles } from '../types/health';
 import { SEVERITY_THEME } from '../utils/severity';
 import {
     getMigraineRisk,
+    getClusterHeadacheRisk,
     getPOTSRisk,
     getMECFSRisk,
     getJointPainRisk,
+    getFibromyalgiaRisk,
+    getEDSRisk,
+    getRaynaudsRisk,
+    getSinusRisk,
+    getSleepRisk,
     getAQIRisk,
     getGeomagneticRisk,
     getPollenRisk
@@ -226,14 +232,24 @@ export default function HealthImpact({ data, loading, healthToggles }: Props) {
     const delta3h = d?.delta3h ?? 0;
     const delta6h = d?.delta6h ?? 0;
 
+    const pollenMax = data.pollen
+        ? Math.max(data.pollen.treeIndex, data.pollen.grassIndex, data.pollen.weedIndex, data.pollen.moldIndex)
+        : 0;
+
     const risks: HealthRisk[] = [];
-    if (healthToggles.migraine) risks.push(getMigraineRisk(delta1h));
-    if (healthToggles.pots) risks.push(getPOTSRisk(delta1h, data.humidity, data.temperature));
-    if (healthToggles.mecfs) risks.push(getMECFSRisk(delta1h, delta3h, delta6h));
-    if (healthToggles.joints) risks.push(getJointPainRisk(delta1h, data.humidity, data.temperature));
-    if (healthToggles.aqi) risks.push(getAQIRisk(data.aqi ?? null));
-    if (healthToggles.geomagnetic) risks.push(getGeomagneticRisk(data.geomagnetic ?? null));
-    if (healthToggles.pollen) risks.push(getPollenRisk(data.pollen ?? null));
+    if (healthToggles.migraine)     risks.push(getMigraineRisk(delta1h, delta3h, delta6h));
+    if (healthToggles.cluster)      risks.push(getClusterHeadacheRisk(delta1h, delta3h, delta6h, data.uvIndex));
+    if (healthToggles.sinus)        risks.push(getSinusRisk(delta1h, data.humidity, data.temperature, pollenMax));
+    if (healthToggles.pots)         risks.push(getPOTSRisk(delta1h, data.humidity, data.temperature));
+    if (healthToggles.mecfs)        risks.push(getMECFSRisk(delta1h, delta3h, delta6h));
+    if (healthToggles.joints)       risks.push(getJointPainRisk(delta1h, data.humidity, data.temperature));
+    if (healthToggles.fibromyalgia) risks.push(getFibromyalgiaRisk(delta1h, data.humidity, data.temperature));
+    if (healthToggles.eds)          risks.push(getEDSRisk(delta1h, data.humidity, data.temperature));
+    if (healthToggles.raynauds)     risks.push(getRaynaudsRisk(data.temperature, data.humidity, data.windSpeed));
+    if (healthToggles.sleep)        risks.push(getSleepRisk(delta1h, delta3h, delta6h, data.temperature, data.humidity, data.geomagnetic?.kpIndex ?? null, data.aqi?.usAqi ?? null));
+    if (healthToggles.aqi)          risks.push(getAQIRisk(data.aqi ?? null));
+    if (healthToggles.geomagnetic)  risks.push(getGeomagneticRisk(data.geomagnetic ?? null));
+    if (healthToggles.pollen)       risks.push(getPollenRisk(data.pollen ?? null));
 
     if (risks.length === 0) {
         return (

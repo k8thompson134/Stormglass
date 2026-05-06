@@ -16,9 +16,15 @@ export interface HealthRisk {
 /** Keys used to control which health factors are shown in the dashboard. */
 export type HealthConditionKey =
     | 'migraine'
+    | 'cluster'
     | 'pots'
     | 'mecfs'
     | 'joints'
+    | 'fibromyalgia'
+    | 'eds'
+    | 'raynauds'
+    | 'sinus'
+    | 'sleep'
     | 'aqi'
     | 'geomagnetic'
     | 'pollen';
