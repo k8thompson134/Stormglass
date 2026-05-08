@@ -102,21 +102,27 @@ export default function SymptomLogger({ open, onClose, onLogged, selectedConditi
     if (!open) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto py-6 sm:py-10">
+        // items-end = bottom sheet on mobile; sm:items-center = centered modal on desktop
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
             {/* Backdrop */}
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-            {/* Modal */}
+            {/* Modal — bottom sheet on mobile, centered card on sm+ */}
             <div
                 ref={modalRef}
                 role="dialog"
                 aria-modal="true"
                 aria-label="Log symptom"
                 tabIndex={-1}
-                className="relative w-full max-w-md mx-4 bg-[#131d2e] border border-[#1e2d45] rounded-2xl shadow-2xl outline-none"
+                className="relative w-full sm:max-w-md sm:mx-4 bg-[#131d2e] border border-[#1e2d45] rounded-t-2xl sm:rounded-2xl shadow-2xl outline-none max-h-[90vh] overflow-y-auto"
             >
+                {/* Drag handle — mobile only */}
+                <div className="sm:hidden flex justify-center pt-3 pb-1 sticky top-0 bg-[#131d2e] z-10">
+                    <div className="w-10 h-1 rounded-full bg-gray-600" />
+                </div>
+
                 {/* Header */}
-                <div className="flex items-center justify-between p-5 border-b border-[#1e2d45]">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-[#1e2d45] sticky top-0 sm:top-auto bg-[#131d2e] z-10">
                     <h2 className="text-white text-sm font-bold uppercase tracking-wider">Log Symptom</h2>
                     <button
                         onClick={onClose}
@@ -127,7 +133,7 @@ export default function SymptomLogger({ open, onClose, onLogged, selectedConditi
                     </button>
                 </div>
 
-                <div className="p-5 space-y-5">
+                <div className="p-5 space-y-5 pb-8 sm:pb-5">
                     {/* Severity */}
                     <div>
                         <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-2">
@@ -168,7 +174,7 @@ export default function SymptomLogger({ open, onClose, onLogged, selectedConditi
                                         type="button"
                                         onClick={() => toggleTag(tag)}
                                         className={`
-                                            px-3 py-1.5 text-xs font-medium rounded-lg border transition-all duration-200
+                                            px-3 py-2.5 text-xs font-medium rounded-lg border transition-all duration-200 min-h-[44px]
                                             ${active
                                                 ? 'border-blue-500/50 bg-blue-500/20 text-blue-300'
                                                 : 'border-[#1e2d45] bg-[#0f172a] text-gray-400 hover:border-gray-600 hover:text-gray-300'
@@ -179,7 +185,7 @@ export default function SymptomLogger({ open, onClose, onLogged, selectedConditi
                                     </button>
                                 );
                             })}
-                            {/* Show custom tags that aren't in preset list */}
+                            {/* Custom tags not in preset list */}
                             {selectedTags
                                 .filter(t => !presetTags.includes(t))
                                 .map(tag => (
@@ -187,7 +193,7 @@ export default function SymptomLogger({ open, onClose, onLogged, selectedConditi
                                         key={tag}
                                         type="button"
                                         onClick={() => toggleTag(tag)}
-                                        className="px-3 py-1.5 text-xs font-medium rounded-lg border border-blue-500/50 bg-blue-500/20 text-blue-300 transition-all duration-200"
+                                        className="px-3 py-2.5 text-xs font-medium rounded-lg border border-blue-500/50 bg-blue-500/20 text-blue-300 transition-all duration-200 min-h-[44px]"
                                     >
                                         {tag} &times;
                                     </button>
@@ -205,13 +211,13 @@ export default function SymptomLogger({ open, onClose, onLogged, selectedConditi
                                     }
                                 }}
                                 placeholder="Add any condition..."
-                                className="flex-1 bg-[#0f172a] border border-[#1e2d45] rounded-lg px-3 py-1.5 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500/50"
+                                className="flex-1 bg-[#0f172a] border border-[#1e2d45] rounded-lg px-3 py-2.5 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500/50"
                             />
                             <button
                                 type="button"
                                 onClick={addCustomTag}
                                 disabled={!customTag.trim()}
-                                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-[#1e2d45] bg-[#0f172a] text-gray-400 hover:text-gray-300 hover:border-gray-600 transition-colors disabled:opacity-40"
+                                className="px-3 py-2.5 text-xs font-medium rounded-lg border border-[#1e2d45] bg-[#0f172a] text-gray-400 hover:text-gray-300 hover:border-gray-600 transition-colors disabled:opacity-40 min-h-[44px]"
                             >
                                 Add
                             </button>
@@ -228,7 +234,7 @@ export default function SymptomLogger({ open, onClose, onLogged, selectedConditi
                             value={notes}
                             onChange={e => setNotes(e.target.value)}
                             placeholder="Any additional context..."
-                            className="w-full bg-[#0f172a] border border-[#1e2d45] rounded-lg px-3 py-2 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500/50"
+                            className="w-full bg-[#0f172a] border border-[#1e2d45] rounded-lg px-3 py-2.5 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500/50"
                         />
                     </div>
 
@@ -252,7 +258,7 @@ export default function SymptomLogger({ open, onClose, onLogged, selectedConditi
                         type="button"
                         onClick={handleSubmit}
                         disabled={submitting || success}
-                        className="w-full py-2.5 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-500 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full py-3 rounded-xl text-sm font-bold bg-blue-600 hover:bg-blue-500 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {submitting ? 'Logging...' : 'Log Symptom'}
                     </button>

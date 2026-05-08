@@ -59,6 +59,11 @@ body {
   box-shadow: 0 0 20px -5px rgba(6, 182, 212, 0.4), 0 0 8px -2px rgba(6, 182, 212, 0.2);
 }
 
+/* iOS home indicator safe area for bottom sheets */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 @media (prefers-reduced-motion: reduce) {
 
   *,
