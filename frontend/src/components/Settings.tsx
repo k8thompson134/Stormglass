@@ -72,7 +72,7 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
         };
     }, [query]);
 
-    // Close on click outside
+    // Close on click outside or Escape key
     useEffect(() => {
         if (!open) return;
         const handleClick = (e: MouseEvent) => {
@@ -80,8 +80,15 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                 onClose();
             }
         };
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
         document.addEventListener('mousedown', handleClick);
-        return () => document.removeEventListener('mousedown', handleClick);
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('mousedown', handleClick);
+            document.removeEventListener('keydown', handleKeyDown);
+        };
     }, [open, onClose]);
 
     const selectLocation = async (result: GeoResult) => {
@@ -126,7 +133,7 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                     <button
                         onClick={onClose}
                         aria-label="Close settings"
-                        className="text-gray-400 hover:text-white transition-colors text-lg leading-none w-8 h-8 flex items-center justify-center hover:bg-white/5 rounded-lg"
+                        className="text-gray-300 hover:text-white transition-colors text-lg leading-none w-8 h-8 flex items-center justify-center hover:bg-white/5 rounded-lg"
                     >
                         ×
                     </button>
@@ -135,7 +142,7 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                 <div className="p-5 space-y-5 overflow-y-auto">
                     {/* Current Location */}
                     <div>
-                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-2">
+                        <label className="text-[10px] text-gray-300 font-bold uppercase tracking-wider block mb-2">
                             Current Location
                         </label>
                         <div className="bg-[#0f172a] rounded-xl p-4 border border-[#1e2d45] space-y-1.5">
@@ -160,7 +167,7 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                     <div>
                         <label
                             htmlFor="location-search"
-                            className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-2"
+                            className="text-[10px] text-gray-300 font-bold uppercase tracking-wider block mb-2"
                         >
                             Change Location
                         </label>
@@ -193,7 +200,7 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                                         <div className="text-white text-sm font-medium group-hover:text-blue-300 transition-colors">
                                             {r.name}
                                         </div>
-                                        <div className="text-[10px] text-gray-400 mt-0.5">
+                                        <div className="text-[10px] text-gray-300 mt-0.5">
                                             {r.state ? `${r.state}, ` : ''}{r.country}
                                             <span className="text-gray-500 ml-2 font-mono">
                                                 {r.latitude.toFixed(2)}°, {r.longitude.toFixed(2)}°
@@ -211,10 +218,10 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
 
                     {/* Health factors */}
                     <div>
-                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-2">
+                        <label className="text-[10px] text-gray-300 font-bold uppercase tracking-wider block mb-2">
                             Health Factors Shown
                         </label>
-                        <p className="text-[11px] text-gray-400 mb-3">
+                        <p className="text-[11px] text-gray-300 mb-3">
                             Choose which conditions to show in the Health Impact Forecast.
                         </p>
                         <div className="bg-[#0f172a] rounded-xl border border-[#1e2d45] overflow-hidden">
@@ -295,10 +302,10 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
 
                     {/* API Access */}
                     <div className="border-t border-[#1e2d45] pt-5">
-                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-2">
+                        <label className="text-[10px] text-gray-300 font-bold uppercase tracking-wider block mb-2">
                             API Access
                         </label>
-                        <p className="text-[11px] text-gray-400 mb-3">
+                        <p className="text-[11px] text-gray-300 mb-3">
                             Use this token to connect OpenClaw or other apps to your Stormglass data.
                         </p>
                         {apiToken ? (
@@ -331,7 +338,7 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                                     </button>
                                 </div>
                                 <p className="text-[10px] text-gray-500">
-                                    Endpoint: <span className="font-mono text-gray-400">{window.location.origin}/api/briefing</span>
+                                    Endpoint: <span className="font-mono text-gray-300">{window.location.origin}/api/briefing</span>
                                 </p>
                             </div>
                         ) : (
@@ -345,7 +352,7 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
 
                     {/* Feedback */}
                     <div className="border-t border-[#1e2d45] pt-5">
-                        <label className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-2">
+                        <label className="text-[10px] text-gray-300 font-bold uppercase tracking-wider block mb-2">
                             Help Us Improve
                         </label>
                         <a
@@ -360,7 +367,7 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                                 <path d="M7 17L17 7" />
                             </svg>
                         </a>
-                        <p className="text-[10px] text-gray-400 mt-2">Share your experience and help shape Stormglass</p>
+                        <p className="text-[10px] text-gray-300 mt-2">Share your experience and help shape Stormglass</p>
                     </div>
                 </div>
 
@@ -368,7 +375,7 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                 <div className="px-5 py-3 border-t border-[#1e2d45] flex justify-end">
                     <button
                         onClick={onClose}
-                        className="text-xs text-gray-400 hover:text-white px-4 py-2 rounded-lg hover:bg-white/5 transition-colors"
+                        className="text-xs text-gray-300 hover:text-white px-4 py-2 rounded-lg hover:bg-white/5 transition-colors"
                     >
                         Close
                     </button>
