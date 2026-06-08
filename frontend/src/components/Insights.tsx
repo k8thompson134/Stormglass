@@ -147,6 +147,43 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
   // Get top condition for context
   const topCondition = personalizedInsights[0]?.name || null;
 
+  // Analyze worst day patterns
+  const worstDayPatterns = useMemo(() => {
+    const severeDays = symptomLogs.filter((log) => log.severity >= 4);
+    if (severeDays.length < 3) return [];
+
+    const patterns: Array<{ factors: string[]; count: number; avgSeverity: number }> = [];
+
+    severeDays.forEach((log) => {
+      if (!log.environmentalSnapshot) return;
+      const env = log.environmentalSnapshot;
+      const activeFacts: string[] = [];
+
+      if (env.geomagnetic && env.geomagnetic.kpIndex > 4) activeFacts.push('High Geomagnetic Activity');
+      if (env.humidity > 85) activeFacts.push('High Humidity');
+      if (env.pressure < 990) activeFacts.push('Low Pressure');
+      if (env.aqi && env.aqi.usAqi > 50) activeFacts.push('Poor Air Quality');
+      if (env.temperature < 10) activeFacts.push('Cold Temperature');
+
+      if (activeFacts.length >= 2) {
+        const key = activeFacts.sort().join(' + ');
+        const existing = patterns.find((p) => p.factors.sort().join(' + ') === key);
+        if (existing) {
+          existing.count += 1;
+          existing.avgSeverity += log.severity;
+        } else {
+          patterns.push({ factors: activeFacts, count: 1, avgSeverity: log.severity });
+        }
+      }
+    });
+
+    return patterns
+      .map((p) => ({ ...p, avgSeverity: p.avgSeverity / p.count }))
+      .filter((p) => p.count >= 2)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 3);
+  }, [symptomLogs]);
+
   if (loading) {
     return (
       <div className="bg-[#131d2e] border border-[#1e2d45] rounded-2xl p-6 text-center text-gray-400">
@@ -235,11 +272,84 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
         </div>
       )}
 
+      {/* Top Triggers by Condition */}
+      {personalizedInsights.length > 0 && topCorrelations.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
+            Triggers by Condition
+          </p>
+          <div className="grid grid-cols-1 gap-2">
+            {personalizedInsights.slice(0, 3).map((condition) => {
+              const topTrigger = topCorrelations[0];
+              return (
+                <div key={condition.name} className="bg-gray-900/50 border border-gray-700/30 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-semibold text-sm text-gray-200">{condition.name}</span>
+                    <span className="text-[10px] text-gray-500">{condition.count}x logged</span>
+                  </div>
+                  {topTrigger && (
+                    <div className="text-[11px] text-gray-400">
+                      <span className="text-gray-500">Top trigger:</span>{' '}
+                      <span className="text-blue-300 font-medium">{topTrigger.label}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Worst Day Patterns */}
+      {worstDayPatterns.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-[10px] font-semibold text-orange-400 uppercase tracking-widest">
+            Dangerous Combinations
+          </p>
+          <div className="grid grid-cols-1 gap-2">
+            {worstDayPatterns.map((pattern, idx) => (
+              <div key={idx} className="bg-orange-500/5 border border-orange-500/30 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-semibold text-orange-300">{pattern.factors.join(' + ')}</span>
+                </div>
+                <div className="text-[11px] text-orange-400">
+                  {pattern.count}x occurred • Avg severity {pattern.avgSeverity.toFixed(1)}/10
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recovery Factors */}
+      {topCorrelations.some((c) => c.direction === 'negative') && (
+        <div className="space-y-2">
+          <p className="text-[10px] font-semibold text-emerald-400 uppercase tracking-widest">
+            What Helps Your Symptoms
+          </p>
+          <div className="grid grid-cols-1 gap-2">
+            {topCorrelations
+              .filter((c) => c.direction === 'negative')
+              .slice(0, 3)
+              .map((corr) => (
+                <div key={`${corr.variable}-recovery`} className="bg-emerald-500/5 border border-emerald-500/30 rounded-lg p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-emerald-300">{corr.label}</span>
+                    <span className="text-[10px] text-emerald-400 font-medium">
+                      ↓ {Math.abs(corr.severity_delta || 0).toFixed(1)} pts
+                    </span>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
       {/* Correlation Cards */}
       {topCorrelations.length > 0 ? (
         <div className="space-y-3">
           <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
-            Top Environmental Factors
+            Environmental Triggers
           </p>
           <div className="grid grid-cols-1 gap-3">
             {visibleCards.map((corr) => (
