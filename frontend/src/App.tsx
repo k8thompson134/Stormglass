@@ -207,22 +207,6 @@ function App() {
                 </button>
               )}
             </div>
-
-            {/* Quick-add symptom buttons for mobile */}
-            <div className="mt-3 flex gap-2 flex-wrap">
-              <button
-                onClick={() => setSymptomLoggerOpen(true)}
-                className="flex-1 min-w-[120px] h-11 px-3 py-2.5 rounded-lg bg-blue-500/20 border border-blue-500/40 text-blue-300 font-semibold text-[12px] hover:bg-blue-500/30 transition-colors flex items-center justify-center gap-1.5"
-                title="Quick log a symptom"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <line x1="12" y1="8" x2="12" y2="16" />
-                  <line x1="8" y1="12" x2="16" y2="12" />
-                </svg>
-                <span>Log Symptom</span>
-              </button>
-            </div>
           </div>
 
           {/* Desktop header (>= md) */}

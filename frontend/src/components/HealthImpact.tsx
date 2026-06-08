@@ -91,23 +91,9 @@ function RiskCard({ risk, onClick, personalizedInfo }: { risk: HealthRisk; onCli
                     <h3 className={`font-bold text-[12px] sm:text-[11px] uppercase tracking-widest leading-tight flex-1 min-w-0 break-words ${theme.title}`}>
                         {risk.condition}
                     </h3>
-                    <div className="flex items-center gap-1 shrink-0">
-                        {/* Risk level icon */}
-                        <span className={`text-[12px] leading-none ${
-                            risk.risk === 'low' ? '✓' :
-                            risk.risk === 'moderate' ? '⚠' :
-                            risk.risk === 'high' ? '⚠⚠' :
-                            '⚠⚠⚠'
-                        } ${
-                            risk.risk === 'low' ? 'text-emerald-400' :
-                            risk.risk === 'moderate' ? 'text-amber-400' :
-                            risk.risk === 'high' ? 'text-orange-400' :
-                            'text-red-400'
-                        }`} aria-hidden="true" />
-                        <span className={`text-[11px] sm:text-[10px] font-bold uppercase px-2 sm:px-1.5 py-1 sm:py-0.5 rounded border shrink-0 ${theme.badge}`}>
-                            {risk.risk}
-                        </span>
-                    </div>
+                    <span className={`text-[10px] sm:text-[9px] font-bold uppercase px-2.5 sm:px-2 py-1 sm:py-0.5 rounded border shrink-0 ${theme.badge}`}>
+                        {risk.risk}
+                    </span>
                 </div>
 
                 {/* Description */}
