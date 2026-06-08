@@ -194,6 +194,10 @@ export async function deleteSymptomLog(id: string): Promise<void> {
   if (!res.ok) throw new Error(`Failed to delete symptom log: ${res.status}`);
 }
 
+export async function exportSymptomLogs(days: number = 365): Promise<SymptomLogEntry[]> {
+  return fetchSymptomLogs(days);
+}
+
 export async function geocodeSearch(query: string): Promise<GeoResult[]> {
   const res = await fetch(`${API_BASE}/geocode?q=${encodeURIComponent(query)}`, {
     headers: getHeaders()

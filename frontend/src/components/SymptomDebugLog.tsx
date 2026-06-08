@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { fetchSymptomLogs, deleteSymptomLog, type SymptomLogEntry, type EnvironmentalSnapshot } from '../services/api';
+import { fetchSymptomLogs, deleteSymptomLog, exportSymptomLogs, type SymptomLogEntry, type EnvironmentalSnapshot } from '../services/api';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { toF } from '../utils/conversions';
 
@@ -210,6 +210,59 @@ export default function SymptomDebugLog({ open, onClose }: Props) {
         }
     };
 
+    const handleExportJSON = async () => {
+        try {
+            const allLogs = await exportSymptomLogs(365);
+            const dataStr = JSON.stringify(allLogs, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `stormglass-symptom-logs-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Failed to export logs:', err);
+            alert('Failed to export logs');
+        }
+    };
+
+    const handleExportCSV = async () => {
+        try {
+            const allLogs = await exportSymptomLogs(365);
+            const csvHeader = ['Date', 'Time', 'Severity', 'Tags', 'Notes', 'Pressure (hPa)', 'Temperature (°C)', 'Humidity (%)', 'AQI', 'PM2.5'];
+            const csvRows = allLogs.map(log => {
+                const date = new Date(log.timestamp);
+                const dateStr = date.toLocaleDateString();
+                const timeStr = date.toLocaleTimeString();
+                const tags = (log.tags as string[]).join('; ');
+                const notes = log.notes || '';
+                const snap = log.environmentalSnapshot;
+                const pressure = snap?.pressure?.toFixed(1) || '';
+                const temp = snap?.temperature?.toFixed(1) || '';
+                const humidity = snap?.humidity?.toFixed(0) || '';
+                const aqi = snap?.aqi?.usAqi?.toFixed(0) || '';
+                const pm25 = snap?.aqi?.pm25?.toFixed(1) || '';
+                return [dateStr, timeStr, log.severity, `"${tags}"`, `"${notes}"`, pressure, temp, humidity, aqi, pm25].join(',');
+            });
+            const csv = [csvHeader.join(','), ...csvRows].join('\n');
+            const dataBlob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `stormglass-symptom-logs-${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Failed to export logs:', err);
+            alert('Failed to export logs');
+        }
+    };
+
     if (!open) return null;
 
     return createPortal(
@@ -227,14 +280,23 @@ export default function SymptomDebugLog({ open, onClose }: Props) {
                 onClick={e => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between p-5 border-b border-gray-700/30">
-                    <div>
-                        <h2 className="text-lg font-bold text-white tracking-tight">Symptom Log</h2>
-                        <p className="text-[10px] text-gray-400 font-mono uppercase tracking-wider mt-0.5">
-                            Environmental debug view
-                        </p>
+                <div className="flex flex-col gap-4 p-5 border-b border-gray-700/30">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h2 className="text-lg font-bold text-white tracking-tight">Symptom Log</h2>
+                            <p className="text-[10px] text-gray-400 font-mono uppercase tracking-wider mt-0.5">
+                                View and export all symptom data
+                            </p>
+                        </div>
+                        <button
+                            onClick={onClose}
+                            className="text-gray-400 hover:text-white transition-colors text-xl leading-none w-8 h-8 flex items-center justify-center hover:bg-gray-800/50 rounded-lg"
+                            aria-label="Close"
+                        >
+                            &times;
+                        </button>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-between">
                         <select
                             value={days}
                             onChange={e => setDays(Number(e.target.value))}
@@ -245,13 +307,20 @@ export default function SymptomDebugLog({ open, onClose }: Props) {
                             <option value={90}>90 days</option>
                             <option value={365}>1 year</option>
                         </select>
-                        <button
-                            onClick={onClose}
-                            className="text-gray-400 hover:text-white transition-colors text-xl leading-none w-8 h-8 flex items-center justify-center hover:bg-gray-800/50 rounded-lg"
-                            aria-label="Close"
-                        >
-                            &times;
-                        </button>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={handleExportJSON}
+                                className="text-[10px] font-bold px-3 py-1.5 rounded border border-blue-500/40 bg-blue-500/10 text-blue-300 hover:bg-blue-500/20 hover:border-blue-500/60 transition-colors"
+                            >
+                                Export JSON
+                            </button>
+                            <button
+                                onClick={handleExportCSV}
+                                className="text-[10px] font-bold px-3 py-1.5 rounded border border-green-500/40 bg-green-500/10 text-green-300 hover:bg-green-500/20 hover:border-green-500/60 transition-colors"
+                            >
+                                Export CSV
+                            </button>
+                        </div>
                     </div>
                 </div>
 
