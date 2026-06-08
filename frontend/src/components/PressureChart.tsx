@@ -438,24 +438,37 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
 
   return (
     <figure className="bg-[#131d2e] rounded-2xl p-4 sm:p-6 border border-[#1e2d45] shadow-xl overflow-hidden">
-      <div className="flex justify-between items-center mb-4">
-        <figcaption>
-          <h2 className="text-gray-300 text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-            Pressure Dynamics
-          </h2>
-          <p className="text-gray-400 text-xs mt-1">Barometric pressure over the last 24 hours with forecast. Rising pressure may bring relief; falling pressure often triggers flares.</p>
-        </figcaption>
-        <div className="flex bg-gray-900/50 p-1 rounded-md">
-          {TIME_RANGES.map(r => (
-            <button
-              key={r.value}
-              onClick={() => onHoursChange(r.value)}
-              aria-pressed={hours === r.value}
-              className={`px-3 py-1 text-xs font-bold rounded ${hours === r.value ? 'bg-blue-600 text-white' : 'text-gray-400'}`}
-            >
-              {r.label}
-            </button>
-          ))}
+      <div className="flex flex-col gap-3 mb-4">
+        <div className="flex justify-between items-center gap-4 flex-wrap">
+          <figcaption>
+            <h2 className="text-gray-300 text-sm font-bold uppercase tracking-wider">
+              Pressure Dynamics
+            </h2>
+          </figcaption>
+          <div className="flex bg-gray-900/50 p-1 rounded-md shrink-0">
+            {TIME_RANGES.map(r => (
+              <button
+                key={r.value}
+                onClick={() => onHoursChange(r.value)}
+                aria-pressed={hours === r.value}
+                className={`px-3 py-1 text-xs font-bold rounded ${hours === r.value ? 'bg-blue-600 text-white' : 'text-gray-400'}`}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Info chips */}
+        <div className="flex gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-[10px]">
+            <span className="text-emerald-400 font-bold">↑ Rising</span>
+            <span className="text-emerald-300">May bring relief</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-[10px]">
+            <span className="text-amber-400 font-bold">↓ Falling</span>
+            <span className="text-amber-300">Often triggers flares</span>
+          </div>
         </div>
       </div>
 
