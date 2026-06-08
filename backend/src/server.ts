@@ -13,6 +13,7 @@ import { ensureDefaultUser } from './db/seed.js';
 import { weatherRoutes } from './api/weather.js';
 import { settingsRoutes } from './api/settings.js';
 import { symptomRoutes } from './api/symptoms.js';
+import { correlationRoutes } from './api/correlations.js';
 import { startWeatherPolling, stopPolling } from './jobs/weather-poll.js';
 import { client } from './db/index.js';
 
@@ -96,6 +97,7 @@ app.addHook('onRequest', async (request, reply) => {
 await app.register(weatherRoutes);
 await app.register(settingsRoutes);
 await app.register(symptomRoutes);
+await app.register(correlationRoutes);
 
 // Serve frontend in production
 if (env.NODE_ENV === 'production') {

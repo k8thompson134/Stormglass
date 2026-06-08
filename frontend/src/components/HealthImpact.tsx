@@ -33,8 +33,8 @@ function RiskCard({ risk, onClick }: { risk: HealthRisk; onClick: () => void }) 
             stripe: 'bg-emerald-500/50',
             title: 'text-gray-300',
             badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-            desc: 'text-gray-400',
-            trigger: 'text-gray-500',
+            desc: 'text-gray-300',
+            trigger: 'text-gray-400',
             detail: 'text-emerald-300',
             glow: 'hover:shadow-glow-emerald',
         },
@@ -43,8 +43,8 @@ function RiskCard({ risk, onClick }: { risk: HealthRisk; onClick: () => void }) 
             stripe: 'bg-amber-500',
             title: 'text-gray-200',
             badge: 'bg-amber-500/20 text-amber-300 border-amber-500/35',
-            desc: 'text-gray-400',
-            trigger: 'text-gray-500',
+            desc: 'text-gray-300',
+            trigger: 'text-gray-400',
             detail: 'text-amber-300',
             glow: 'hover:shadow-glow-amber',
         },
@@ -54,7 +54,7 @@ function RiskCard({ risk, onClick }: { risk: HealthRisk; onClick: () => void }) 
             title: 'text-gray-100',
             badge: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
             desc: 'text-gray-300',
-            trigger: 'text-gray-500',
+            trigger: 'text-gray-400',
             detail: 'text-orange-300',
             glow: 'hover:shadow-glow-red',
         },
@@ -90,9 +90,23 @@ function RiskCard({ risk, onClick }: { risk: HealthRisk; onClick: () => void }) 
                     <h3 className={`font-bold text-[11px] uppercase tracking-widest leading-tight flex-1 min-w-0 break-words ${theme.title}`}>
                         {risk.condition}
                     </h3>
-                    <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border shrink-0 ${theme.badge}`}>
-                        {risk.risk}
-                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                        {/* Risk level icon */}
+                        <span className={`text-[12px] leading-none ${
+                            risk.risk === 'low' ? '✓' :
+                            risk.risk === 'moderate' ? '⚠' :
+                            risk.risk === 'high' ? '⚠⚠' :
+                            '⚠⚠⚠'
+                        } ${
+                            risk.risk === 'low' ? 'text-emerald-400' :
+                            risk.risk === 'moderate' ? 'text-amber-400' :
+                            risk.risk === 'high' ? 'text-orange-400' :
+                            'text-red-400'
+                        }`} aria-hidden="true" />
+                        <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border shrink-0 ${theme.badge}`}>
+                            {risk.risk}
+                        </span>
+                    </div>
                 </div>
 
                 {/* Description */}

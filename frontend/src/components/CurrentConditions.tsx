@@ -70,8 +70,8 @@ export default function CurrentConditions({ data, loading, history }: Props) {
 
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-gray-400 text-xs font-medium tracking-wider uppercase">Current Conditions</h2>
-        <span className="text-[10px] text-gray-500 font-mono">
+        <h2 className="text-gray-300 text-xs font-medium tracking-wider uppercase">Current Conditions</h2>
+        <span className="text-[10px] text-gray-400 font-mono">
           {new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </span>
       </div>

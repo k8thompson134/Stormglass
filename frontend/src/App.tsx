@@ -3,10 +3,12 @@ import logo from './assets/logo.png';
 import CurrentConditions from './components/CurrentConditions';
 import PressureChart from './components/PressureChart';
 import HealthImpact from './components/HealthImpact';
+import Insights from './components/Insights';
 import Settings from './components/Settings';
 import Onboarding from './components/Onboarding';
 import SymptomLogger from './components/SymptomLogger';
 import SymptomDebugLog from './components/SymptomDebugLog';
+import Info from './components/Info';
 import {
   fetchCurrentWeather,
   fetchWeatherHistory,
@@ -26,6 +28,8 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [symptomLoggerOpen, setSymptomLoggerOpen] = useState(false);
   const [debugLogOpen, setDebugLogOpen] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [showInsights, setShowInsights] = useState(true);
 
   const allTogglesOn: HealthToggles = {
     migraine: true, cluster: true, sinus: true,
@@ -139,9 +143,20 @@ function App() {
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
               <button
+                onClick={() => setInfoOpen(true)}
+                className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-700/50 hover:border-cyan-500/50 bg-gray-800/40 hover:bg-cyan-500/15 text-gray-400 hover:text-cyan-300 transition-all duration-200 shrink-0"
+                aria-label="Information"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="16" x2="12" y2="12" />
+                  <line x1="12" y1="8" x2="12.01" y2="8" />
+                </svg>
+              </button>
+              <button
                 onClick={() => setSymptomLoggerOpen(true)}
-                className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-700/50 hover:border-blue-500/50 bg-gray-800/40 hover:bg-blue-500/15 text-gray-400 hover:text-blue-300 transition-all duration-200 shadow-glow-blue hover:shadow-glow-blue shrink-0"
-                title="Log symptom"
+                className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-700/50 hover:border-blue-500/50 bg-gray-800/40 hover:bg-blue-500/15 text-gray-300 hover:text-blue-300 transition-all duration-200 shadow-glow-blue hover:shadow-glow-blue shrink-0"
+                aria-label="Log symptom"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
@@ -153,7 +168,7 @@ function App() {
               <button
                 onClick={() => setDebugLogOpen(true)}
                 className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-700/50 hover:border-cyan-500/50 bg-gray-800/40 hover:bg-cyan-500/15 text-gray-400 hover:text-cyan-300 transition-all duration-200 shrink-0"
-                title="Symptom log"
+                aria-label="View symptom log"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -165,8 +180,8 @@ function App() {
               </button>
               <button
                 onClick={() => setSettingsOpen(true)}
-                className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-700/50 hover:border-blue-500/50 bg-gray-800/40 hover:bg-blue-500/15 text-gray-400 hover:text-blue-300 transition-all duration-200 shadow-glow-blue hover:shadow-glow-blue shrink-0"
-                title="Settings"
+                className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-700/50 hover:border-blue-500/50 bg-gray-800/40 hover:bg-blue-500/15 text-gray-300 hover:text-blue-300 transition-all duration-200 shadow-glow-blue hover:shadow-glow-blue shrink-0"
+                aria-label="Open settings"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
@@ -239,9 +254,20 @@ function App() {
                 </p>
                 <div className="flex items-center gap-1.5">
                   <button
+                    onClick={() => setInfoOpen(true)}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-700/50 hover:border-cyan-500/50 bg-gray-800/40 hover:bg-cyan-500/15 text-gray-400 hover:text-cyan-300 transition-all duration-200"
+                    aria-label="Information"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="16" x2="12" y2="12" />
+                      <line x1="12" y1="8" x2="12.01" y2="8" />
+                    </svg>
+                  </button>
+                  <button
                     onClick={() => setSymptomLoggerOpen(true)}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-700/50 hover:border-blue-500/50 bg-gray-800/40 hover:bg-blue-500/15 text-gray-400 hover:text-blue-300 transition-all duration-200 shadow-glow-blue hover:shadow-glow-blue"
-                    title="Log symptom"
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-700/50 hover:border-blue-500/50 bg-gray-800/40 hover:bg-blue-500/15 text-gray-300 hover:text-blue-300 transition-all duration-200 shadow-glow-blue hover:shadow-glow-blue"
+                    aria-label="Log symptom"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
@@ -253,7 +279,7 @@ function App() {
                   <button
                     onClick={() => setDebugLogOpen(true)}
                     className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-700/50 hover:border-cyan-500/50 bg-gray-800/40 hover:bg-cyan-500/15 text-gray-400 hover:text-cyan-300 transition-all duration-200"
-                    title="Symptom log"
+                    aria-label="View symptom log"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -265,8 +291,8 @@ function App() {
                   </button>
                   <button
                     onClick={() => setSettingsOpen(true)}
-                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-700/50 hover:border-blue-500/50 bg-gray-800/40 hover:bg-blue-500/15 text-gray-400 hover:text-blue-300 transition-all duration-200 shadow-glow-blue hover:shadow-glow-blue"
-                    title="Settings"
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-700/50 hover:border-blue-500/50 bg-gray-800/40 hover:bg-blue-500/15 text-gray-300 hover:text-blue-300 transition-all duration-200 shadow-glow-blue hover:shadow-glow-blue"
+                    aria-label="Open settings"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
@@ -280,8 +306,8 @@ function App() {
         </header>
 
         {error && (
-          <div role="alert" className="mb-6 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-red-400 text-sm flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+          <div role="alert" aria-live="assertive" aria-atomic="true" className="mb-6 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-red-400 text-sm flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" aria-hidden="true" />
             {error}
           </div>
         )}
@@ -302,7 +328,26 @@ function App() {
           </div>
         </div>
 
-        {/* Bottom Section: Health Impact */}
+        {/* Bottom Section: Trends + Health Impact */}
+
+        {/* Insights Section Toggle */}
+        <div className="mb-2 flex items-center gap-3">
+          <button
+            onClick={() => setShowInsights(s => !s)}
+            className={`text-[10px] font-bold uppercase tracking-widest ${
+              showInsights ? 'text-violet-400' : 'text-gray-500'
+            }`}
+          >
+            [ TRENDS {showInsights ? '▲' : '▼'} ]
+          </button>
+        </div>
+
+        {showInsights && (
+          <div className="mb-6">
+            <Insights onOpenSymptomLogger={() => setSymptomLoggerOpen(true)} />
+          </div>
+        )}
+
         <HealthImpact data={current} loading={loading} healthToggles={healthToggles} />
 
         {/* Settings Modal */}
@@ -326,6 +371,12 @@ function App() {
         <SymptomDebugLog
           open={debugLogOpen}
           onClose={() => setDebugLogOpen(false)}
+        />
+
+        {/* Info Modal */}
+        <Info
+          open={infoOpen}
+          onClose={() => setInfoOpen(false)}
         />
       </main>
     </div>

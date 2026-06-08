@@ -437,11 +437,14 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
   }
 
   return (
-    <div className="bg-[#131d2e] rounded-2xl p-4 sm:p-6 border border-[#1e2d45] shadow-xl overflow-hidden">
+    <figure className="bg-[#131d2e] rounded-2xl p-4 sm:p-6 border border-[#1e2d45] shadow-xl overflow-hidden">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-gray-300 text-sm font-bold uppercase tracking-wider flex items-center gap-2">
-          Pressure Dynamics
-        </h2>
+        <figcaption>
+          <h2 className="text-gray-300 text-sm font-bold uppercase tracking-wider flex items-center gap-2">
+            Pressure Dynamics
+          </h2>
+          <p className="text-gray-400 text-xs mt-1">Barometric pressure over the last 24 hours with forecast. Rising pressure may bring relief; falling pressure often triggers flares.</p>
+        </figcaption>
         <div className="flex bg-gray-900/50 p-1 rounded-md">
           {TIME_RANGES.map(r => (
             <button
@@ -707,6 +710,6 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
         <span className="text-gray-500">|</span>
         <span className="text-gray-400">Now: <span className="text-white font-semibold">{pressures[pressures.length - 1]?.toFixed(1) ?? '—'}</span> hPa</span>
       </div>
-    </div>
+    </figure>
   );
 }
