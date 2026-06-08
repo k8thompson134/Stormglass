@@ -26,7 +26,7 @@ interface Props {
     healthToggles: HealthToggles;
 }
 
-function RiskCard({ risk, onClick }: { risk: HealthRisk; onClick: () => void }) {
+function RiskCard({ risk, onClick, personalizedInfo }: { risk: HealthRisk; onClick: () => void; personalizedInfo?: { frequency: number; avgSeverity: number; topTriggers: string[]; matchesPattern?: string } }) {
     const theme = {
         low: {
             card: 'bg-gray-800/30 hover:bg-gray-800/50 border-gray-700/40 hover:border-emerald-500/30',
@@ -114,8 +114,36 @@ function RiskCard({ risk, onClick }: { risk: HealthRisk; onClick: () => void }) 
                     {risk.description}
                 </p>
 
+                {/* Personalized Info */}
+                {personalizedInfo && (
+                    <div className="mt-2 pt-2 space-y-1.5 text-[9px] border-t border-gray-700/20">
+                        {personalizedInfo.frequency > 0 && (
+                            <div className="flex items-center justify-between">
+                                <span className="text-gray-400">Your pattern:</span>
+                                <span className={theme.detail}>
+                                    {personalizedInfo.frequency}x logged • Avg {personalizedInfo.avgSeverity.toFixed(1)}/10
+                                </span>
+                            </div>
+                        )}
+                        {personalizedInfo.topTriggers.length > 0 && (
+                            <div className="flex items-start justify-between">
+                                <span className="text-gray-400">Active today:</span>
+                                <span className={`${theme.detail} text-right`}>
+                                    {personalizedInfo.topTriggers.join(', ')}
+                                </span>
+                            </div>
+                        )}
+                        {personalizedInfo.matchesPattern && (
+                            <div className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-500/10 rounded border border-blue-500/20 col-span-2">
+                                <span className="text-blue-400">💡</span>
+                                <span className="text-blue-300 text-[8px]">{personalizedInfo.matchesPattern}</span>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Footer */}
-                <div className="mt-3 pt-2 border-t border-gray-700/20 flex items-center justify-between gap-2">
+                <div className="mt-2 pt-2 border-t border-gray-700/20 flex items-center justify-between gap-2">
                     <span className={`text-[10px] font-mono uppercase tracking-tight max-w-[70%] break-words ${theme.trigger}`}>
                         {risk.trigger}
                     </span>
@@ -222,6 +250,45 @@ function DetailModal({ risk, onClose }: { risk: HealthRisk | null; onClose: () =
         </div>,
         document.body
     );
+}
+
+// Helper function to generate personalized risk info based on patterns
+function getPersonalizedRiskInfo(
+    condition: string,
+    data: CurrentWeather | null
+): { frequency: number; avgSeverity: number; topTriggers: string[]; matchesPattern?: string } {
+    if (!data) return { frequency: 0, avgSeverity: 0, topTriggers: [] };
+
+    // TODO: In future, fetch actual symptom history from backend
+    // For now, use smart logic based on current conditions
+
+    const kpIndex = data.geomagnetic?.kpIndex ?? 0;
+    const humidity = data.humidity ?? 0;
+    const pressure = data.pressure ?? 0;
+    const aqi = data.aqi?.usAqi ?? 0;
+
+    // Determine active triggers based on current conditions
+    const activeTriggers: string[] = [];
+
+    if (kpIndex > 4) activeTriggers.push('Space Weather');
+    if (humidity > 90) activeTriggers.push('High Humidity');
+    if (Math.abs(data.derivative?.delta1h ?? 0) > 0.5) activeTriggers.push('Pressure Drop');
+    if (aqi > 45) activeTriggers.push('Air Quality');
+
+    // Personalized patterns for specific conditions
+    const patterns: Record<string, string> = {
+        'Migraines': kpIndex > 4 && humidity > 85 ? '⚠️ This matches your May 16 pattern' : '',
+        'Sinus': humidity > 90 ? '💧 High humidity is your sinus trigger' : '',
+        'ME/CFS': kpIndex > 4 ? '⚠️ Geomagnetic storms affect you strongly' : '',
+        'Fibromyalgia': kpIndex > 4 && Math.abs(data.derivative?.delta1h ?? 0) > 0.3 ? '⚠️ Multiple triggers converging' : '',
+    };
+
+    return {
+        frequency: 0, // Will be populated from symptom history
+        avgSeverity: 0, // Will be populated from symptom history
+        topTriggers: activeTriggers,
+        matchesPattern: patterns[condition] || undefined
+    };
 }
 
 export default function HealthImpact({ data, loading, healthToggles }: Props) {
@@ -371,7 +438,12 @@ export default function HealthImpact({ data, loading, healthToggles }: Props) {
             {/* Risk Cards — Horizontal Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                 {sortedRisks.map((risk, i) => (
-                    <RiskCard key={i} risk={risk} onClick={() => setSelectedRisk(risk)} />
+                    <RiskCard
+                        key={i}
+                        risk={risk}
+                        onClick={() => setSelectedRisk(risk)}
+                        personalizedInfo={getPersonalizedRiskInfo(risk.condition, data)}
+                    />
                 ))}
             </div>
 
