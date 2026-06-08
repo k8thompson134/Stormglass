@@ -29,9 +29,9 @@ export default function Info({ open, onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header with Tabs */}
-        <div className="bg-cyan-500/10 border-b border-cyan-500/30 p-5">
-          <div className="flex items-center justify-between gap-4 mb-4">
-            <h2 className="text-lg font-bold text-white tracking-tight">Information</h2>
+        <div className="border-b border-gray-700/50 p-6">
+          <div className="flex items-center justify-between gap-4 mb-5">
+            <h2 className="text-xl font-black text-white tracking-tight">Information</h2>
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-white transition-colors text-xl leading-none w-8 h-8 flex items-center justify-center hover:bg-gray-800/50 rounded-lg"
@@ -47,8 +47,8 @@ export default function Info({ open, onClose }: Props) {
               onClick={() => setActiveTab('about')}
               className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
                 activeTab === 'about'
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
-                  : 'bg-gray-800/40 text-gray-400 hover:text-gray-300 border border-gray-700/30'
+                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                  : 'bg-gray-800/30 text-gray-400 hover:text-gray-300 border border-gray-700/30'
               }`}
             >
               About
@@ -57,8 +57,8 @@ export default function Info({ open, onClose }: Props) {
               onClick={() => setActiveTab('sources')}
               className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all ${
                 activeTab === 'sources'
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
-                  : 'bg-gray-800/40 text-gray-400 hover:text-gray-300 border border-gray-700/30'
+                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/40'
+                  : 'bg-gray-800/30 text-gray-400 hover:text-gray-300 border border-gray-700/30'
               }`}
             >
               Data Sources
@@ -72,7 +72,7 @@ export default function Info({ open, onClose }: Props) {
             <>
               {/* Mission */}
               <section>
-                <h3 className="text-[10px] font-bold text-cyan-300 uppercase tracking-[0.15em] mb-2">Our Mission</h3>
+                <h3 className="text-[10px] font-bold text-blue-300 uppercase tracking-[0.15em] mb-3">Our Mission</h3>
                 <p className="text-gray-300 text-[13px] leading-relaxed">
                   Stormglass helps you understand how weather and environment affect your symptoms. By tracking patterns, you can prepare better and manage your health with more clarity.
                 </p>

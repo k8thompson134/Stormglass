@@ -3,12 +3,12 @@ import logo from './assets/logo.png';
 import CurrentConditions from './components/CurrentConditions';
 import PressureChart from './components/PressureChart';
 import HealthImpact from './components/HealthImpact';
-import Insights from './components/Insights';
 import Settings from './components/Settings';
 import Onboarding from './components/Onboarding';
 import SymptomLogger from './components/SymptomLogger';
 import SymptomDebugLog from './components/SymptomDebugLog';
 import Info from './components/Info';
+import TrendsModal from './components/TrendsModal';
 import {
   fetchCurrentWeather,
   fetchWeatherHistory,
@@ -29,7 +29,7 @@ function App() {
   const [symptomLoggerOpen, setSymptomLoggerOpen] = useState(false);
   const [debugLogOpen, setDebugLogOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
-  const [showInsights, setShowInsights] = useState(true);
+  const [trendsOpen, setTrendsOpen] = useState(false);
 
   const allTogglesOn: HealthToggles = {
     migraine: true, cluster: true, sinus: true,
@@ -328,27 +328,19 @@ function App() {
           </div>
         </div>
 
-        {/* Bottom Section: Trends + Health Impact */}
-
-        {/* Insights Section Toggle */}
-        <div className="mb-2 flex items-center gap-3">
-          <button
-            onClick={() => setShowInsights(s => !s)}
-            className={`text-[10px] font-bold uppercase tracking-widest ${
-              showInsights ? 'text-violet-400' : 'text-gray-500'
-            }`}
-          >
-            [ TRENDS {showInsights ? '▲' : '▼'} ]
-          </button>
-        </div>
-
-        {showInsights && (
-          <div className="mb-6">
-            <Insights onOpenSymptomLogger={() => setSymptomLoggerOpen(true)} />
+        {/* Health Impact Section */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-bold text-gray-300 uppercase tracking-widest">Health Impact</h3>
+            <button
+              onClick={() => setTrendsOpen(true)}
+              className="text-[10px] font-bold uppercase tracking-widest text-violet-400 hover:text-violet-300 transition-colors px-3 py-1.5 border border-violet-500/30 rounded-lg hover:bg-violet-500/10"
+            >
+              [ View Trends ]
+            </button>
           </div>
-        )}
-
-        <HealthImpact data={current} loading={loading} healthToggles={healthToggles} />
+          <HealthImpact data={current} loading={loading} healthToggles={healthToggles} />
+        </div>
 
         {/* Settings Modal */}
         <Settings
@@ -377,6 +369,13 @@ function App() {
         <Info
           open={infoOpen}
           onClose={() => setInfoOpen(false)}
+        />
+
+        {/* Trends Modal */}
+        <TrendsModal
+          open={trendsOpen}
+          onClose={() => setTrendsOpen(false)}
+          onOpenSymptomLogger={() => setSymptomLoggerOpen(true)}
         />
       </main>
     </div>
