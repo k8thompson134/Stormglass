@@ -234,8 +234,11 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
 
       {/* Correlation Cards */}
       {topCorrelations.length > 0 ? (
-        <div className="space-y-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-3">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
+            Top Environmental Factors
+          </p>
+          <div className="grid grid-cols-1 gap-3">
             {visibleCards.map((corr) => (
               <CorrelationCard key={`${corr.variable}-${corr.lag_hours}`} correlation={corr} />
             ))}
@@ -290,6 +293,7 @@ function CorrelationCard({ correlation }: { correlation: TopCorrelation }) {
   const borderColor = isPositive ? 'border-red-500/40' : 'border-blue-500/40';
   const bgColor = isPositive ? 'bg-red-500/5' : 'bg-blue-500/5';
   const textColor = isPositive ? 'text-red-300' : 'text-blue-300';
+  const directionLabel = isPositive ? 'Worsens Symptoms' : 'Improves Symptoms';
 
   const opacityClass =
     correlation.confidence === 'high'
@@ -300,21 +304,26 @@ function CorrelationCard({ correlation }: { correlation: TopCorrelation }) {
 
   return (
     <div
-      className={`border rounded-lg p-3 ${borderColor} ${bgColor} ${opacityClass}`}
+      className={`border rounded-lg p-4 sm:p-3 ${borderColor} ${bgColor} ${opacityClass}`}
     >
-      <div className={`${textColor} text-xs font-semibold mb-1`}>
-        {correlation.label}
-      </div>
-      <div className="text-gray-300 text-[10px] space-y-1">
-        <div>
-          {isPositive ? '↑' : '↓'}{' '}
-          {Math.abs(correlation.severity_delta || 0).toFixed(1)} severity pts
+      <div className="mb-2 flex items-start justify-between gap-2">
+        <div className={`${textColor} text-sm sm:text-xs font-bold`}>
+          {correlation.label}
         </div>
-        <div className="text-gray-500">
-          {correlation.lag_hours}h lag · {correlation.r.toFixed(2)} correlation
-        </div>
-        <div className="inline-block bg-gray-800/50 px-2 py-0.5 rounded text-[9px] text-gray-400 mt-1">
+        <div className="inline-block bg-gray-800/50 px-2.5 sm:px-2 py-1 sm:py-0.5 rounded text-[10px] sm:text-[9px] text-gray-300 font-medium whitespace-nowrap">
           {correlation.confidence}
+        </div>
+      </div>
+      <div className="text-gray-300 text-[12px] sm:text-[10px] space-y-2 sm:space-y-1">
+        <div className="flex items-center justify-between">
+          <span className="text-gray-400">Impact:</span>
+          <span className={textColor}>
+            {isPositive ? '+' : '-'}{Math.abs(correlation.severity_delta || 0).toFixed(1)} pts ({directionLabel})
+          </span>
+        </div>
+        <div className="flex items-center justify-between text-gray-500 text-[11px] sm:text-[10px]">
+          <span>Lag: {correlation.lag_hours}h</span>
+          <span>r = {correlation.r.toFixed(2)}</span>
         </div>
       </div>
     </div>
@@ -336,7 +345,10 @@ function TrendChart({
   if (!varMeta) return null;
 
   return (
-    <div className="bg-[#131d2e] border border-[#1e2d45] rounded-2xl p-4">
+    <div className="bg-[#131d2e] border border-[#1e2d45] rounded-2xl p-4 sm:p-4">
+      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-3">
+        Symptom Timeline
+      </p>
       <div className="mb-3 flex gap-2 flex-wrap">
         {availableVariables.map((varKey) => {
           const meta = data.variables_meta[varKey];
@@ -345,7 +357,7 @@ function TrendChart({
             <button
               key={varKey}
               onClick={() => onVariableChange(varKey)}
-              className={`text-[9px] font-semibold px-2.5 py-1 rounded transition-colors ${
+              className={`text-[10px] sm:text-[9px] font-semibold px-3 sm:px-2.5 py-1.5 sm:py-1 rounded transition-colors ${
                 selectedVariable === varKey
                   ? 'bg-violet-500/30 text-violet-300 border border-violet-500/50'
                   : 'text-gray-500 hover:text-gray-300 border border-gray-700/50'
@@ -357,36 +369,35 @@ function TrendChart({
         })}
       </div>
 
-      <ResponsiveContainer width="100%" height={280}>
+      <ResponsiveContainer width="100%" height={240}>
         <ComposedChart data={data.series}>
           <CartesianGrid strokeDasharray="3 3" stroke="#1e2d45" />
           <XAxis
             dataKey="date"
-            tick={{ fill: '#9ca3af', fontSize: 10 }}
+            tick={{ fill: '#9ca3af', fontSize: 11 }}
             stroke="#1e2d45"
             tickFormatter={(v: string) => {
               const [, m, d] = v.split('-');
-              return `${parseInt(m)
-                .toString()
-                .padStart(2, '0')}/${d}`;
+              return `${parseInt(m)}/${d}`;
             }}
           />
           <YAxis
             yAxisId="left"
             domain={[0, 10]}
-            tick={{ fill: '#9ca3af', fontSize: 10 }}
+            tick={{ fill: '#9ca3af', fontSize: 11 }}
             stroke="#ef4444"
-            label={{ value: 'Severity', angle: -90, position: 'insideLeft' }}
+            label={{ value: 'Severity (0-10)', angle: -90, position: 'insideLeft', style: { fontSize: 11 } }}
           />
           <YAxis
             yAxisId="right"
             orientation="right"
-            tick={{ fill: '#9ca3af', fontSize: 10 }}
+            tick={{ fill: '#9ca3af', fontSize: 11 }}
             stroke={varMeta.color}
             label={{
               value: varMeta.unit,
               angle: 90,
               position: 'insideRight',
+              style: { fontSize: 11 },
             }}
           />
           <Tooltip
@@ -470,7 +481,10 @@ function ScatterPlotPanel({
     .slice(0, 8);
 
   return (
-    <div className="bg-[#131d2e] border border-[#1e2d45] rounded-2xl p-4">
+    <div className="bg-[#131d2e] border border-[#1e2d45] rounded-2xl p-4 sm:p-4">
+      <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest mb-3">
+        Correlation Details
+      </p>
       <div className="mb-3 flex gap-2 flex-wrap">
         {allVariables.map((varKey) => {
           const meta = logs[varKey];
@@ -478,7 +492,7 @@ function ScatterPlotPanel({
             <button
               key={varKey}
               onClick={() => onVariableChange(varKey)}
-              className={`text-[9px] font-semibold px-2.5 py-1 rounded transition-colors ${
+              className={`text-[10px] sm:text-[9px] font-semibold px-3 sm:px-2.5 py-1.5 sm:py-1 rounded transition-colors ${
                 selectedVariable === varKey
                   ? 'bg-violet-500/30 text-violet-300 border border-violet-500/50'
                   : 'text-gray-500 hover:text-gray-300 border border-gray-700/50'
@@ -490,23 +504,23 @@ function ScatterPlotPanel({
         })}
       </div>
 
-      <ResponsiveContainer width="100%" height={280}>
+      <ResponsiveContainer width="100%" height={240}>
         <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#1e2d45" />
           <XAxis
             type="number"
             dataKey="x"
-            tick={{ fill: '#9ca3af', fontSize: 10 }}
+            tick={{ fill: '#9ca3af', fontSize: 11 }}
             stroke="#1e2d45"
-            label={{ value: varData.label, position: 'insideBottomRight', offset: -10 }}
+            label={{ value: varData.label, position: 'insideBottomRight', offset: -5, style: { fontSize: 11 } }}
           />
           <YAxis
             type="number"
             dataKey="y"
             domain={[0, 10]}
-            tick={{ fill: '#9ca3af', fontSize: 10 }}
+            tick={{ fill: '#9ca3af', fontSize: 11 }}
             stroke="#1e2d45"
-            label={{ value: 'Severity', angle: -90, position: 'insideLeft' }}
+            label={{ value: 'Severity (0-10)', angle: -90, position: 'insideLeft', style: { fontSize: 11 } }}
           />
           <Tooltip
             contentStyle={{
