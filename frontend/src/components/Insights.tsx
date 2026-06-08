@@ -35,9 +35,11 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
 
   // Fetch correlation stats
   useEffect(() => {
+    let isMounted = true;
     setLoading(true);
     fetchCorrelations(days)
       .then((data) => {
+        if (!isMounted) return;
         setCorrelationData(data);
         // Set initial trend variable to first top correlation
         if (
@@ -51,14 +53,21 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
         }
       })
       .catch((err) => {
+        if (!isMounted) return;
         console.error('Failed to fetch correlations:', err);
         setCorrelationData(null);
       })
-      .finally(() => setLoading(false));
+      .finally(() => {
+        if (isMounted) setLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
   }, [days]);
 
   // Fetch timeseries when top correlations are ready
   useEffect(() => {
+    let isMounted = true;
     if (
       correlationData?.insufficient_data === false &&
       correlationData.top_correlations &&
@@ -67,13 +76,27 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
       const topVars = correlationData.top_correlations
         .slice(0, 3)
         .map((c) => c.variable);
+      const varsKey = topVars.join(',');
+
+      // Skip fetch if variables haven't changed
+      if (timeseriesData?.variables_meta && Object.keys(timeseriesData.variables_meta).join(',') === varsKey && timeseriesData.days === days) {
+        return;
+      }
+
       fetchCorrelationTimeseries(days, topVars)
-        .then((data) => setTimeseriesData(data))
+        .then((data) => {
+          if (isMounted) setTimeseriesData(data);
+        })
         .catch((err) => {
-          console.error('Failed to fetch timeseries:', err);
+          if (isMounted) {
+            console.error('Failed to fetch timeseries:', err);
+          }
         });
     }
-  }, [correlationData, days]);
+    return () => {
+      isMounted = false;
+    };
+  }, [correlationData, days, timeseriesData]);
 
   if (loading) {
     return (
@@ -347,7 +370,7 @@ function ScatterPlotPanel({
   if (!logs || !logs[selectedVariable]) return null;
 
   const varData = logs[selectedVariable];
-  if (varData.n < 2) return null;
+  if (!varData || typeof varData !== 'object' || !Array.isArray(varData.lags) || !varData.n || varData.n < 2) return null;
 
   // Generate synthetic scatter points that reflect the correlation strength and direction
   const lag0 = varData.lags[0];
@@ -368,7 +391,10 @@ function ScatterPlotPanel({
     // y = r * x + noise, normalized to severity 0-10
     const noise = Math.random() * (1 - Math.abs(r)) * 20 - (1 - Math.abs(r)) * 10;
     const y = Math.max(0, Math.min(10, (r * (x / 100)) * 10 + 5 + noise));
-    points.push({ x, y });
+    // Only add valid finite numbers to prevent NaN in charts
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      points.push({ x, y });
+    }
   }
 
   const allVariables = Object.keys(logs || {})

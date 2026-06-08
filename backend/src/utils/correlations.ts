@@ -28,6 +28,7 @@ export function pearson(xs: number[], ys: number[]): number | null {
 
   if (varX === 0 || varY === 0) return null;
   const r = cov / Math.sqrt(varX * varY);
+  if (!Number.isFinite(r)) return null;
   return Math.max(-1, Math.min(1, r));
 }
 

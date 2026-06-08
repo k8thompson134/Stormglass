@@ -73,8 +73,9 @@ export async function correlationRoutes(app: FastifyInstance): Promise<void> {
         };
       }
 
+      const parsed = parseInt(request.query.days || '90', 10);
       const days = Math.min(
-        Math.max(parseInt(request.query.days || '90', 10), 1),
+        Math.max(isNaN(parsed) ? 90 : parsed, 1),
         365
       );
       const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -303,6 +304,7 @@ export async function correlationRoutes(app: FastifyInstance): Promise<void> {
           Math.abs(varData.best_r) >= 0.3
         ) {
           const meta = VARIABLE_META[varKey];
+          if (!meta) continue;
           allCorrelations.push({
             variable: varKey,
             label: meta.label,
@@ -346,8 +348,9 @@ export async function correlationRoutes(app: FastifyInstance): Promise<void> {
         };
       }
 
+      const parsed = parseInt(request.query.days || '90', 10);
       const days = Math.min(
-        Math.max(parseInt(request.query.days || '90', 10), 1),
+        Math.max(isNaN(parsed) ? 90 : parsed, 1),
         365
       );
       const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
