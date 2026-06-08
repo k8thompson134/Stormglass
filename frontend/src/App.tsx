@@ -326,13 +326,14 @@ function App() {
 
         {/* Health Impact Section */}
         <div className="mb-6">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 gap-3">
             <h3 className="text-sm font-bold text-gray-300 uppercase tracking-widest">Health Impact</h3>
             <button
               onClick={() => setTrendsOpen(true)}
-              className="text-[10px] font-bold uppercase tracking-widest text-violet-400 hover:text-violet-300 transition-colors px-3 py-1.5 border border-violet-500/30 rounded-lg hover:bg-violet-500/10"
+              className="px-4 py-2 bg-violet-500/20 hover:bg-violet-500/30 border border-violet-500/40 rounded-lg text-violet-300 hover:text-violet-200 text-xs sm:text-[10px] font-bold uppercase tracking-widest transition-all duration-200"
+              title="View detailed symptom trends and patterns"
             >
-              [ View Trends ]
+              Trends & Patterns
             </button>
           </div>
           <HealthImpact data={current} loading={loading} healthToggles={healthToggles} />
