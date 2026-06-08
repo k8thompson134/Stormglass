@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { createPortal } from 'react-dom';
-import type { CurrentWeather } from '../services/api';
+import { fetchSymptomLogs } from '../services/api';
+import type { CurrentWeather, SymptomLogEntry } from '../services/api';
 import type { HealthRisk, RiskLevel, HealthToggles } from '../types/health';
 import { SEVERITY_THEME } from '../utils/severity';
 import {
@@ -86,8 +87,8 @@ function RiskCard({ risk, onClick, personalizedInfo }: { risk: HealthRisk; onCli
             {/* Card content */}
             <div className="flex-1 p-4 flex flex-col min-w-0">
                 {/* Title + Risk Level */}
-                <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1 mb-2 min-w-0">
-                    <h3 className={`font-bold text-[11px] uppercase tracking-widest leading-tight flex-1 min-w-0 break-words ${theme.title}`}>
+                <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1.5 mb-2 min-w-0">
+                    <h3 className={`font-bold text-[12px] sm:text-[11px] uppercase tracking-widest leading-tight flex-1 min-w-0 break-words ${theme.title}`}>
                         {risk.condition}
                     </h3>
                     <div className="flex items-center gap-1 shrink-0">
@@ -103,20 +104,20 @@ function RiskCard({ risk, onClick, personalizedInfo }: { risk: HealthRisk; onCli
                             risk.risk === 'high' ? 'text-orange-400' :
                             'text-red-400'
                         }`} aria-hidden="true" />
-                        <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border shrink-0 ${theme.badge}`}>
+                        <span className={`text-[11px] sm:text-[10px] font-bold uppercase px-2 sm:px-1.5 py-1 sm:py-0.5 rounded border shrink-0 ${theme.badge}`}>
                             {risk.risk}
                         </span>
                     </div>
                 </div>
 
                 {/* Description */}
-                <p className={`text-[10px] leading-relaxed flex-1 ${theme.desc}`}>
+                <p className={`text-[11px] sm:text-[10px] leading-relaxed flex-1 ${theme.desc}`}>
                     {risk.description}
                 </p>
 
                 {/* Personalized Info */}
                 {personalizedInfo && (
-                    <div className="mt-2 pt-2 space-y-1.5 text-[9px] border-t border-gray-700/20">
+                    <div className="mt-2 pt-2 space-y-1.5 text-[10px] sm:text-[9px] border-t border-gray-700/20">
                         {personalizedInfo.frequency > 0 && (
                             <div className="flex items-center justify-between">
                                 <span className="text-gray-400">Your pattern:</span>
@@ -126,17 +127,16 @@ function RiskCard({ risk, onClick, personalizedInfo }: { risk: HealthRisk; onCli
                             </div>
                         )}
                         {personalizedInfo.topTriggers.length > 0 && (
-                            <div className="flex items-start justify-between">
-                                <span className="text-gray-400">Active today:</span>
+                            <div className="flex items-start justify-between gap-2">
+                                <span className="text-gray-400 shrink-0">Active:</span>
                                 <span className={`${theme.detail} text-right`}>
                                     {personalizedInfo.topTriggers.join(', ')}
                                 </span>
                             </div>
                         )}
                         {personalizedInfo.matchesPattern && (
-                            <div className="flex items-center gap-1 px-1.5 py-0.5 bg-blue-500/10 rounded border border-blue-500/20 col-span-2">
-                                <span className="text-blue-400">💡</span>
-                                <span className="text-blue-300 text-[8px]">{personalizedInfo.matchesPattern}</span>
+                            <div className="flex items-center gap-1 px-2 sm:px-1.5 py-1 sm:py-0.5 bg-blue-500/10 rounded border border-blue-500/20">
+                                <span className="text-blue-300 text-[9px] sm:text-[8px]">{personalizedInfo.matchesPattern}</span>
                             </div>
                         )}
                     </div>
@@ -144,10 +144,10 @@ function RiskCard({ risk, onClick, personalizedInfo }: { risk: HealthRisk; onCli
 
                 {/* Footer */}
                 <div className="mt-2 pt-2 border-t border-gray-700/20 flex items-center justify-between gap-2">
-                    <span className={`text-[10px] font-mono uppercase tracking-tight max-w-[70%] break-words ${theme.trigger}`}>
+                    <span className={`text-[11px] sm:text-[10px] font-mono uppercase tracking-tight max-w-[70%] break-words ${theme.trigger}`}>
                         {risk.trigger}
                     </span>
-                    <span className={`text-[10px] font-medium opacity-0 group-hover:opacity-80 transition-all duration-300 ${theme.detail}`}>
+                    <span className={`text-[11px] sm:text-[10px] font-medium opacity-0 group-hover:opacity-80 transition-all duration-300 ${theme.detail}`}>
                         Details →
                     </span>
                 </div>
@@ -252,20 +252,50 @@ function DetailModal({ risk, onClose }: { risk: HealthRisk | null; onClose: () =
     );
 }
 
-// Helper function to generate personalized risk info based on patterns
+interface ConditionStats {
+    frequency: number;
+    avgSeverity: number;
+}
+
+type SymptomStatsMap = Record<string, ConditionStats>;
+
+function calculateConditionStats(logs: SymptomLogEntry[]): SymptomStatsMap {
+    const stats: SymptomStatsMap = {};
+
+    logs.forEach(log => {
+        log.tags.forEach(condition => {
+            if (!stats[condition]) {
+                stats[condition] = { frequency: 0, avgSeverity: 0 };
+            }
+            stats[condition].frequency += 1;
+            stats[condition].avgSeverity += log.severity;
+        });
+    });
+
+    // Calculate averages
+    Object.keys(stats).forEach(condition => {
+        if (stats[condition].frequency > 0) {
+            stats[condition].avgSeverity /= stats[condition].frequency;
+        }
+    });
+
+    return stats;
+}
+
 function getPersonalizedRiskInfo(
     condition: string,
-    data: CurrentWeather | null
+    data: CurrentWeather | null,
+    conditionStats: SymptomStatsMap
 ): { frequency: number; avgSeverity: number; topTriggers: string[]; matchesPattern?: string } {
     if (!data) return { frequency: 0, avgSeverity: 0, topTriggers: [] };
-
-    // TODO: In future, fetch actual symptom history from backend
-    // For now, use smart logic based on current conditions
 
     const kpIndex = data.geomagnetic?.kpIndex ?? 0;
     const humidity = data.humidity ?? 0;
     const pressure = data.pressure ?? 0;
     const aqi = data.aqi?.usAqi ?? 0;
+
+    // Get historical stats for this condition
+    const stats = conditionStats[condition] || { frequency: 0, avgSeverity: 0 };
 
     // Determine active triggers based on current conditions
     const activeTriggers: string[] = [];
@@ -277,15 +307,15 @@ function getPersonalizedRiskInfo(
 
     // Personalized patterns for specific conditions
     const patterns: Record<string, string> = {
-        'Migraines': kpIndex > 4 && humidity > 85 ? '⚠️ This matches your May 16 pattern' : '',
-        'Sinus': humidity > 90 ? '💧 High humidity is your sinus trigger' : '',
-        'ME/CFS': kpIndex > 4 ? '⚠️ Geomagnetic storms affect you strongly' : '',
-        'Fibromyalgia': kpIndex > 4 && Math.abs(data.derivative?.delta1h ?? 0) > 0.3 ? '⚠️ Multiple triggers converging' : '',
+        'Migraines': kpIndex > 4 && humidity > 85 ? 'This matches your May 16 pattern' : '',
+        'Sinus': humidity > 90 ? 'High humidity is your sinus trigger' : '',
+        'ME/CFS': kpIndex > 4 ? 'Geomagnetic storms affect you strongly' : '',
+        'Fibromyalgia': kpIndex > 4 && Math.abs(data.derivative?.delta1h ?? 0) > 0.3 ? 'Multiple triggers converging' : '',
     };
 
     return {
-        frequency: 0, // Will be populated from symptom history
-        avgSeverity: 0, // Will be populated from symptom history
+        frequency: stats.frequency,
+        avgSeverity: stats.avgSeverity,
         topTriggers: activeTriggers,
         matchesPattern: patterns[condition] || undefined
     };
@@ -293,6 +323,25 @@ function getPersonalizedRiskInfo(
 
 export default function HealthImpact({ data, loading, healthToggles }: Props) {
     const [selectedRisk, setSelectedRisk] = useState<HealthRisk | null>(null);
+    const [symptomLogs, setSymptomLogs] = useState<SymptomLogEntry[]>([]);
+
+    // Fetch symptom logs on mount
+    useEffect(() => {
+        const loadLogs = async () => {
+            try {
+                const logs = await fetchSymptomLogs(90); // Last 90 days for good baseline
+                setSymptomLogs(logs);
+            } catch (error) {
+                console.error('Failed to fetch symptom logs:', error);
+            }
+        };
+        loadLogs();
+    }, []);
+
+    // Calculate condition statistics from symptom logs
+    const conditionStats = useMemo(() => {
+        return calculateConditionStats(symptomLogs);
+    }, [symptomLogs]);
 
     if (loading) {
         return (
@@ -373,12 +422,12 @@ export default function HealthImpact({ data, loading, healthToggles }: Props) {
                     {/* Header + Label */}
                     <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
                         <div className="flex flex-col">
-                            <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Body Impact Level</span>
-                            <span className="text-[10px] text-gray-400 mt-0.5">
+                            <span className="text-[12px] sm:text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400">Body Impact Level</span>
+                            <span className="text-[11px] sm:text-[10px] text-gray-400 mt-1 sm:mt-0.5">
                                 Based on current conditions and short-term forecast
                             </span>
                         </div>
-                        <span className={`text-base sm:text-lg font-black tracking-tight ${sc.text}`}>{sc.label}</span>
+                        <span className={`text-lg sm:text-lg font-black tracking-tight ${sc.text}`}>{sc.label}</span>
                     </div>
 
                     {/* Severity Meter Bar */}
@@ -391,7 +440,7 @@ export default function HealthImpact({ data, loading, healthToggles }: Props) {
                             />
                         ))}
                     </div>
-                    <div className="flex justify-between text-[11px] font-mono uppercase tracking-widest text-gray-500 mb-3">
+                    <div className="flex justify-between text-[10px] sm:text-[11px] font-mono uppercase tracking-widest text-gray-500 mb-3">
                         <span>Low</span>
                         <span>Moderate</span>
                         <span>High</span>
@@ -422,9 +471,9 @@ export default function HealthImpact({ data, loading, healthToggles }: Props) {
 
                     {/* Affected conditions chips */}
                     {elevatedRisks.length > 0 && (
-                        <div className="flex gap-2 mt-3 flex-wrap">
+                        <div className="flex gap-2 mt-4 flex-wrap">
                             {elevatedRisks.map((r, i) => (
-                                    <span key={i} className={`text-[10px] font-semibold px-3 py-1.5 rounded-lg border flex items-center gap-1.5 ${SEVERITY_THEME[r.risk].chip}`}>
+                                    <span key={i} className={`text-[11px] sm:text-[10px] font-semibold px-3 py-1.5 rounded-lg border flex items-center gap-1.5 ${SEVERITY_THEME[r.risk].chip}`}>
                                         <span>{r.condition}</span>
                                         <span className="opacity-40">·</span>
                                         <span className="capitalize opacity-70">{r.risk}</span>
@@ -436,13 +485,13 @@ export default function HealthImpact({ data, loading, healthToggles }: Props) {
             </div>
 
             {/* Risk Cards — Horizontal Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {sortedRisks.map((risk, i) => (
                     <RiskCard
                         key={i}
                         risk={risk}
                         onClick={() => setSelectedRisk(risk)}
-                        personalizedInfo={getPersonalizedRiskInfo(risk.condition, data)}
+                        personalizedInfo={getPersonalizedRiskInfo(risk.condition, data, conditionStats)}
                     />
                 ))}
             </div>

@@ -69,57 +69,57 @@ export default function CurrentConditions({ data, loading, history }: Props) {
     <div className="bg-[#131d2e] rounded-2xl p-5 border border-[#1e2d45] shadow-xl relative overflow-hidden">
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-gray-300 text-xs font-medium tracking-wider uppercase">Current Conditions</h2>
-        <span className="text-[10px] text-gray-400 font-mono">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-gray-300 text-xs sm:text-sm font-medium tracking-wider uppercase">Current Conditions</h2>
+        <span className="text-[10px] sm:text-[11px] text-gray-400 font-mono">
           {new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </span>
       </div>
 
       {/* Pressure - Primary */}
-      <div className="mb-4">
+      <div className="mb-5">
         <div className="flex items-baseline gap-2">
-          <span className="text-4xl font-bold text-white tracking-tight">{data.pressure.toFixed(1)}</span>
-          <span className="text-sm text-gray-400 font-medium">hPa</span>
+          <span className="text-5xl sm:text-4xl font-bold text-white tracking-tight">{data.pressure.toFixed(1)}</span>
+          <span className="text-base sm:text-sm text-gray-400 font-medium">hPa</span>
           <span
-            className={`ml-auto px-3 py-1 rounded-lg text-[10px] font-bold border ${config.bg} ${config.text} ${config.border} ${config.shadow} transition-shadow`}
+            className={`ml-auto px-3 py-1.5 rounded-lg text-[11px] sm:text-[10px] font-bold border ${config.bg} ${config.text} ${config.border} ${config.shadow} transition-shadow`}
             role="status"
             aria-label={`Pressure change severity: ${severity}. ${severityLabel(severity, trend)} over the last hour.`}
           >
             {trendIcon(trend)} {severityLabel(severity, trend)}
           </span>
         </div>
-        <p className={`text-xs font-medium mt-1 ${config.text}`}>
+        <p className={`text-sm sm:text-xs font-medium mt-2 ${config.text}`}>
           {delta1h >= 0 ? '+' : ''}{delta1h.toFixed(2)} hPa/h
-          <span className="text-gray-500 text-[10px] font-normal ml-1">last hour</span>
+          <span className="text-gray-500 text-[11px] sm:text-[10px] font-normal ml-1">last hour</span>
         </p>
       </div>
 
       {/* Secondary metrics grid */}
-      <div className="grid grid-cols-2 gap-2">
-        <div className="bg-gray-900/40 rounded-lg p-2.5 border border-gray-700/30">
-          <p className="text-[10px] text-gray-400 font-mono uppercase tracking-widest">Temp</p>
-          <p className="text-base font-bold text-gray-200 mt-0.5">{toF(data.temperature)}<span className="text-xs text-gray-400 font-normal">°F</span></p>
+      <div className="grid grid-cols-2 gap-3 sm:gap-2">
+        <div className="bg-gray-900/40 rounded-lg p-3.5 sm:p-2.5 border border-gray-700/30">
+          <p className="text-[11px] sm:text-[10px] text-gray-400 font-mono uppercase tracking-widest">Temp</p>
+          <p className="text-lg sm:text-base font-bold text-gray-200 mt-1 sm:mt-0.5">{toF(data.temperature)}<span className="text-sm sm:text-xs text-gray-400 font-normal">°F</span></p>
         </div>
-        <div className="bg-gray-900/40 rounded-lg p-2.5 border border-gray-700/30">
-          <p className="text-[10px] text-gray-500 font-mono uppercase tracking-widest">Humidity</p>
-          <p className="text-base font-bold text-gray-200 mt-0.5">{data.humidity.toFixed(0)}<span className="text-xs text-gray-500 font-normal">%</span></p>
+        <div className="bg-gray-900/40 rounded-lg p-3.5 sm:p-2.5 border border-gray-700/30">
+          <p className="text-[11px] sm:text-[10px] text-gray-500 font-mono uppercase tracking-widest">Humidity</p>
+          <p className="text-lg sm:text-base font-bold text-gray-200 mt-1 sm:mt-0.5">{data.humidity.toFixed(0)}<span className="text-sm sm:text-xs text-gray-500 font-normal">%</span></p>
         </div>
-        <div className="bg-gray-900/40 rounded-lg p-2.5 border border-gray-700/30">
-          <p className="text-[10px] text-gray-400 font-mono uppercase tracking-widest">Dew Point</p>
-          <p className="text-base font-bold text-gray-200 mt-0.5">{toF(data.dewPoint)}<span className="text-xs text-gray-400 font-normal">°F</span></p>
+        <div className="bg-gray-900/40 rounded-lg p-3.5 sm:p-2.5 border border-gray-700/30">
+          <p className="text-[11px] sm:text-[10px] text-gray-400 font-mono uppercase tracking-widest">Dew Point</p>
+          <p className="text-lg sm:text-base font-bold text-gray-200 mt-1 sm:mt-0.5">{toF(data.dewPoint)}<span className="text-sm sm:text-xs text-gray-400 font-normal">°F</span></p>
         </div>
-        <div className="bg-gray-900/40 rounded-lg p-2.5 border border-gray-700/30">
-          <p className="text-[10px] text-gray-400 font-mono uppercase tracking-widest">Wind</p>
-          <p className="text-base font-bold text-gray-200 mt-0.5">{data.windSpeed.toFixed(1)} <span className="text-[10px] text-gray-400 font-normal">m/s</span></p>
+        <div className="bg-gray-900/40 rounded-lg p-3.5 sm:p-2.5 border border-gray-700/30">
+          <p className="text-[11px] sm:text-[10px] text-gray-400 font-mono uppercase tracking-widest">Wind</p>
+          <p className="text-lg sm:text-base font-bold text-gray-200 mt-1 sm:mt-0.5">{data.windSpeed.toFixed(1)} <span className="text-[11px] sm:text-[10px] text-gray-400 font-normal">m/s</span></p>
         </div>
       </div>
 
       {/* Bottom info strips */}
-      <div className="mt-3 pt-0 space-y-0">
+      <div className="mt-4 pt-0 space-y-0">
         {/* "What Changed" context strip */}
         {context && context.pRange >= 2 && (
-          <div className="border-t border-gray-700/20 py-2.5 text-[10px] font-mono space-y-1">
+          <div className="border-t border-gray-700/20 py-3 sm:py-2.5 text-[11px] sm:text-[10px] font-mono space-y-1">
             <div className={`font-semibold flex items-center justify-between ${Math.abs(context.pChange) >= 3 ? 'text-amber-400' : 'text-blue-400'}`}>
               <span>{context.pChange > 0 ? '↑' : '↓'} {Math.abs(context.pChange).toFixed(1)} hPa vs High</span>
               {context.tRange >= 5 && <span className="text-gray-400">{context.lowTF}° – {context.highTF}°F</span>}
@@ -132,17 +132,17 @@ export default function CurrentConditions({ data, loading, history }: Props) {
 
         {/* AQI inline */}
         {data.aqi && (
-          <div className="border-t border-gray-700/20 py-2.5 flex items-center justify-between flex-wrap gap-1.5 text-[10px]">
-            <div className="flex items-center gap-1.5">
-              <span className="text-gray-400 font-mono uppercase tracking-wider text-[10px]">AQI</span>
-              <span className={`font-bold ${data.aqi.usAqi >= 200 ? 'text-red-300' :
+          <div className="border-t border-gray-700/20 py-3 sm:py-2.5 flex items-center justify-between flex-wrap gap-2 sm:gap-1.5 text-[11px] sm:text-[10px]">
+            <div className="flex items-center gap-2 sm:gap-1.5">
+              <span className="text-gray-400 font-mono uppercase tracking-wider text-[11px] sm:text-[10px]">AQI</span>
+              <span className={`font-bold text-lg sm:text-base ${data.aqi.usAqi >= 200 ? 'text-red-300' :
                 data.aqi.usAqi >= 150 ? 'text-orange-300' :
                   data.aqi.usAqi >= 100 ? 'text-amber-300' :
                     data.aqi.usAqi >= 51 ? 'text-yellow-300' : 'text-emerald-300'
                 }`}>
                 {data.aqi.usAqi.toFixed(0)}
               </span>
-              <span className={`font-bold uppercase px-2 py-0.5 rounded-lg text-[10px] border transition-all ${data.aqi.usAqi >= 200 ? 'bg-red-500/20 text-red-300 border-red-500/35' :
+              <span className={`font-bold uppercase px-2.5 py-1 sm:px-2 sm:py-0.5 rounded-lg text-[11px] sm:text-[10px] border transition-all ${data.aqi.usAqi >= 200 ? 'bg-red-500/20 text-red-300 border-red-500/35' :
                 data.aqi.usAqi >= 150 ? 'bg-orange-500/20 text-orange-300 border-orange-500/35' :
                   data.aqi.usAqi >= 100 ? 'bg-amber-500/20 text-amber-300 border-amber-500/35' :
                     data.aqi.usAqi >= 51 ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/35' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/35'
@@ -151,7 +151,7 @@ export default function CurrentConditions({ data, loading, history }: Props) {
                   data.aqi.usAqi >= 100 ? 'Sensitive' : data.aqi.usAqi >= 51 ? 'Moderate' : 'Good'}
               </span>
             </div>
-            <span className="text-gray-500 font-mono text-[10px]">PM2.5: {data.aqi.pm25.toFixed(1)} · PM10: {data.aqi.pm10.toFixed(1)}</span>
+            <span className="text-gray-500 font-mono text-[11px] sm:text-[10px]">PM2.5: {data.aqi.pm25.toFixed(1)} · PM10: {data.aqi.pm10.toFixed(1)}</span>
           </div>
         )}
       </div>
