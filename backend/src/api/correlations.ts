@@ -96,7 +96,7 @@ export async function correlationRoutes(app: FastifyInstance): Promise<void> {
       const usableLogs = logs.filter(
         (l): l is typeof logs[0] & { environmentalSnapshot: EnvironmentalSnapshot } => {
           if (!l.environmentalSnapshot || typeof l.environmentalSnapshot !== 'object') return false;
-          const snap = l.environmentalSnapshot;
+          const snap = l.environmentalSnapshot as EnvironmentalSnapshot;
           return (
             snap.pressure !== undefined &&
             snap.temperature !== undefined &&
@@ -190,7 +190,7 @@ export async function correlationRoutes(app: FastifyInstance): Promise<void> {
         variables,
         lagHours,
         (log, lag) => {
-          if (lag === 0) return extractValue(log.environmentalSnapshot?.pressure);
+          if (lag === 0) return extractValue((log.environmentalSnapshot as EnvironmentalSnapshot)?.pressure);
           const target = log.timestamp.getTime() - lag * 60 * 60 * 1000;
           const row = closestRow(weatherRows, target);
           return row ? extractValue(row.pressure) : null;
