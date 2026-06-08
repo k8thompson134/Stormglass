@@ -1,15 +1,34 @@
 # Stormglass
 
-A progressive web app that tracks environmental conditions and shows their potential health impact. Built for people with migraines, ME/CFS, Long COVID, POTS, fibromyalgia, and other conditions where weather patterns drive symptom flares.
+A progressive web app that tracks environmental conditions, logs symptoms, and reveals personal health patterns. Built for people with chronic conditions (migraines, ME/CFS, Long COVID, POTS, fibromyalgia, etc.) where environmental factors trigger symptom flares.
 
 ## Features
 
+- **Environmental tracking** — Real-time pressure, temperature, humidity, wind, UV, cloud cover, precipitation with trend indicators
 - **Pressure dynamics chart** with rate-of-change visualization, forecast overlay, volatile zone highlighting, and front passage detection
-- **Health impact forecast** showing personalized risk levels for 7 conditions (migraine, POTS, ME/CFS, joint pain, air quality, geomagnetic, pollen) with detailed explanations and recommendations
-- **Current conditions snapshot** — pressure, temperature, humidity, wind, UV, cloud cover, precipitation with trend indicators
-- **Configurable health toggles** — choose which conditions to track
-- **Location search** via geocoding — set your location for accurate local data
+- **Personalized daily risk forecast** showing condition-specific risk levels with recommendations
+- **Symptom logger** — Log symptoms with severity levels and environmental snapshots automatically captured
+- **Trends & patterns analysis** — Personalized condition-specific trigger identification showing which environmental factors correlate with your symptoms
+- **Configurable health conditions** — Choose which conditions to track in daily forecasts
+- **Location search** via geocoding — Set your location for accurate local weather
+- **Mobile-optimized responsive design** with accessibility improvements
 - **PWA with offline support** via Workbox
+
+## How It Works
+
+### Daily Risk Forecast
+Shows personalized risk levels for each of your tracked conditions based on current and forecast environmental data. Each condition has specific trigger factors (pressure change, geomagnetic activity, humidity, air quality, pollen).
+
+### Symptom Logging
+Log symptoms with severity (1-10) and condition tags. The app automatically captures the environmental snapshot at the time of logging — pressure, temperature, humidity, air quality, geomagnetic data, and more.
+
+### Trends & Patterns Analysis
+Analyzes your symptom history to identify which environmental factors correlate with your specific conditions. Shows:
+- **Condition-specific triggers** ranked by severity impact
+- **Trend charts** visualizing symptom severity over time
+- **Recovery factors** highlighting what improves your symptoms
+- **Dangerous combinations** warning when multiple high-risk factors align
+- **Actionable insights** based on your personal data
 
 ## Tech Stack
 
@@ -58,22 +77,33 @@ The frontend runs on `http://localhost:5173` and proxies API requests to the bac
 
 ```
 stormglass/
-├── frontend/           # React + Vite PWA
+├── frontend/           # React 18 + Vite PWA
 │   └── src/
-│       ├── components/ # PressureChart, HealthImpact, CurrentConditions, Settings
-│       ├── services/   # API client
+│       ├── components/ # UI components:
+│       │   ├── PressureChart.tsx     # Pressure dynamics visualization
+│       │   ├── HealthImpact.tsx      # Risk forecast cards with personalized data
+│       │   ├── CurrentConditions.tsx # Real-time environmental conditions
+│       │   ├── SymptomLogger.tsx     # Symptom logging modal with environment capture
+│       │   ├── Insights.tsx          # Condition-specific trigger analysis and trends
+│       │   └── Settings.tsx          # Health condition preferences
+│       ├── services/   # API client (fetchSymptomLogs, fetchWeather, etc)
 │       ├── utils/      # Health risk evaluation logic
 │       └── App.tsx     # Main layout and data orchestration
 │
 ├── backend/            # Node.js + Fastify
 │   └── src/
-│       ├── api/        # Route handlers (weather, settings, geocode)
+│       ├── api/        # Route handlers:
+│       │   ├── weather.ts      # Environmental data endpoints
+│       │   ├── settings.ts     # User preferences
+│       │   ├── symptoms.ts     # Symptom log CRUD
+│       │   └── correlations.ts # Trigger analysis endpoints
 │       ├── services/   # Data fetching (Open-Meteo, NOAA, Tomorrow.io)
 │       ├── db/         # Drizzle schema and migrations
-│       ├── jobs/       # Cron scheduler (polls every 30 min)
+│       ├── jobs/       # Cron scheduler (weather polling every 30 min)
 │       └── server.ts   # Fastify app setup
 │
 ├── shared/             # Shared TypeScript types and utilities
+├── docker-compose.yml  # PostgreSQL setup for local dev
 ├── .env.example        # Environment variable template
 └── package.json        # Monorepo workspace config
 ```
