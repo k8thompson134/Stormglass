@@ -91,10 +91,18 @@ export async function correlationRoutes(app: FastifyInstance): Promise<void> {
         )
         .orderBy(asc(symptomLogs.timestamp));
 
-      // Filter to logs with non-null snapshots
+      // Filter to logs with non-null snapshots and valid structure
       const usableLogs = logs.filter(
-        (l): l is typeof logs[0] & { environmentalSnapshot: EnvironmentalSnapshot } =>
-          l.environmentalSnapshot !== null && typeof l.environmentalSnapshot === 'object'
+        (l): l is typeof logs[0] & { environmentalSnapshot: EnvironmentalSnapshot } => {
+          if (!l.environmentalSnapshot || typeof l.environmentalSnapshot !== 'object') return false;
+          const snap = l.environmentalSnapshot;
+          return (
+            snap.pressure !== undefined &&
+            snap.temperature !== undefined &&
+            snap.humidity !== undefined &&
+            (snap.derivative !== undefined || snap.aqi !== undefined || snap.geomagnetic !== undefined || snap.pollen !== undefined)
+          );
+        }
       );
 
       if (usableLogs.length < 5) {
@@ -602,8 +610,8 @@ function computeVariableCorrelation(
   }
 
   // High vs low severity means
-  const highSevLogs = logs.filter((l) => l.severity >= 7);
-  const lowSevLogs = logs.filter((l) => l.severity <= 3);
+  const highSevLogs = logs.filter((l) => l.severity >= 6);
+  const lowSevLogs = logs.filter((l) => l.severity <= 5);
 
   let highSevMean: number | null = null;
   let lowSevMean: number | null = null;

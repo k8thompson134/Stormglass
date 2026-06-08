@@ -48,12 +48,12 @@ export function correlationConfidence(
 
 /**
  * Find the closest row in a timestamp-sorted array to a target timestamp.
- * Returns null if the closest is farther than toleranceMs (default 1 hour).
+ * Returns null if the closest is farther than toleranceMs (default 2 hours).
  */
 export function closestRow<T extends { timestamp: Date }>(
   rows: T[],
   targetMs: number,
-  toleranceMs = 60 * 60 * 1000 // 60 minutes
+  toleranceMs = 2 * 60 * 60 * 1000 // 2 hours
 ): T | null {
   if (rows.length === 0) return null;
 

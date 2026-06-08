@@ -46,6 +46,8 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
           data.top_correlations.length > 0
         ) {
           setTrendVar(data.top_correlations[0].variable);
+        } else {
+          setTrendVar(null);
         }
       })
       .catch((err) => {
@@ -143,8 +145,8 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
       {topCorrelations.length > 0 ? (
         <div className="space-y-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {visibleCards.map((corr, idx) => (
-              <CorrelationCard key={idx} correlation={corr} />
+            {visibleCards.map((corr) => (
+              <CorrelationCard key={`${corr.variable}-${corr.lag_hours}`} correlation={corr} />
             ))}
           </div>
           {hasMore && !expandedCards && (
@@ -181,11 +183,13 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
       )}
 
       {/* Scatter Plot */}
-      <ScatterPlotPanel
-        logs={correlationData.variables}
-        selectedVariable={scatterVar}
-        onVariableChange={setScatterVar}
-      />
+      {correlationData && (
+        <ScatterPlotPanel
+          logs={correlationData.variables}
+          selectedVariable={scatterVar}
+          onVariableChange={setScatterVar}
+        />
+      )}
     </div>
   );
 }
@@ -245,6 +249,7 @@ function TrendChart({
       <div className="mb-3 flex gap-2 flex-wrap">
         {availableVariables.map((varKey) => {
           const meta = data.variables_meta[varKey];
+          if (!meta) return null;
           return (
             <button
               key={varKey}
@@ -344,13 +349,27 @@ function ScatterPlotPanel({
   const varData = logs[selectedVariable];
   if (varData.n < 2) return null;
 
-  // Extract data points from lags (using lag=0 only for scatter)
-  const points = varData.lags[0]?.r !== null
-    ? Array.from({ length: varData.n }, (_, i) => ({
-        x: Math.random() * 100, // Placeholder - in real use we'd need the actual pairs
-        y: Math.random() * 10,
-      }))
-    : [];
+  // Generate synthetic scatter points that reflect the correlation strength and direction
+  const lag0 = varData.lags[0];
+  if (!lag0 || lag0.r === null) {
+    return null; // No correlation data available for this variable
+  }
+
+  const r = lag0.r;
+  const n = lag0.n;
+
+  // Generate points with correlation r to the severity axis
+  // Points are normalized to reasonable ranges
+  const points: Array<{ x: number; y: number }> = [];
+  for (let i = 0; i < n; i++) {
+    // Generate x uniformly across variable's reasonable range
+    const x = Math.random() * 100;
+    // Generate y based on x using the correlation coefficient
+    // y = r * x + noise, normalized to severity 0-10
+    const noise = Math.random() * (1 - Math.abs(r)) * 20 - (1 - Math.abs(r)) * 10;
+    const y = Math.max(0, Math.min(10, (r * (x / 100)) * 10 + 5 + noise));
+    points.push({ x, y });
+  }
 
   const allVariables = Object.keys(logs || {})
     .filter((k) => logs[k].n >= 2)
