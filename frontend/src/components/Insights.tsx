@@ -144,6 +144,9 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
     return conditions;
   }, [symptomLogs]);
 
+  // Get top condition for context
+  const topCondition = personalizedInsights[0]?.name || null;
+
   if (loading) {
     return (
       <div className="bg-[#131d2e] border border-[#1e2d45] rounded-2xl p-6 text-center text-gray-400">
@@ -240,7 +243,7 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
           </p>
           <div className="grid grid-cols-1 gap-3">
             {visibleCards.map((corr) => (
-              <CorrelationCard key={`${corr.variable}-${corr.lag_hours}`} correlation={corr} />
+              <CorrelationCard key={`${corr.variable}-${corr.lag_hours}`} correlation={corr} topCondition={topCondition} />
             ))}
           </div>
           {hasMore && !expandedCards && (
@@ -288,7 +291,7 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
   );
 }
 
-function CorrelationCard({ correlation }: { correlation: TopCorrelation }) {
+function CorrelationCard({ correlation, topCondition }: { correlation: TopCorrelation; topCondition: string | null }) {
   const isPositive = correlation.direction === 'positive';
   const borderColor = isPositive ? 'border-red-500/40' : 'border-blue-500/40';
   const bgColor = isPositive ? 'bg-red-500/5' : 'bg-blue-500/5';
@@ -307,8 +310,15 @@ function CorrelationCard({ correlation }: { correlation: TopCorrelation }) {
       className={`border rounded-lg p-4 sm:p-3 ${borderColor} ${bgColor} ${opacityClass}`}
     >
       <div className="mb-2 flex items-start justify-between gap-2">
-        <div className={`${textColor} text-sm sm:text-xs font-bold`}>
-          {correlation.label}
+        <div>
+          <div className={`${textColor} text-sm sm:text-xs font-bold`}>
+            {correlation.label}
+          </div>
+          {topCondition && (
+            <div className="text-gray-400 text-[10px] sm:text-[9px] mt-1">
+              Affects {topCondition}
+            </div>
+          )}
         </div>
         <div className="inline-block bg-gray-800/50 px-2.5 sm:px-2 py-1 sm:py-0.5 rounded text-[10px] sm:text-[9px] text-gray-300 font-medium whitespace-nowrap">
           {correlation.confidence}
