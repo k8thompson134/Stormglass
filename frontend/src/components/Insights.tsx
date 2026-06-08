@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   fetchCorrelations,
   fetchCorrelationTimeseries,
+  fetchSymptomLogs,
   type CorrelationResponse,
   type CorrelationTimeseriesResponse,
   type TopCorrelation,
+  type SymptomLogEntry,
 } from '../services/api';
 import {
   ComposedChart,
@@ -27,11 +29,27 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
     useState<CorrelationResponse | null>(null);
   const [timeseriesData, setTimeseriesData] =
     useState<CorrelationTimeseriesResponse | null>(null);
+  const [symptomLogs, setSymptomLogs] = useState<SymptomLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(90);
   const [scatterVar, setScatterVar] = useState('pressure');
   const [trendVar, setTrendVar] = useState<string | null>(null);
   const [expandedCards, setExpandedCards] = useState(false);
+
+  // Fetch symptom logs for personalization
+  useEffect(() => {
+    let isMounted = true;
+    fetchSymptomLogs(days)
+      .then((logs) => {
+        if (isMounted) setSymptomLogs(logs);
+      })
+      .catch((err) => {
+        if (isMounted) console.error('Failed to fetch symptom logs:', err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [days]);
 
   // Fetch correlation stats
   useEffect(() => {
@@ -98,6 +116,34 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
     };
   }, [correlationData, days, timeseriesData]);
 
+  // Analyze symptom logs for personalization
+  const personalizedInsights = useMemo(() => {
+    const conditionCounts: Record<string, number> = {};
+    const conditionSeverities: Record<string, number[]> = {};
+
+    symptomLogs.forEach((log) => {
+      log.tags.forEach((condition) => {
+        conditionCounts[condition] = (conditionCounts[condition] || 0) + 1;
+        if (!conditionSeverities[condition]) {
+          conditionSeverities[condition] = [];
+        }
+        conditionSeverities[condition].push(log.severity);
+      });
+    });
+
+    const conditions = Object.keys(conditionCounts)
+      .map((condition) => ({
+        name: condition,
+        count: conditionCounts[condition],
+        avgSeverity:
+          conditionSeverities[condition].reduce((a, b) => a + b, 0) /
+          conditionSeverities[condition].length,
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    return conditions;
+  }, [symptomLogs]);
+
   if (loading) {
     return (
       <div className="bg-[#131d2e] border border-[#1e2d45] rounded-2xl p-6 text-center text-gray-400">
@@ -163,6 +209,28 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
           })}
         </div>
       </div>
+
+      {/* Your Conditions Summary */}
+      {personalizedInsights.length > 0 && (
+        <div className="bg-gray-900/50 border border-gray-700/30 rounded-lg p-3 space-y-2">
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
+            Your Tracked Conditions
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {personalizedInsights.slice(0, 5).map((condition) => (
+              <div
+                key={condition.name}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-blue-500/10 border border-blue-500/30 rounded text-[11px]"
+              >
+                <span className="font-semibold text-blue-300">{condition.name}</span>
+                <span className="text-gray-500">
+                  {condition.count}x • {condition.avgSeverity.toFixed(1)}/10
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Correlation Cards */}
       {topCorrelations.length > 0 ? (
