@@ -3,6 +3,7 @@ import logo from './assets/logo.png';
 import CurrentConditions from './components/CurrentConditions';
 import PressureChart from './components/PressureChart';
 import HealthImpact from './components/HealthImpact';
+import Insights from './components/Insights';
 import Settings from './components/Settings';
 import Onboarding from './components/Onboarding';
 import SymptomLogger from './components/SymptomLogger';
@@ -28,6 +29,7 @@ function App() {
   const [symptomLoggerOpen, setSymptomLoggerOpen] = useState(false);
   const [debugLogOpen, setDebugLogOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [showInsights, setShowInsights] = useState(true);
 
   const allTogglesOn: HealthToggles = {
     migraine: true, cluster: true, sinus: true,
@@ -319,7 +321,26 @@ function App() {
           </div>
         </div>
 
-        {/* Bottom Section: Health Impact */}
+        {/* Bottom Section: Trends + Health Impact */}
+
+        {/* Insights Section Toggle */}
+        <div className="mb-2 flex items-center gap-3">
+          <button
+            onClick={() => setShowInsights(s => !s)}
+            className={`text-[10px] font-bold uppercase tracking-widest ${
+              showInsights ? 'text-violet-400' : 'text-gray-500'
+            }`}
+          >
+            [ TRENDS {showInsights ? '▲' : '▼'} ]
+          </button>
+        </div>
+
+        {showInsights && (
+          <div className="mb-6">
+            <Insights onOpenSymptomLogger={() => setSymptomLoggerOpen(true)} />
+          </div>
+        )}
+
         <HealthImpact data={current} loading={loading} healthToggles={healthToggles} />
 
         {/* Settings Modal */}
