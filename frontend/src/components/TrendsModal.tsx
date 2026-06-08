@@ -32,8 +32,8 @@ export default function TrendsModal({ open, onClose, onOpenSymptomLogger }: Prop
         {/* Header */}
         <div className="border-b border-gray-700/50 p-6 flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-black text-white tracking-tight">Symptom Trends</h2>
-            <p className="text-[11px] text-gray-400 mt-1">Correlations between environmental factors and your symptoms</p>
+            <h2 className="text-white text-sm font-bold uppercase tracking-wider">Symptom Trends</h2>
+            <p className="text-[11px] text-gray-400 mt-2">Correlations between environmental factors and your symptoms</p>
           </div>
           <button
             onClick={onClose}

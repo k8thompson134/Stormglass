@@ -31,7 +31,7 @@ export default function Info({ open, onClose }: Props) {
         {/* Header with Tabs */}
         <div className="border-b border-gray-700/50 p-6">
           <div className="flex items-center justify-between gap-4 mb-5">
-            <h2 className="text-xl font-black text-white tracking-tight">Information</h2>
+            <h2 className="text-white text-sm font-bold uppercase tracking-wider">Information</h2>
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-white transition-colors text-xl leading-none w-8 h-8 flex items-center justify-center hover:bg-gray-800/50 rounded-lg"
