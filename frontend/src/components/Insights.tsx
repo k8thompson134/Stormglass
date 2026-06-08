@@ -333,14 +333,22 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
           ((log.environmentalSnapshot?.aqi?.usAqi ?? 0) > 45 ||
             (log.environmentalSnapshot?.geomagnetic?.kpIndex ?? 0) > 4)
       ) && (
-        <div className="bg-orange-500/10 border border-orange-500/30 rounded-2xl p-4 space-y-2">
-          <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">
-            Dangerous Combinations
-          </p>
-          <p className="text-[11px] sm:text-[10px] text-orange-300/80">
-            Watch for: High humidity combined with air quality spikes or geomagnetic storms. These combinations
-            appear to trigger your worst symptom days.
-          </p>
+        <div className="bg-orange-500/15 border border-orange-500/50 rounded-2xl p-6 space-y-3">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 mt-0.5">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-orange-500/30">
+                <div className="h-2 w-2 rounded-full bg-orange-400" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <p className="text-[11px] font-bold text-orange-300 uppercase tracking-widest">
+                Dangerous Combinations
+              </p>
+              <p className="text-[12px] sm:text-[11px] text-orange-200 mt-2 leading-relaxed">
+                High humidity combined with air quality spikes or geomagnetic storms. These patterns correlate with your worst symptom days.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
