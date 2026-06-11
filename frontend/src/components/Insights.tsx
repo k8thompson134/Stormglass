@@ -23,6 +23,37 @@ interface ConditionAnalysis {
   trendData: Array<{ date: string; severity: number }>;
 }
 
+const RISK_THEME = {
+  low: {
+    bg: 'bg-emerald-500/10',
+    border: 'border-emerald-500/30',
+    title: 'text-emerald-300',
+    badge: 'text-emerald-300',
+    bar: 'bg-emerald-500',
+  },
+  moderate: {
+    bg: 'bg-amber-500/10',
+    border: 'border-amber-500/30',
+    title: 'text-amber-300',
+    badge: 'text-amber-300',
+    bar: 'bg-amber-500',
+  },
+  high: {
+    bg: 'bg-orange-500/10',
+    border: 'border-orange-500/30',
+    title: 'text-orange-300',
+    badge: 'text-orange-300',
+    bar: 'bg-orange-500',
+  },
+  severe: {
+    bg: 'bg-red-500/10',
+    border: 'border-red-500/30',
+    title: 'text-red-300',
+    badge: 'text-red-300',
+    bar: 'bg-red-500',
+  },
+};
+
 export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
   const [symptomLogs, setSymptomLogs] = useState<SymptomLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,10 +166,22 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
     const primaryTrigger = topCondition.triggers[0];
     const secondaryTrigger = topCondition.triggers[1] || null;
 
+    let riskLevel: 'low' | 'moderate' | 'high' | 'severe' = 'low';
+    if (primaryTrigger) {
+      const severity = primaryTrigger.severity;
+      if (severity >= 7) {
+        riskLevel = 'severe';
+      } else if (severity >= 5) {
+        riskLevel = 'high';
+      } else if (severity > 3.5) {
+        riskLevel = 'moderate';
+      }
+    }
+
     return {
       primaryTrigger,
       secondaryTrigger,
-      riskLevel: primaryTrigger ? (primaryTrigger.severity > 3.5 ? 'MODERATE' : 'LOW') : 'LOW',
+      riskLevel,
     };
   }, [conditionAnalysis]);
 
@@ -201,8 +244,8 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
 
       {/* Today's Risk */}
       {todayRisk && (
-        <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-4 space-y-3">
-          <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">
+        <div className={`${RISK_THEME[todayRisk.riskLevel].bg} border ${RISK_THEME[todayRisk.riskLevel].border} rounded-2xl p-4 space-y-3`}>
+          <p className={`text-[10px] font-bold ${RISK_THEME[todayRisk.riskLevel].title} uppercase tracking-widest`}>
             Today's Symptom Risk
           </p>
 
@@ -210,11 +253,11 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[11px] text-gray-300">Primary Trigger: {todayRisk.primaryTrigger?.name}</span>
-                <span className="text-[10px] font-bold text-blue-300">{todayRisk.riskLevel}</span>
+                <span className={`text-[10px] font-bold ${RISK_THEME[todayRisk.riskLevel].badge} uppercase`}>{todayRisk.riskLevel}</span>
               </div>
               <div className="w-full bg-gray-900/50 rounded-full h-2">
                 <div
-                  className="bg-blue-500 h-2 rounded-full"
+                  className={`${RISK_THEME[todayRisk.riskLevel].bar} h-2 rounded-full`}
                   style={{
                     width: `${Math.min((todayRisk.primaryTrigger?.severity ?? 0) * 20, 100)}%`,
                   }}
