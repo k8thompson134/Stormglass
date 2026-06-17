@@ -305,7 +305,7 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
                       <span className="text-[11px] sm:text-[10px] font-semibold text-gray-200">
                         {idx + 1}. {trigger.name}
                       </span>
-                      <span className="text-[10px] text-blue-300 font-medium">
+                      <span className="text-[10px] text-gray-400 font-medium">
                         {trigger.severity.toFixed(1)}/10
                       </span>
                     </div>
