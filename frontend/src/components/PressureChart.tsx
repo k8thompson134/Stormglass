@@ -250,8 +250,8 @@ export default function PressureChart({ data, loading, hours, onHoursChange }: P
       if (Number.isNaN(peakMs) || Number.isNaN(baseStartMs) || Number.isNaN(baseEndMs)) return;
 
       const halfWindowMs = (MAX_EVENT_HOURS / 2) * 3600000;
-      let targetStartMs = Math.max(baseStartMs, peakMs - halfWindowMs);
-      let targetEndMs = Math.min(baseEndMs, peakMs + halfWindowMs);
+      const targetStartMs = Math.max(baseStartMs, peakMs - halfWindowMs);
+      const targetEndMs = Math.min(baseEndMs, peakMs + halfWindowMs);
       if (targetEndMs <= targetStartMs) return;
 
       let clippedStartIdx = baseStartIdx;

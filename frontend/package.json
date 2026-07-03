@@ -8,7 +8,7 @@
     "preview": "vite preview",
     "lint": "eslint src --ext ts,tsx",
     "format": "prettier --write src",
-    "test": "vitest"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "react": "^18.3.1",

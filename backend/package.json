@@ -11,7 +11,7 @@
     "db:studio": "drizzle-kit studio",
     "lint": "eslint src --ext ts",
     "format": "prettier --write src",
-    "test": "vitest"
+    "test": "vitest run"
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",
