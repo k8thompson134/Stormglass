@@ -139,10 +139,10 @@ export default function Info({ open, onClose }: Props) {
               <section className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4">
                 <h3 className="text-[11px] font-bold text-emerald-300 uppercase tracking-[0.15em] mb-2">Privacy</h3>
                 <p className="text-gray-300 text-[12px] leading-relaxed mb-2">
-                  All symptom data stays on your device. Nothing is sent to a server or shared with anyone.
+                  Your symptom logs, location, and health condition settings are stored in a private database on this app's hosting provider (Railway) — not sent to any third party, sold, or used for analytics.
                 </p>
                 <p className="text-gray-300 text-[12px] leading-relaxed">
-                  Your location is used only to fetch local weather data and is not stored or tracked.
+                  Location is used only to fetch weather/air-quality data for that spot.
                 </p>
               </section>
 
@@ -157,7 +157,9 @@ export default function Info({ open, onClose }: Props) {
 
                   <div className="bg-gray-800/40 border border-gray-700/30 rounded-lg p-3">
                     <h4 className="text-[12px] font-semibold text-gray-200 mb-1">Air Quality</h4>
-                    <p className="text-[12px] text-gray-400">The Open-Meteo Air Quality API pulls from Copernicus CAMS models and includes PM2.5, PM10, ozone, NO2, and SO2. Hourly at 11km resolution.</p>
+                    <p className="text-[12px] text-gray-400">
+                      A regional model (Open-Meteo/Copernicus CAMS, ~7 mile resolution, hourly, 3-day forecast) blended with real nearby ground sensors (PurpleAir) when at least 3 are close by — whichever reading is higher is used, so a nearby smoke plume the regional model misses still shows up. Also includes wildfire smoke trend detection, upcoming safe-air windows, and exposure tracking over time.
+                    </p>
                   </div>
 
                   <div className="bg-gray-800/40 border border-gray-700/30 rounded-lg p-3">
@@ -166,8 +168,8 @@ export default function Info({ open, onClose }: Props) {
                   </div>
 
                   <div className="bg-gray-800/40 border border-gray-700/30 rounded-lg p-3">
-                    <h4 className="text-[12px] font-semibold text-gray-200 mb-1">Pollen (planned)</h4>
-                    <p className="text-[12px] text-gray-400">The Google Pollen API will provide tree, grass, and weed indices with US coverage at 1km resolution.</p>
+                    <h4 className="text-[12px] font-semibold text-gray-200 mb-1">Pollen</h4>
+                    <p className="text-[12px] text-gray-400">Tree, grass, weed, and mold indices from Open-Meteo's pollen model.</p>
                   </div>
                 </div>
               </section>
@@ -176,7 +178,7 @@ export default function Info({ open, onClose }: Props) {
               <section className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
                 <h3 className="text-[10px] font-bold text-amber-300 uppercase tracking-[0.15em] mb-2">Limitations</h3>
                 <p className="text-gray-300 text-[12px] leading-relaxed">
-                  Weather data is modeled over a grid rather than measured at your exact location, so conditions in your immediate environment may differ from what the app shows. This is especially true for air quality. Forecasts are most reliable within 48 hours and degrade beyond that.
+                  Weather data is modeled over a grid rather than measured at your exact location, so conditions in your immediate environment may differ from what the app shows. Air quality's regional model is the biggest gap here — nearby ground sensors help close it, but coverage depends on how many are near you. Forecasts are most reliable within 48 hours and degrade beyond that.
                 </p>
               </section>
 
