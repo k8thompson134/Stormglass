@@ -169,7 +169,7 @@ export default function Info({ open, onClose }: Props) {
 
                   <div className="bg-gray-800/40 border border-gray-700/30 rounded-lg p-3">
                     <h4 className="text-[12px] font-semibold text-gray-200 mb-1">Pollen</h4>
-                    <p className="text-[12px] text-gray-400">Tree, grass, weed, and mold indices from Open-Meteo's pollen model.</p>
+                    <p className="text-[12px] text-gray-400">Tree, grass, weed, and mold indices from Tomorrow.io. Skipped if no API key is configured.</p>
                   </div>
                 </div>
               </section>
