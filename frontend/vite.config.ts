@@ -2,6 +2,11 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+// Backend port is overridable via BACKEND_PORT (e.g. when the default 3000 is taken
+// locally) so the proxy target and `npm run dev` stay in sync without editing this
+// file each time -- see README/docs for the Tailscale dev-access setup.
+const backendPort = process.env.BACKEND_PORT || '3000';
+
 export default defineConfig({
   envDir: '..',
   plugins: [
@@ -36,13 +41,21 @@ export default defineConfig({
     }),
   ],
   server: {
+    // Bind all interfaces (not just localhost) so the dev server is reachable over
+    // Tailscale/LAN, e.g. from a phone -- pass --host on the CLI or set host here;
+    // both work, this is the persistent default so `npm run dev` alone is enough.
+    host: true,
+    // Vite blocks requests with an unrecognized Host header by default (DNS-rebinding
+    // protection). Tailscale's MagicDNS name needs an explicit allowlist entry; the
+    // bare Tailscale IP doesn't trigger this check at all.
+    allowedHosts: ['kates-mac-mini.tail778117.ts.net'],
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: `http://localhost:${backendPort}`,
         changeOrigin: true,
       },
       '/ws': {
-        target: 'ws://localhost:3000',
+        target: `ws://localhost:${backendPort}`,
         ws: true,
       },
     },
