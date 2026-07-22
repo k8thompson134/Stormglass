@@ -96,7 +96,7 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
         setSaved(false);
         try {
             const formattedName = `${result.name}${result.state ? `, ${result.state}` : ''}`;
-            await updateLocation(String(result.latitude), String(result.longitude), formattedName);
+            await updateLocation(String(result.latitude), String(result.longitude), formattedName, result.timezone ?? undefined);
             setCurrentLat(String(result.latitude));
             setCurrentLon(String(result.longitude));
             setCurrentName(`${formattedName}, ${result.country}`);

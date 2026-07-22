@@ -29,6 +29,13 @@
       "when": 1773857891786,
       "tag": "0003_careful_morlocks",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1784657460589,
+      "tag": "0004_curved_marvel_zombies",
+      "breakpoints": true
     }
   ]
 }

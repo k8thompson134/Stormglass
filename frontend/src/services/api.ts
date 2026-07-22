@@ -95,6 +95,7 @@ export interface GeoResult {
   longitude: number;
   country: string;
   state: string | null;
+  timezone: string | null;
 }
 
 export async function fetchSettings(): Promise<Settings> {
@@ -105,11 +106,11 @@ export async function fetchSettings(): Promise<Settings> {
   return res.json();
 }
 
-export async function updateLocation(latitude: string, longitude: string, name?: string): Promise<{ success: boolean }> {
+export async function updateLocation(latitude: string, longitude: string, name?: string, timezone?: string): Promise<{ success: boolean }> {
   const res = await fetch(`${API_BASE}/settings/location`, {
     method: 'POST',
     headers: getHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ latitude, longitude, name }),
+    body: JSON.stringify({ latitude, longitude, name, timezone }),
   });
   if (!res.ok) throw new Error(`Failed to update location: ${res.status}`);
   return res.json();

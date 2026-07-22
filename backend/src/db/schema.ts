@@ -15,6 +15,7 @@ export const users = pgTable('users', {
   id: uuid('id').defaultRandom().primaryKey(),
   email: text('email').unique().notNull(),
   location: text('location').notNull(),
+  name: text('name'), // display name for `location`, e.g. "Milwaukee, Wisconsin"
   timezone: text('timezone').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

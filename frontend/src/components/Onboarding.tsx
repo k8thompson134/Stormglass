@@ -125,7 +125,7 @@ export default function Onboarding({ onComplete }: Props) {
         try {
             if (pendingLocation) {
                 const name = `${pendingLocation.name}${pendingLocation.state ? `, ${pendingLocation.state}` : ''}`;
-                await updateLocation(String(pendingLocation.latitude), String(pendingLocation.longitude), name);
+                await updateLocation(String(pendingLocation.latitude), String(pendingLocation.longitude), name, pendingLocation.timezone ?? undefined);
             }
             const toggles = Object.fromEntries(
                 ALL_KEYS.map(k => [k, selected.has(k)])

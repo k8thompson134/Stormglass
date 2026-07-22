@@ -14,6 +14,7 @@ import { weatherRoutes } from './api/weather.js';
 import { settingsRoutes } from './api/settings.js';
 import { symptomRoutes } from './api/symptoms.js';
 import { correlationRoutes } from './api/correlations.js';
+import { briefingRoutes } from './api/briefing.js';
 import { startWeatherPolling, stopPolling } from './jobs/weather-poll.js';
 import { client } from './db/index.js';
 
@@ -98,6 +99,7 @@ await app.register(weatherRoutes);
 await app.register(settingsRoutes);
 await app.register(symptomRoutes);
 await app.register(correlationRoutes);
+await app.register(briefingRoutes);
 
 // Serve frontend in production
 if (env.NODE_ENV === 'production') {
@@ -117,9 +119,17 @@ const start = async () => {
     const port = env.PORT;
     const host = env.HOST;
 
-    // Seed default user and start weather polling
-    const userId = await ensureDefaultUser();
-    startWeatherPolling({ userId, latitude: env.DEFAULT_LATITUDE, longitude: env.DEFAULT_LONGITUDE });
+    // Seed default user and start weather polling at whatever location was last
+    // saved (falls back to .env defaults only for a brand-new user) -- using
+    // env.DEFAULT_LATITUDE/LONGITUDE unconditionally here would silently discard the
+    // user's saved location on every restart.
+    const defaultUser = await ensureDefaultUser();
+    startWeatherPolling({
+      userId: defaultUser.id,
+      latitude: defaultUser.latitude,
+      longitude: defaultUser.longitude,
+      name: defaultUser.name ?? undefined,
+    });
 
     await app.listen({ port, host });
     app.log.info(`Server listening on ${host}:${port}`);

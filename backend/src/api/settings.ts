@@ -1,10 +1,14 @@
+import { eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
+import { db } from '../db/index.js';
+import { users } from '../db/schema.js';
 import { getCurrentConfig, restartWeatherPolling } from '../jobs/weather-poll.js';
 
 interface LocationBody {
     latitude: string;
     longitude: string;
     name?: string;
+    timezone?: string;
 }
 
 interface GeocodingResult {
@@ -13,6 +17,9 @@ interface GeocodingResult {
     longitude: number;
     country: string;
     admin1?: string;
+    feature_code?: string;
+    population?: number;
+    timezone?: string;
 }
 
 export async function settingsRoutes(app: FastifyInstance): Promise<void> {
@@ -36,12 +43,13 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
                 properties: {
                     latitude: { type: 'string' },
                     longitude: { type: 'string' },
-                    name: { type: 'string' }
+                    name: { type: 'string' },
+                    timezone: { type: 'string' }
                 }
             }
         }
     }, async (request, reply) => {
-        const { latitude, longitude, name } = request.body;
+        const { latitude, longitude, name, timezone } = request.body;
 
         if (!latitude || !longitude) {
             return reply.status(400).send({ error: 'latitude and longitude are required' });
@@ -54,6 +62,19 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
             return reply.status(400).send({ error: 'Invalid coordinates' });
         }
 
+        // Only accept a real IANA zone name -- an invalid value here would silently
+        // break local-day grouping in aqi-burden (it falls back to UTC, but better to
+        // just not persist garbage in the first place).
+        let validTimezone: string | undefined;
+        if (timezone) {
+            try {
+                new Intl.DateTimeFormat('en-US', { timeZone: timezone });
+                validTimezone = timezone;
+            } catch {
+                request.log.warn({ timezone }, 'Ignoring invalid timezone in location update');
+            }
+        }
+
         const newConfig = await restartWeatherPolling({
             latitude: String(lat),
             longitude: String(lon),
@@ -63,6 +84,19 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
         if (!newConfig) {
             return reply.status(500).send({ error: 'Polling not initialized yet' });
         }
+
+        // Persist to the DB, not just in-memory -- otherwise the next server
+        // restart (deploy, crash) silently reverts to whatever .env's
+        // DEFAULT_LATITUDE/LONGITUDE happens to be, discarding this change.
+        await db
+            .update(users)
+            .set({
+                location: `${newConfig.latitude},${newConfig.longitude}`,
+                name: newConfig.name ?? null,
+                ...(validTimezone ? { timezone: validTimezone } : {}),
+                updatedAt: new Date(),
+            })
+            .where(eq(users.id, newConfig.userId));
 
         return {
             success: true,
@@ -82,22 +116,36 @@ export async function settingsRoutes(app: FastifyInstance): Promise<void> {
         try {
             const url = new URL('https://geocoding-api.open-meteo.com/v1/search');
             url.searchParams.set('name', query);
-            url.searchParams.set('count', '5');
+            url.searchParams.set('count', '8');
             url.searchParams.set('language', 'en');
             url.searchParams.set('format', 'json');
 
             const res = await fetch(url.toString());
             const data = await res.json() as { results?: GeocodingResult[] };
 
-            return {
-                results: (data.results || []).map((r: GeocodingResult) => ({
+            // Populated places (cities/towns/villages -- GeoNames feature codes
+            // starting "PPL") sort ahead of same-named geographic features (a
+            // dam, park, mountain) that can otherwise outrank the actual city a
+            // user searched for. Ties within each group break by population.
+            const results = (data.results || [])
+                .slice()
+                .sort((a, b) => {
+                    const aPlace = (a.feature_code || '').startsWith('PPL') ? 1 : 0;
+                    const bPlace = (b.feature_code || '').startsWith('PPL') ? 1 : 0;
+                    if (aPlace !== bPlace) return bPlace - aPlace;
+                    return (b.population || 0) - (a.population || 0);
+                })
+                .slice(0, 5)
+                .map((r: GeocodingResult) => ({
                     name: r.name,
                     latitude: r.latitude,
                     longitude: r.longitude,
                     country: r.country,
                     state: r.admin1 || null,
-                })),
-            };
+                    timezone: r.timezone || null,
+                }));
+
+            return { results };
         } catch (error) {
             request.log.error({ msg: 'Geocoding failed', error });
             return reply.status(500).send({ error: 'Geocoding failed' });
