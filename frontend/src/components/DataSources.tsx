@@ -78,16 +78,16 @@ export default function DataSources({ open, onClose }: Props) {
               <div className="bg-gray-800/40 border border-gray-700/30 rounded-lg p-4">
                 <h4 className="text-[12px] font-semibold text-gray-200 mb-1">Air Quality</h4>
                 <p className="text-[12px] text-gray-400">
-                  <strong>From:</strong> EPA and local air quality monitoring stations.
+                  <strong>From:</strong> A weather model, plus real nearby sensors (PurpleAir) when we have them.
                 </p>
                 <p className="text-[12px] text-gray-400 mt-1">
-                  <strong>What we get:</strong> PM2.5, PM10, ozone, and pollution levels.
+                  <strong>What we get:</strong> PM2.5, PM10, ozone, and other pollution levels, plus a 3-day forecast.
                 </p>
                 <p className="text-[12px] text-gray-400 mt-1">
-                  <strong>Coverage:</strong> Mainly North America.
+                  <strong>Accuracy:</strong> The model covers a wide area, so it can miss smoke close to you. Nearby real sensors, when we have them, tend to catch that better.
                 </p>
                 <p className="text-[12px] text-gray-400 mt-1">
-                  <strong>How often:</strong> Usually hourly, depending on your area.
+                  <strong>How often:</strong> Updates about once an hour.
                 </p>
               </div>
 

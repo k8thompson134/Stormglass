@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import logo from './assets/logo.png';
 import CurrentConditions from './components/CurrentConditions';
 import PressureChart from './components/PressureChart';
+import AQIForecastChart from './components/AQIForecastChart';
+import AQISeasonSummary from './components/AQISeasonSummary';
 import HealthImpact from './components/HealthImpact';
 import Settings from './components/Settings';
 import Onboarding from './components/Onboarding';
@@ -323,6 +325,14 @@ function App() {
             <CurrentConditions data={current} loading={loading} history={history} />
           </div>
         </div>
+
+        {/* AQI Forecast Section */}
+        {healthToggles.aqi && (
+          <div className="mb-6 space-y-4">
+            <AQIForecastChart />
+            <AQISeasonSummary />
+          </div>
+        )}
 
         {/* Health Impact Section */}
         <div className="mb-6">

@@ -96,6 +96,74 @@ export async function fetchWeatherHistory(hours: number = 24): Promise<WeatherHi
   return res.json();
 }
 
+export interface AQIForecastPoint {
+  timestamp: string;
+  usAqi: number;
+  pm25: number;
+  pm10: number;
+}
+
+export interface AQISafeWindow {
+  start: string;
+  end: string;
+  durationHours: number;
+  avgAqi: number;
+  maxAqi: number;
+  isCurrent: boolean;
+}
+
+export type AqiCategory = 'Good' | 'Moderate' | 'Unhealthy for Sensitive Groups' | 'Unhealthy' | 'Very Unhealthy';
+
+export interface AQICategoryCrossing {
+  fromCategory: AqiCategory;
+  toCategory: AqiCategory;
+  at: string;
+  usAqi: number;
+}
+
+export interface AQIForecast {
+  series: AQIForecastPoint[];
+  count: number;
+  threshold: number;
+  safeWindows: AQISafeWindow[];
+  nextSafeWindow: AQISafeWindow | null;
+  categoryCrossing: AQICategoryCrossing | null;
+}
+
+export async function fetchAQIForecast(hours?: number, threshold?: number): Promise<AQIForecast | null> {
+  const params = new URLSearchParams();
+  if (hours !== undefined) params.set('hours', String(hours));
+  if (threshold !== undefined) params.set('threshold', String(threshold));
+  const query = params.toString() ? `?${params.toString()}` : '';
+  const res = await fetch(`${API_BASE}/weather/aqi-forecast${query}`, {
+    headers: getHeaders()
+  });
+  if (res.status === 404) return null; // no AQI data yet -- not an error state
+  if (!res.ok) throw new Error(`Failed to fetch AQI forecast: ${res.status}`);
+  return res.json();
+}
+
+export interface AQIBurdenSummary {
+  days: number;
+  threshold: number;
+  totalDaysTracked: number;
+  daysAtOrAboveThreshold: number;
+  dailyMax: { date: string; maxAqi: number }[];
+}
+
+export async function fetchAQIBurden(days?: number, threshold?: number): Promise<AQIBurdenSummary | null> {
+  const params = new URLSearchParams();
+  if (days !== undefined) params.set('days', String(days));
+  if (threshold !== undefined) params.set('threshold', String(threshold));
+  const query = params.toString() ? `?${params.toString()}` : '';
+  const res = await fetch(`${API_BASE}/weather/aqi-burden${query}`, {
+    headers: getHeaders()
+  });
+  if (res.status === 404) return null; // no history yet -- not an error state
+  if (!res.ok) throw new Error(`Failed to fetch AQI burden summary: ${res.status}`);
+  return res.json();
+}
+
 // Settings
 export interface Settings {
   latitude: string;
