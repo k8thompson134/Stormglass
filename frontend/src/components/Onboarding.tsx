@@ -75,6 +75,7 @@ export default function Onboarding({ onComplete }: Props) {
     const [pendingLocation, setPendingLocation] = useState<GeoResult | null>(null);
     const [saving, setSaving] = useState(false);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const latestQueryRef = useRef('');
 
     const toggle = (key: HealthConditionKey) => {
         setSelected(prev => {
@@ -93,6 +94,7 @@ export default function Onboarding({ onComplete }: Props) {
 
     const handleLocationQueryChange = (query: string) => {
         setLocationQuery(query);
+        latestQueryRef.current = query;
 
         if (debounceRef.current) clearTimeout(debounceRef.current);
 
@@ -105,11 +107,14 @@ export default function Onboarding({ onComplete }: Props) {
         debounceRef.current = setTimeout(async () => {
             try {
                 const results = await geocodeSearch(query);
+                // A slower, now-superseded request can resolve after a newer
+                // one -- only apply results if this is still the latest query.
+                if (latestQueryRef.current !== query) return;
                 setLocationResults(results);
             } catch {
-                setLocationResults([]);
+                if (latestQueryRef.current === query) setLocationResults([]);
             } finally {
-                setLocationSearching(false);
+                if (latestQueryRef.current === query) setLocationSearching(false);
             }
         }, 300);
     };
@@ -280,7 +285,7 @@ export default function Onboarding({ onComplete }: Props) {
                                 <input
                                     id="location-search"
                                     type="text"
-                                    placeholder="Search for a city or location..."
+                                    placeholder="Search by city or ZIP code..."
                                     value={locationQuery}
                                     onChange={(e) => handleLocationQueryChange(e.target.value)}
                                     className="w-full bg-gray-800/40 border border-gray-700/50 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 mb-2"

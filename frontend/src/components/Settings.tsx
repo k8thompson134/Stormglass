@@ -23,6 +23,7 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
     const [tokenCopied, setTokenCopied] = useState(false);
     const [tokenRevealed, setTokenRevealed] = useState(false);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const latestQueryRef = useRef('');
     const modalRef = useRef<HTMLDivElement>(null);
     useFocusTrap(open, modalRef, { onEscape: onClose });
 
@@ -50,6 +51,8 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
 
     // Debounced geocode search
     useEffect(() => {
+        latestQueryRef.current = query;
+
         if (query.length < 2) {
             setResults([]);
             return;
@@ -60,11 +63,14 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
             setSearching(true);
             try {
                 const res = await geocodeSearch(query);
+                // A slower, now-superseded request can resolve after a newer
+                // one -- only apply results if this effect run is still current.
+                if (latestQueryRef.current !== query) return;
                 setResults(res);
             } catch {
-                setResults([]);
+                if (latestQueryRef.current === query) setResults([]);
             }
-            setSearching(false);
+            if (latestQueryRef.current === query) setSearching(false);
         }, 300);
 
         return () => {
@@ -177,7 +183,7 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                                 type="text"
                                 value={query}
                                 onChange={e => setQuery(e.target.value)}
-                                placeholder="Search city or location..."
+                                placeholder="Search by city or ZIP code..."
                                 className="w-full bg-[#0f172a] text-white text-sm rounded-xl px-4 py-3 border border-[#1e2d45] focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/20 placeholder-gray-600 transition-colors"
                             />
                             {searching && (
@@ -214,6 +220,24 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                         {query.length >= 2 && !searching && results.length === 0 && (
                             <div className="mt-2 text-gray-500 text-xs px-1">No results found</div>
                         )}
+
+                        {/* Location save status -- shown right where the action happened,
+                            not below the long health-factors list further down the modal. */}
+                        <div aria-live="polite" className="mt-2">
+                            {saved && (
+                                <div className="flex items-center gap-2 text-emerald-400 text-xs bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
+                                    <span>✓</span>
+                                    <span>Location updated — fetching new data...</span>
+                                </div>
+                            )}
+
+                            {saving && (
+                                <div className="flex items-center gap-2 text-blue-400 text-xs bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2">
+                                    <div className="w-3 h-3 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+                                    <span>Updating location...</span>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     {/* Health factors */}
@@ -281,23 +305,6 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                                 );
                             })}
                         </div>
-                    </div>
-
-                    {/* Status */}
-                    <div aria-live="polite">
-                        {saved && (
-                            <div className="flex items-center gap-2 text-emerald-400 text-xs bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2">
-                                <span>✓</span>
-                                <span>Location updated — fetching new data...</span>
-                            </div>
-                        )}
-
-                        {saving && (
-                            <div className="flex items-center gap-2 text-blue-400 text-xs bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2">
-                                <div className="w-3 h-3 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
-                                <span>Updating location...</span>
-                            </div>
-                        )}
                     </div>
 
                     {/* API Access */}
