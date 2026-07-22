@@ -158,6 +158,20 @@ export default function CurrentConditions({ data, loading, history }: Props) {
                 {effectiveAqi >= 200 ? 'V. Unhealthy' : effectiveAqi >= 150 ? 'Unhealthy' :
                   effectiveAqi >= 100 ? 'Sensitive' : effectiveAqi >= 51 ? 'Moderate' : 'Good'}
               </span>
+              <span
+                className={`flex items-center gap-1 font-mono uppercase tracking-wide px-1.5 py-0.5 rounded border text-[10px] sm:text-[9px] ${
+                  hyperlocal
+                    ? hyperlocal.sensorCount < 3
+                      ? 'text-amber-300 bg-amber-500/10 border-amber-500/30'
+                      : 'text-sky-300 bg-sky-500/10 border-sky-500/30'
+                    : 'text-gray-500 bg-gray-800/40 border-gray-700/40'
+                }`}
+                title={hyperlocal
+                  ? `Blended with ${hyperlocal.sensorCount} nearby ground sensor${hyperlocal.sensorCount === 1 ? '' : 's'}, ${hyperlocal.nearestMiles.toFixed(1)} mi away${hyperlocal.sensorCount < 3 ? ' (fewer than the usual 3 nearest -- lower confidence)' : ''}`
+                  : 'No nearby ground sensors available -- using the regional model only'}
+              >
+                {hyperlocal ? (hyperlocal.sensorCount < 3 ? 'Sensor (low conf.)' : 'Live sensor') : 'Model only'}
+              </span>
             </div>
             <div className="flex flex-col items-end gap-0.5">
               <span className="text-gray-500 font-mono text-[11px] sm:text-[10px]">PM2.5: {data.aqi.pm25.toFixed(1)} · PM10: {data.aqi.pm10.toFixed(1)}</span>
