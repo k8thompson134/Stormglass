@@ -1,4 +1,4 @@
-import { eq, and, gte, lte } from 'drizzle-orm';
+import { eq, and, gte, lte, gt } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { airQualityData } from '../db/schema.js';
 
@@ -45,7 +45,8 @@ export async function fetchAirQualityData(
     url.searchParams.set('hourly', HOURLY_VARS);
     url.searchParams.set('timezone', 'auto');
     url.searchParams.set('past_days', '2');
-    url.searchParams.set('forecast_days', '1');
+    // 3-day lookahead gives smoke-trend analysis a 72h forecast window
+    url.searchParams.set('forecast_days', '3');
 
     const response = await fetch(url.toString());
     if (!response.ok) {
@@ -79,28 +80,60 @@ export async function fetchAirQualityData(
 
     if (rows.length === 0) return 0;
 
-    // Batch-fetch existing timestamps to avoid N+1 queries
-    const timestamps = rows.map(r => r.timestamp);
-    const minTs = new Date(Math.min(...timestamps.map(t => t.getTime())));
-    const maxTs = new Date(Math.max(...timestamps.map(t => t.getTime())));
+    const now = new Date();
+    // Forecast rows (timestamp in the future) are model predictions that Open-Meteo
+    // revises on every run. Refetching them as "already exists, skip" would leave
+    // smoke-trend analysis reading a stale forecast from up to 72h ago, so we
+    // replace them wholesale each poll instead of dedup-by-timestamp.
+    const pastRows = rows.filter(r => r.timestamp <= now);
+    const futureRows = rows.filter(r => r.timestamp > now);
 
-    const existingRows = await db
-        .select({ timestamp: airQualityData.timestamp })
-        .from(airQualityData)
-        .where(
-            and(
-                eq(airQualityData.userId, userId),
-                eq(airQualityData.location, location),
-                gte(airQualityData.timestamp, minTs),
-                lte(airQualityData.timestamp, maxTs)
-            )
-        );
+    let inserted = 0;
 
-    const existingSet = new Set(existingRows.map(r => r.timestamp.getTime()));
-    const newRows = rows.filter(r => !existingSet.has(r.timestamp.getTime()));
+    if (pastRows.length > 0) {
+        // Batch-fetch existing timestamps to avoid N+1 queries
+        const timestamps = pastRows.map(r => r.timestamp);
+        const minTs = new Date(Math.min(...timestamps.map(t => t.getTime())));
+        const maxTs = new Date(Math.max(...timestamps.map(t => t.getTime())));
 
-    if (newRows.length === 0) return 0;
+        const existingRows = await db
+            .select({ timestamp: airQualityData.timestamp })
+            .from(airQualityData)
+            .where(
+                and(
+                    eq(airQualityData.userId, userId),
+                    eq(airQualityData.location, location),
+                    gte(airQualityData.timestamp, minTs),
+                    lte(airQualityData.timestamp, maxTs)
+                )
+            );
 
-    await db.insert(airQualityData).values(newRows);
-    return newRows.length;
+        const existingSet = new Set(existingRows.map(r => r.timestamp.getTime()));
+        const newPastRows = pastRows.filter(r => !existingSet.has(r.timestamp.getTime()));
+
+        if (newPastRows.length > 0) {
+            await db.insert(airQualityData).values(newPastRows);
+            inserted += newPastRows.length;
+        }
+    }
+
+    if (futureRows.length > 0) {
+        // Wrapped in a transaction so a concurrent read (e.g. a smoke-trend query from
+        // /api/weather/current landing mid-poll) can never observe the forecast rows
+        // deleted but not yet reinserted -- postgres's default read-committed isolation
+        // means other transactions won't see the delete until this one commits.
+        await db.transaction(async (tx) => {
+            await tx.delete(airQualityData).where(
+                and(
+                    eq(airQualityData.userId, userId),
+                    eq(airQualityData.location, location),
+                    gt(airQualityData.timestamp, now)
+                )
+            );
+            await tx.insert(airQualityData).values(futureRows);
+        });
+        inserted += futureRows.length;
+    }
+
+    return inserted;
 }

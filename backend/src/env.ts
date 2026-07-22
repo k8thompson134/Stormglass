@@ -72,6 +72,10 @@ export const env = {
   // Optional API key — pollen data will be skipped if missing
   TOMORROW_API_KEY: process.env.TOMORROW_API_KEY?.trim() || null,
 
+  // Optional API key — hyperlocal PurpleAir AQI overlay is skipped (falls back to
+  // Open-Meteo's modeled AQI) if missing. Free key: https://develop.purpleair.com
+  PURPLEAIR_API_KEY: process.env.PURPLEAIR_API_KEY?.trim() || null,
+
   // Auth token for API access — auto-generated on first production startup if not set
   API_TOKEN: getOrGenerateApiToken(),
 } as const;

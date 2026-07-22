@@ -49,6 +49,20 @@ describe('getMigraineRisk', () => {
   it('returns non-empty recommendations', () => {
     expect(getMigraineRisk(1.0).recommendations.length).toBeGreaterThan(0);
   });
+
+  it('elevated AQI amplifies an otherwise-moderate pressure reading into high', () => {
+    // 0.7 alone is moderate (< 0.8 threshold); * 1.15 = 0.805, crosses into high.
+    expect(getMigraineRisk(0.7, null).risk).toBe('moderate');
+    expect(getMigraineRisk(0.7, 130).risk).toBe('high');
+    const withAqi = getMigraineRisk(0.7, 130);
+    expect(withAqi.currentFactors.some(f => f.includes('130'))).toBe(true);
+  });
+
+  it('does not amplify or annotate when AQI is not elevated', () => {
+    const clean = getMigraineRisk(0.7, 50);
+    expect(clean.risk).toBe(getMigraineRisk(0.7, null).risk);
+    expect(clean.currentFactors.some(f => f.toLowerCase().includes('air quality'))).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -87,6 +101,17 @@ describe('getMECFSRisk', () => {
     expect(factors).toMatch(/3-hour/);
     expect(factors).toMatch(/6-hour/);
     expect(factors).toMatch(/Total volatility/);
+  });
+
+  it('high AQI adds environmental burden and can tip volatility into a higher tier', () => {
+    // 0.25+0.25+0.2 = 0.7 alone is low (< 0.8); +0.25 AQI burden = 0.95, crosses into moderate.
+    expect(getMECFSRisk(0.25, 0.25, 0.2, null).risk).toBe('low');
+    expect(getMECFSRisk(0.25, 0.25, 0.2, 130).risk).toBe('moderate');
+  });
+
+  it('does not add a burden note when AQI is not elevated', () => {
+    const clean = getMECFSRisk(0.25, 0.25, 0.2, 50);
+    expect(clean.currentFactors.some(f => f.toLowerCase().includes('air quality'))).toBe(false);
   });
 });
 
@@ -175,20 +200,113 @@ describe('getAQIRisk', () => {
     expect(getAQIRisk({ ...base, usAqi: 300 }).risk).toBe('severe');
   });
 
-  it('appends PM2.5 mask recommendation when elevated', () => {
+  it('appends PM2.5 N95 recommendation when elevated', () => {
     const result = getAQIRisk({ ...base, usAqi: 80, pm25: 40 });
-    expect(result.recommendations.some(r => r.includes('mask'))).toBe(true);
+    expect(result.recommendations.some(r => r.includes('N95'))).toBe(true);
   });
 
-  it('does not append PM2.5 mask recommendation when not elevated', () => {
+  it('does not append PM2.5 N95 recommendation when not elevated', () => {
     const result = getAQIRisk({ ...base, usAqi: 80, pm25: 10 });
-    expect(result.recommendations.some(r => r.includes('mask'))).toBe(false);
+    expect(result.recommendations.some(r => r.includes('N95 outdoors'))).toBe(false);
   });
 
   it('includes AQI value in trigger label', () => {
     const result = getAQIRisk({ ...base, usAqi: 120 });
     expect(result.trigger).toMatch(/120/);
     expect(result.trigger).toMatch(/Sensitive Groups/);
+  });
+
+  describe('hyperlocal (PurpleAir) vs. regional model disagreement', () => {
+    // Real case observed live: model said AQI 35, 3 nearby PurpleAir sensors said 57.
+    it('uses the worse (higher) of hyperlocal and model AQI for risk severity', () => {
+      const result = getAQIRisk({
+        ...base, usAqi: 35,
+        hyperlocal: { usAqi: 57, pm25: 15.1, sensorCount: 3, nearestMiles: 0.4 },
+      });
+      expect(result.risk).toBe('low'); // both readings are still under the moderate=100 line
+      expect(result.trigger).toMatch(/57/);
+      expect(result.trigger).not.toMatch(/35/);
+    });
+
+    it('escalates risk level when hyperlocal is worse than the model even though the model alone would not', () => {
+      const modelOnly = getAQIRisk({ ...base, usAqi: 90 });
+      const withHyperlocal = getAQIRisk({
+        ...base, usAqi: 90,
+        hyperlocal: { usAqi: 160, pm25: 70, sensorCount: 3, nearestMiles: 0.6 },
+      });
+      expect(modelOnly.risk).toBe('low');
+      expect(withHyperlocal.risk).toBe('high');
+    });
+
+    it('still favors the worse reading when the model is higher than hyperlocal (does not just prefer PurpleAir)', () => {
+      const result = getAQIRisk({
+        ...base, usAqi: 210,
+        hyperlocal: { usAqi: 60, pm25: 18, sensorCount: 2, nearestMiles: 1.2 },
+      });
+      expect(result.risk).toBe('severe');
+      expect(result.trigger).toMatch(/210/);
+    });
+
+    it('falls back to the model AQI alone when hyperlocal is null (key unset or fetch failed)', () => {
+      const result = getAQIRisk({ ...base, usAqi: 120, hyperlocal: null });
+      expect(result.risk).toBe('moderate');
+      expect(result.trigger).toMatch(/120/);
+    });
+
+    it('does not error when hyperlocal/smokeTrend are simply omitted from the input', () => {
+      expect(() => getAQIRisk({ ...base, usAqi: 80 })).not.toThrow();
+    });
+
+    it('flags low confidence when hyperlocal is based on fewer than 3 sensors', () => {
+      const oneS = getAQIRisk({ ...base, usAqi: 80, hyperlocal: { usAqi: 90, pm25: 30, sensorCount: 1, nearestMiles: 2.0 } });
+      expect(oneS.currentFactors.some(f => f.includes('lower-confidence'))).toBe(true);
+      expect(oneS.currentFactors.some(f => f.includes('Only 1 nearby sensor '))).toBe(true);
+
+      const twoS = getAQIRisk({ ...base, usAqi: 80, hyperlocal: { usAqi: 90, pm25: 30, sensorCount: 2, nearestMiles: 2.0 } });
+      expect(twoS.currentFactors.some(f => f.includes('Only 2 nearby sensors'))).toBe(true);
+    });
+
+    it('does not flag low confidence with the usual 3-sensor average', () => {
+      const result = getAQIRisk({ ...base, usAqi: 80, hyperlocal: { usAqi: 90, pm25: 30, sensorCount: 3, nearestMiles: 0.5 } });
+      expect(result.currentFactors.some(f => f.includes('lower-confidence'))).toBe(false);
+    });
+  });
+
+  describe('smoke trend messaging', () => {
+    it('leads with a worsening-smoke warning including the forecast peak', () => {
+      const result = getAQIRisk({
+        ...base, usAqi: 80,
+        smokeTrend: {
+          direction: 'worsening', currentPm25: 40, next24hPeakPm25: 120,
+          next24hPeakUsAqi: 175, next24hPeakAt: null, likelyWildfireSmoke: true,
+        },
+      });
+      expect(result.recommendations[0]).toMatch(/worse/);
+      expect(result.recommendations[0]).toMatch(/175/);
+      expect(result.currentFactors[0]).toMatch(/wildfire smoke/);
+    });
+
+    it('adds an improving note without alarming language when trend is improving', () => {
+      const result = getAQIRisk({
+        ...base, usAqi: 60,
+        smokeTrend: {
+          direction: 'improving', currentPm25: 15, next24hPeakPm25: 15,
+          next24hPeakUsAqi: 60, next24hPeakAt: null, likelyWildfireSmoke: false,
+        },
+      });
+      expect(result.recommendations.some(r => r.includes('trending better'))).toBe(true);
+    });
+
+    it('adds neither message when trend is stable', () => {
+      const result = getAQIRisk({
+        ...base, usAqi: 60,
+        smokeTrend: {
+          direction: 'stable', currentPm25: 15, next24hPeakPm25: 15,
+          next24hPeakUsAqi: 60, next24hPeakAt: null, likelyWildfireSmoke: false,
+        },
+      });
+      expect(result.recommendations.some(r => r.includes('trending worse') || r.includes('trending better'))).toBe(false);
+    });
   });
 });
 
@@ -226,6 +344,16 @@ describe('getPOTSRisk', () => {
   it('always includes "Stay hydrated" in recommendations', () => {
     expect(getPOTSRisk(0, 50, 18).recommendations).toContain('Stay hydrated');
   });
+
+  it('elevated AQI adds a point and can tip low into moderate', () => {
+    expect(getPOTSRisk(0, 50, 18, null).risk).toBe('low');
+    expect(getPOTSRisk(0, 50, 18, 130).risk).toBe('moderate');
+    expect(getPOTSRisk(0, 50, 18, 130).currentFactors.some(f => f.includes('130'))).toBe(true);
+  });
+
+  it('AQI at or below 100 does not contribute', () => {
+    expect(getPOTSRisk(0, 50, 18, 100).risk).toBe('low');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -260,6 +388,12 @@ describe('getJointPainRisk', () => {
     const high = getJointPainRisk(0.6, 65, 8);
     expect(low.description).not.toBe(high.description);
     expect(low.description).toMatch(/friendly/i);
+  });
+
+  it('elevated AQI adds a point and can tip low into moderate', () => {
+    expect(getJointPainRisk(0.1, 50, 15, null).risk).toBe('low');
+    expect(getJointPainRisk(0.1, 50, 15, 130).risk).toBe('moderate');
+    expect(getJointPainRisk(0.1, 50, 15, 130).currentFactors.some(f => f.includes('130'))).toBe(true);
   });
 });
 

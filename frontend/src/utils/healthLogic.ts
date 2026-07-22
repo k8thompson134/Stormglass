@@ -31,7 +31,18 @@ function evaluateRisk(value: number, config: RiskConfig): HealthRisk {
 }
 
 
-export function getMigraineRisk(delta: number, delta3h = 0, delta6h = 0): HealthRisk {
+// Short-term PM2.5/ozone exposure is linked in several studies to increased migraine
+// frequency via systemic inflammation and oxidative stress -- treated here as a mild
+// amplifier of the pressure-driven risk rather than an independent trigger, since
+// pressure change is still the dominant, best-evidenced driver for this condition.
+function aqiMigraineMultiplier(usAqi: number | null): number {
+    if (usAqi === null) return 1;
+    if (usAqi > 150) return 1.25;
+    if (usAqi > 100) return 1.15;
+    return 1;
+}
+
+export function getMigraineRisk(delta: number, delta3h = 0, delta6h = 0, usAqi: number | null = null): HealthRisk {
     const abs1h = Math.abs(delta);
 
     // Sustained drop/rise in the same direction across all three windows amplifies risk
@@ -39,7 +50,7 @@ export function getMigraineRisk(delta: number, delta3h = 0, delta6h = 0): Health
         delta !== 0 &&
         Math.sign(delta) === Math.sign(delta3h) &&
         Math.sign(delta3h) === Math.sign(delta6h);
-    const effective = sustained ? abs1h * 1.25 : abs1h;
+    const effective = (sustained ? abs1h * 1.25 : abs1h) * aqiMigraineMultiplier(usAqi);
 
     const result = evaluateRisk(effective, MIGRAINE_CONFIG);
 
@@ -48,13 +59,20 @@ export function getMigraineRisk(delta: number, delta3h = 0, delta6h = 0): Health
             `Sustained ${delta < 0 ? 'falling' : 'rising'} pressure over 6+ hours — cumulative stress elevated`
         );
     }
+    if (aqiMigraineMultiplier(usAqi) > 1) {
+        result.currentFactors.push(`Air quality (AQI ${usAqi}) is amplifying migraine risk`);
+    }
 
     return result;
 }
 
-export function getMECFSRisk(delta1h: number, delta3h: number, delta6h: number): HealthRisk {
+export function getMECFSRisk(delta1h: number, delta3h: number, delta6h: number, usAqi: number | null = null): HealthRisk {
     const volatility = Math.abs(delta1h) + Math.abs(delta3h) + Math.abs(delta6h);
-    const risk = evaluateRisk(volatility, MECFS_CONFIG);
+    // ME/CFS/PEM is driven by cumulative environmental/immune burden -- elevated air
+    // quality is a plausible added burden on top of pressure volatility, not a separate
+    // trigger, so it's folded into the same volatility score rather than scored alone.
+    const aqiBurden = usAqi !== null && usAqi > 150 ? 0.5 : usAqi !== null && usAqi > 100 ? 0.25 : 0;
+    const risk = evaluateRisk(volatility + aqiBurden, MECFS_CONFIG);
 
     // Add specific factors for ME/CFS that aren't generic
     risk.currentFactors = [
@@ -62,6 +80,7 @@ export function getMECFSRisk(delta1h: number, delta3h: number, delta6h: number):
         `3-hour change: ${delta3h.toFixed(2)} hPa/hour`,
         `6-hour change: ${delta6h.toFixed(2)} hPa/hour`,
         `Total volatility: ${volatility.toFixed(2)} (${risk.risk})`,
+        ...(aqiBurden > 0 ? [`Air quality (AQI ${usAqi}) adding to environmental burden`] : []),
         ...(risk.currentFactors || [])
     ];
 
@@ -96,7 +115,35 @@ export function getGeomagneticRisk(geo: { kpIndex: number; solarWindSpeed: numbe
     return risk;
 }
 
-export function getAQIRisk(aqiData: { usAqi: number; pm25: number; pm10: number; ozone: number; no2: number; so2: number; co: number; } | null): HealthRisk {
+export interface AQIHyperlocal {
+    usAqi: number;
+    pm25: number;
+    sensorCount: number;
+    nearestMiles: number;
+}
+
+export interface AQISmokeTrend {
+    direction: 'worsening' | 'improving' | 'stable';
+    currentPm25: number;
+    next24hPeakPm25: number;
+    next24hPeakUsAqi: number;
+    next24hPeakAt: string | Date | null;
+    likelyWildfireSmoke: boolean;
+}
+
+export interface AQIData {
+    usAqi: number;
+    pm25: number;
+    pm10: number;
+    ozone: number;
+    no2: number;
+    so2: number;
+    co: number;
+    hyperlocal?: AQIHyperlocal | null;
+    smokeTrend?: AQISmokeTrend | null;
+}
+
+export function getAQIRisk(aqiData: AQIData | null): HealthRisk {
     if (!aqiData) return {
         condition: 'Air Quality',
         risk: 'low',
@@ -108,32 +155,62 @@ export function getAQIRisk(aqiData: { usAqi: number; pm25: number; pm10: number;
       recommendations: ['If air quality is a key trigger for you, check a local AQI or pollution report']
     };
 
-    const risk = evaluateRisk(aqiData.usAqi, AQI_CONFIG);
+    const hyperlocal = aqiData.hyperlocal ?? null;
+    const smokeTrend = aqiData.smokeTrend ?? null;
+
+    // PurpleAir's dense sensor network catches localized smoke plumes that the
+    // ~11km-grid regional model can miss or lag; take the worse (higher) of the two
+    // readings so the risk level errs toward protecting against smoke the model hasn't
+    // caught up to yet, rather than averaging it away.
+    const effectiveAqi = hyperlocal ? Math.max(aqiData.usAqi, hyperlocal.usAqi) : aqiData.usAqi;
+
+    const risk = evaluateRisk(effectiveAqi, AQI_CONFIG);
 
     // Pollutant breakdown
     const pollutants = [
-        `US AQI: ${aqiData.usAqi}`,
+        `US AQI (regional model): ${aqiData.usAqi}`,
         `PM2.5: ${aqiData.pm25.toFixed(1)} μg/m³`,
         `PM10: ${aqiData.pm10.toFixed(1)} μg/m³`
     ];
+    if (hyperlocal) {
+        pollutants.push(`US AQI (${hyperlocal.sensorCount} nearby sensors, ${hyperlocal.nearestMiles.toFixed(1)} mi): ${hyperlocal.usAqi} — PM2.5 ${hyperlocal.pm25.toFixed(1)} μg/m³`);
+        // Normally the 3 nearest sensors are averaged together; fewer than that (a
+        // rural or low-density area) means a single miscalibrated or obstructed sensor
+        // has much more influence on the reading, so flag it rather than presenting it
+        // with the same confidence as a 3-sensor average.
+        if (hyperlocal.sensorCount < 3) {
+            pollutants.push(`Only ${hyperlocal.sensorCount} nearby sensor${hyperlocal.sensorCount === 1 ? '' : 's'} available — hyperlocal reading is lower-confidence than usual`);
+        }
+    }
     if (aqiData.ozone > 0) pollutants.push(`Ozone (O₃): ${aqiData.ozone.toFixed(1)} μg/m³`);
     if (aqiData.no2 > 0) pollutants.push(`NO₂: ${aqiData.no2.toFixed(1)} μg/m³`);
 
     risk.currentFactors = [...pollutants, ...risk.currentFactors];
 
-    if (aqiData.pm25 > 35) {
-        risk.recommendations.push(`PM2.5 is elevated (${aqiData.pm25.toFixed(1)} μg/m³) — consider wearing a mask outdoors`);
+    if (smokeTrend?.likelyWildfireSmoke) {
+        risk.currentFactors.unshift('Pollutant mix looks like wildfire smoke, not general pollution');
     }
 
-    const aqiCategory = aqiData.usAqi >= 200 ? 'Very Unhealthy' : aqiData.usAqi >= 150 ? 'Unhealthy' : aqiData.usAqi >= 100 ? 'Unhealthy for Sensitive Groups' : aqiData.usAqi >= 51 ? 'Moderate' : 'Good';
-    risk.trigger = `US AQI ${aqiData.usAqi} — ${aqiCategory}`;
-    risk.description = `Current US AQI is ${aqiData.usAqi} (${aqiCategory}). ${risk.description}`;
+    if (smokeTrend?.direction === 'worsening') {
+        risk.recommendations.unshift(`Smoke is trending worse, headed toward ~AQI ${smokeTrend.next24hPeakUsAqi} within 24h — close up windows and set up filtration now rather than waiting`);
+    } else if (smokeTrend?.direction === 'improving') {
+        risk.recommendations.push('Air quality is trending better — conditions are likely past their worst point for now.');
+    }
+
+    const effectivePm25 = hyperlocal ? Math.max(aqiData.pm25, hyperlocal.pm25) : aqiData.pm25;
+    if (effectivePm25 > 35) {
+        risk.recommendations.push(`PM2.5 is elevated (${effectivePm25.toFixed(1)} μg/m³) — consider wearing a well-fitting N95 outdoors`);
+    }
+
+    const aqiCategory = effectiveAqi >= 200 ? 'Very Unhealthy' : effectiveAqi >= 150 ? 'Unhealthy' : effectiveAqi >= 100 ? 'Unhealthy for Sensitive Groups' : effectiveAqi >= 51 ? 'Moderate' : 'Good';
+    risk.trigger = `US AQI ${effectiveAqi} — ${aqiCategory}`;
+    risk.description = `Current US AQI is ${effectiveAqi} (${aqiCategory})${hyperlocal ? ', from nearby ground sensors' : ''}. ${risk.description}`;
 
     return risk;
 }
 
 // Complex multi-factor risks (POTS, Joint Pain, Pollen) remain as functions for now due to complex logic
-export function getPOTSRisk(delta: number, humidity: number, temp: number): HealthRisk {
+export function getPOTSRisk(delta: number, humidity: number, temp: number, usAqi: number | null = null): HealthRisk {
     // Environment factors logic
     const tempF = toF(temp);
     const isFalling = delta < -0.3;
@@ -142,6 +219,9 @@ export function getPOTSRisk(delta: number, humidity: number, temp: number): Heal
     const isCold = temp < 5;
     const isVeryCold = temp < -5;
     const isDamp = humidity > 65;
+    // Air pollution exposure is associated with autonomic/cardiovascular dysregulation
+    // via oxidative stress -- a plausible, modest additional load for POTS.
+    const isPolluted = usAqi !== null && usAqi > 100;
 
     let score = 0;
     if (isFalling) score += 2;
@@ -151,6 +231,7 @@ export function getPOTSRisk(delta: number, humidity: number, temp: number): Heal
     if (isVeryCold) score += 1;
     if (isDamp) score += 1;
     if (Math.abs(delta) > 0.8) score += 1;
+    if (isPolluted) score += 1;
 
     const primaryStressor = isVeryHot || isHot ? 'heat' : (isVeryCold || isCold ? 'cold' : 'pressure');
 
@@ -179,6 +260,7 @@ export function getPOTSRisk(delta: number, humidity: number, temp: number): Heal
     currentFactors.push(`Temperature: ${tempF}°F`);
     currentFactors.push(`Humidity: ${humidity.toFixed(0)}%`);
     currentFactors.push(`Pressure change: ${delta.toFixed(2)} hPa/hour`);
+    if (isPolluted) currentFactors.push(`Air quality (AQI ${usAqi}) adding autonomic load`);
 
     return {
         condition: 'POTS / Dysautonomia',
@@ -192,14 +274,18 @@ export function getPOTSRisk(delta: number, humidity: number, temp: number): Heal
     };
 }
 
-export function getJointPainRisk(delta: number, humidity: number, temp: number): HealthRisk {
+export function getJointPainRisk(delta: number, humidity: number, temp: number, usAqi: number | null = null): HealthRisk {
     const tempF = toF(temp);
+    // Air pollution's systemic inflammatory effect is linked to increased inflammatory
+    // arthritis symptoms in several studies -- a modest additional contributor here.
+    const isPolluted = usAqi !== null && usAqi > 100;
 
     let risk: RiskLevel = 'low';
     let score = 0;
     if (Math.abs(delta) > 0.5) score += 2;
     if (temp < 10) score += 1;
     if (humidity > 60) score += 1;
+    if (isPolluted) score += 1;
 
     if (score >= 4) risk = 'severe';
     else if (score >= 3) risk = 'high';
@@ -214,7 +300,12 @@ export function getJointPainRisk(delta: number, humidity: number, temp: number):
           : 'Today’s pressure, temperature, and humidity may aggravate joint pain.',
       icon: '🦴',
       detailedExplanation: 'Rapid pressure shifts, cold air, and damp conditions can change how joints and surrounding tissues feel. In people with arthritis or similar conditions, this may show up as stiffness, aching, or swelling.',
-      currentFactors: [`Temperature: ${tempF}°F`, `Humidity: ${humidity.toFixed(0)}%`, `Pressure change: ${delta.toFixed(2)} hPa/hour`],
+      currentFactors: [
+        `Temperature: ${tempF}°F`,
+        `Humidity: ${humidity.toFixed(0)}%`,
+        `Pressure change: ${delta.toFixed(2)} hPa/hour`,
+        ...(isPolluted ? [`Air quality (AQI ${usAqi}) may add inflammatory load`] : []),
+      ],
       recommendations: ['Keep joints warm and protected', 'Use gentle movement or stretching within your comfort range']
     };
 }
@@ -242,9 +333,13 @@ export function getPollenRisk(pollen: { treeIndex: number; grassIndex: number; w
     };
 }
 
-export function getFibromyalgiaRisk(delta: number, humidity: number, temp: number): HealthRisk {
+export function getFibromyalgiaRisk(delta: number, humidity: number, temp: number, usAqi: number | null = null): HealthRisk {
     const tempF = toF(temp);
     const absD = Math.abs(delta);
+    // Central sensitization in fibromyalgia is linked to systemic inflammation;
+    // air pollution exposure is associated with increased pain sensitivity in
+    // several studies -- a modest additional contributor here.
+    const isPolluted = usAqi !== null && usAqi > 100;
 
     let score = 0;
     if (absD > 0.5) score += 2;
@@ -255,6 +350,7 @@ export function getFibromyalgiaRisk(delta: number, humidity: number, temp: numbe
     if (humidity > 60) score += 1;
     if (humidity > 75) score += 1;
     if (temp < 10 && humidity > 60) score += 1;  // cold+damp compound effect
+    if (isPolluted) score += 1;
 
     let risk: RiskLevel = 'low';
     if (score >= 5)      risk = 'severe';
@@ -286,6 +382,7 @@ export function getFibromyalgiaRisk(delta: number, humidity: number, temp: numbe
             `Temperature: ${tempF}°F`,
             `Humidity: ${humidity.toFixed(0)}%`,
             `Pressure change: ${delta.toFixed(2)} hPa/hour`,
+            ...(isPolluted ? [`Air quality (AQI ${usAqi}) may heighten pain sensitivity`] : []),
         ],
         recommendations: [
             'Keep warm and layer clothing in cold or damp conditions',
@@ -296,8 +393,11 @@ export function getFibromyalgiaRisk(delta: number, humidity: number, temp: numbe
     };
 }
 
-export function getSinusRisk(delta: number, humidity: number, temp: number, pollenMax = 0): HealthRisk {
+export function getSinusRisk(delta: number, humidity: number, temp: number, pollenMax = 0, usAqi: number | null = null): HealthRisk {
     const absD = Math.abs(delta);
+    // Airborne particulates and irritants directly inflame the sinus mucosa -- one of
+    // the more direct, well-established air-quality pathways among these conditions.
+    const isPolluted = usAqi !== null && usAqi > 100;
     let score = 0;
 
     if (absD > 0.4) score += 2;
@@ -307,6 +407,7 @@ export function getSinusRisk(delta: number, humidity: number, temp: number, poll
     if (temp < 5)  score += 1;   // cold dry air irritates sinuses
     if (pollenMax >= 3) score += 1;
     if (pollenMax >= 5) score += 1;
+    if (isPolluted) score += 1;
 
     let risk: RiskLevel = 'low';
     if (score >= 5)      risk = 'severe';
@@ -327,12 +428,13 @@ export function getSinusRisk(delta: number, humidity: number, temp: number, poll
         trigger: 'Pressure / Humidity / Allergens',
         description: descriptions[risk],
         icon: '👃',
-        detailedExplanation: 'The sinus cavities are air-filled spaces that respond directly to changes in barometric pressure. Rapid pressure shifts can cause sinus membranes to swell or contract, leading to pain and congestion. High humidity promotes mucus production, and pollen or cold air irritates the mucosal lining.',
+        detailedExplanation: 'The sinus cavities are air-filled spaces that respond directly to changes in barometric pressure. Rapid pressure shifts can cause sinus membranes to swell or contract, leading to pain and congestion. High humidity promotes mucus production, and pollen, cold air, or airborne pollutants irritate the mucosal lining directly.',
         currentFactors: [
             `Pressure change: ${delta.toFixed(2)} hPa/hour`,
             `Humidity: ${humidity.toFixed(0)}%`,
             `Temperature: ${tempF}°F`,
             ...(pollenMax > 0 ? [`Peak pollen index: ${pollenMax}`] : []),
+            ...(isPolluted ? [`Air quality (AQI ${usAqi}) is directly irritating sinus tissue`] : []),
         ],
         recommendations: [
             'Use a saline rinse to clear irritants and equalise sinus pressure',

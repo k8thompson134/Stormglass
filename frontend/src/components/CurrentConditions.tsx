@@ -131,29 +131,57 @@ export default function CurrentConditions({ data, loading, history }: Props) {
         )}
 
         {/* AQI inline */}
-        {data.aqi && (
+        {data.aqi && (() => {
+          const hyperlocal = data.aqi.hyperlocal;
+          // Match getAQIRisk's logic: take the worse of model vs. hyperlocal so the
+          // headline number here agrees with the severity used in the risk card,
+          // rather than always showing the (possibly lower) regional-model value.
+          const effectiveAqi = hyperlocal ? Math.max(data.aqi.usAqi, hyperlocal.usAqi) : data.aqi.usAqi;
+          const usingHyperlocal = hyperlocal ? hyperlocal.usAqi >= data.aqi.usAqi : false;
+
+          return (
           <div className="border-t border-gray-700/20 py-3 sm:py-2.5 flex items-center justify-between flex-wrap gap-2 sm:gap-1.5 text-[11px] sm:text-[10px]">
             <div className="flex items-center gap-2 sm:gap-1.5">
               <span className="text-gray-400 font-mono uppercase tracking-wider text-[11px] sm:text-[10px]">AQI</span>
-              <span className={`font-bold text-lg sm:text-base ${data.aqi.usAqi >= 200 ? 'text-red-300' :
-                data.aqi.usAqi >= 150 ? 'text-orange-300' :
-                  data.aqi.usAqi >= 100 ? 'text-amber-300' :
-                    data.aqi.usAqi >= 51 ? 'text-yellow-300' : 'text-emerald-300'
+              <span className={`font-bold text-lg sm:text-base ${effectiveAqi >= 200 ? 'text-red-300' :
+                effectiveAqi >= 150 ? 'text-orange-300' :
+                  effectiveAqi >= 100 ? 'text-amber-300' :
+                    effectiveAqi >= 51 ? 'text-yellow-300' : 'text-emerald-300'
                 }`}>
-                {data.aqi.usAqi.toFixed(0)}
+                {effectiveAqi.toFixed(0)}
               </span>
-              <span className={`font-bold uppercase px-2.5 py-1 sm:px-2 sm:py-0.5 rounded-lg text-[11px] sm:text-[10px] border transition-all ${data.aqi.usAqi >= 200 ? 'bg-red-500/20 text-red-300 border-red-500/35' :
-                data.aqi.usAqi >= 150 ? 'bg-orange-500/20 text-orange-300 border-orange-500/35' :
-                  data.aqi.usAqi >= 100 ? 'bg-amber-500/20 text-amber-300 border-amber-500/35' :
-                    data.aqi.usAqi >= 51 ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/35' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/35'
+              <span className={`font-bold uppercase px-2.5 py-1 sm:px-2 sm:py-0.5 rounded-lg text-[11px] sm:text-[10px] border transition-all ${effectiveAqi >= 200 ? 'bg-red-500/20 text-red-300 border-red-500/35' :
+                effectiveAqi >= 150 ? 'bg-orange-500/20 text-orange-300 border-orange-500/35' :
+                  effectiveAqi >= 100 ? 'bg-amber-500/20 text-amber-300 border-amber-500/35' :
+                    effectiveAqi >= 51 ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/35' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/35'
                 }`}>
-                {data.aqi.usAqi >= 200 ? 'V. Unhealthy' : data.aqi.usAqi >= 150 ? 'Unhealthy' :
-                  data.aqi.usAqi >= 100 ? 'Sensitive' : data.aqi.usAqi >= 51 ? 'Moderate' : 'Good'}
+                {effectiveAqi >= 200 ? 'V. Unhealthy' : effectiveAqi >= 150 ? 'Unhealthy' :
+                  effectiveAqi >= 100 ? 'Sensitive' : effectiveAqi >= 51 ? 'Moderate' : 'Good'}
               </span>
             </div>
-            <span className="text-gray-500 font-mono text-[11px] sm:text-[10px]">PM2.5: {data.aqi.pm25.toFixed(1)} · PM10: {data.aqi.pm10.toFixed(1)}</span>
+            <div className="flex flex-col items-end gap-0.5">
+              <span className="text-gray-500 font-mono text-[11px] sm:text-[10px]">PM2.5: {data.aqi.pm25.toFixed(1)} · PM10: {data.aqi.pm10.toFixed(1)}</span>
+              {hyperlocal ? (
+                <span className="font-mono text-[10px] sm:text-[9px]">
+                  <span className={usingHyperlocal ? 'text-gray-300 font-semibold' : 'text-gray-600'}>
+                    {hyperlocal.sensorCount} sensor{hyperlocal.sensorCount === 1 ? '' : 's'} ({hyperlocal.nearestMiles.toFixed(1)}mi): {hyperlocal.usAqi}
+                  </span>
+                  {hyperlocal.sensorCount < 3 && (
+                    <span className="text-amber-500/70" title="Fewer than the usual 3 nearest sensors -- lower confidence"> (low confidence)</span>
+                  )}
+                  <span className="text-gray-600"> · </span>
+                  <span className={!usingHyperlocal ? 'text-gray-300 font-semibold' : 'text-gray-600'}>
+                    model: {data.aqi.usAqi.toFixed(0)}
+                  </span>
+                  <span className="text-gray-600"> (using higher)</span>
+                </span>
+              ) : (
+                <span className="text-gray-600 font-mono text-[10px] sm:text-[9px]">Regional model only</span>
+              )}
+            </div>
           </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

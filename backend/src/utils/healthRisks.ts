@@ -147,14 +147,27 @@ export const AQI_CONFIG: RiskConfig = {
       min: 200,
       description: 'Very unhealthy air. Everyone is at increased risk of symptoms or flare‑ups.',
       detailedExplanation: 'Air quality is very poor (US AQI ≥ 200). High levels of fine particles and gases can irritate the lungs and airways, strain the heart and blood vessels, and trigger headaches or fatigue. People with asthma, COPD, heart disease, or migraine are especially vulnerable, but even healthy people may feel effects.',
-      recommendations: ['Stay indoors with windows closed as much as possible', 'Use an air purifier or filter if available', 'Avoid outdoor physical activity; if you must go out, limit time and intensity', 'Use a well‑fitting respirator (such as N95) if you need to be outside for long', 'Monitor your symptoms and follow any action plans from your clinician']
+      recommendations: [
+        'Seal up windows and doors — tape or a towel over gaps helps if you can smell smoke inside',
+        'Run a HEPA air purifier, or a box fan with a furnace filter taped to it',
+        'Skip outdoor exercise entirely — even brief exposure raises symptom risk at this level',
+        'Wear a well‑fitting N95 outside — check the seal around your nose, a loose fit lets smoke through',
+        'Not improving, or have a heart or lung condition? Treat it as a cue to relocate rather than wait it out',
+        'Monitor your symptoms and follow any action plans from your clinician'
+      ]
     },
     {
       level: 'high',
       min: 150,
       description: 'Unhealthy air. Sensitive groups should limit outdoor time and exertion.',
       detailedExplanation: 'Air quality is unhealthy (US AQI roughly 150–199). Pollutants and fine particles can aggravate asthma, COPD, and heart conditions, and may trigger headaches or fatigue in sensitive people.',
-      recommendations: ['Limit time spent outdoors, especially for exercise', 'Keep windows closed and use air filtration if you have it', 'Ensure rescue inhalers or other medications are accessible', 'Children, older adults, and people with chronic conditions should stay indoors when possible']
+      recommendations: [
+        'Limit time spent outdoors, especially for exercise',
+        'Keep windows closed and run an air purifier if you have one',
+        'Wear a well‑fitting N95 if you\'ll be outside more than a few minutes',
+        'Ensure rescue inhalers or other medications are accessible',
+        'Children, older adults, and people with chronic conditions should stay indoors when possible'
+      ]
     },
     {
       level: 'moderate',

@@ -1,8 +1,10 @@
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, and, gte, lte } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { db } from '../db/index.js';
 import { weatherData, pressureDerivatives, airQualityData, geomagneticData, pollenData } from '../db/schema.js';
 import { getCurrentConfig } from '../jobs/weather-poll.js';
+import { analyzeSmokeTrend } from '../utils/smoke.js';
+import { fetchHyperlocalAQI } from '../services/purpleair.js';
 import {
   getMigraineRisk,
   getMECFSRisk,
@@ -30,10 +32,18 @@ export async function briefingRoutes(app: FastifyInstance): Promise<void> {
     const config = getCurrentConfig();
     const location = config ? `${config.latitude},${config.longitude}` : null;
 
+    const now = new Date();
+
+    // weatherData (and airQualityData) also store forecast rows up to several days
+    // out, so "ORDER BY timestamp DESC" alone would return the far-future forecast
+    // tail instead of the actual latest reading -- every "latest" lookup below is
+    // bounded to timestamp <= now for that reason.
     const [latest] = await db
       .select()
       .from(weatherData)
-      .where(location ? eq(weatherData.location, location) : undefined)
+      .where(location
+        ? and(eq(weatherData.location, location), lte(weatherData.timestamp, now))
+        : lte(weatherData.timestamp, now))
       .orderBy(desc(weatherData.timestamp))
       .limit(1);
 
@@ -41,25 +51,71 @@ export async function briefingRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(404).send({ error: 'No weather data available yet' });
     }
 
-    const [derivativeRows, aqiRows, geomagneticRows, pollenRows] = await Promise.all([
+    const smokeWindowStart = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+    const smokeWindowEnd = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+    // Filter every sub-query by the SAME location as the winning weatherData row
+    // (not just userId) -- a user who has reconfigured their location before leaves
+    // old rows behind under other location strings, and userId-only filtering can
+    // silently pick up a stale location's reading if its timestamps happen to
+    // overlap with the current location's.
+    const rowLocation = latest.location;
+
+    const [derivativeRows, aqiRows, geomagneticRows, pollenRows, hyperlocalAqi, smokePastRows, smokeFutureRows] = await Promise.all([
       db.select().from(pressureDerivatives)
-        .where(eq(pressureDerivatives.userId, latest.userId))
+        .where(and(eq(pressureDerivatives.userId, latest.userId), eq(pressureDerivatives.location, rowLocation), lte(pressureDerivatives.timestamp, now)))
         .orderBy(desc(pressureDerivatives.timestamp)).limit(1),
       db.select().from(airQualityData)
-        .where(eq(airQualityData.userId, latest.userId))
+        .where(and(eq(airQualityData.userId, latest.userId), eq(airQualityData.location, rowLocation), lte(airQualityData.timestamp, now)))
         .orderBy(desc(airQualityData.timestamp)).limit(1),
       db.select().from(geomagneticData)
-        .where(eq(geomagneticData.userId, latest.userId))
+        .where(and(eq(geomagneticData.userId, latest.userId), lte(geomagneticData.timestamp, now)))
         .orderBy(desc(geomagneticData.timestamp)).limit(1),
       db.select().from(pollenData)
-        .where(eq(pollenData.userId, latest.userId))
+        .where(and(eq(pollenData.userId, latest.userId), eq(pollenData.location, rowLocation), lte(pollenData.timestamp, now)))
         .orderBy(desc(pollenData.timestamp)).limit(1),
+      config ? fetchHyperlocalAQI(config.latitude, config.longitude) : Promise.resolve(null),
+      db.select().from(airQualityData)
+        .where(and(
+          eq(airQualityData.userId, latest.userId),
+          eq(airQualityData.location, rowLocation),
+          gte(airQualityData.timestamp, smokeWindowStart),
+          lte(airQualityData.timestamp, now)
+        ))
+        .orderBy(airQualityData.timestamp),
+      db.select().from(airQualityData)
+        .where(and(
+          eq(airQualityData.userId, latest.userId),
+          eq(airQualityData.location, rowLocation),
+          gte(airQualityData.timestamp, now),
+          lte(airQualityData.timestamp, smokeWindowEnd)
+        ))
+        .orderBy(airQualityData.timestamp),
     ]);
 
     const derivative = derivativeRows[0] ?? null;
     const aqi = aqiRows[0] ?? null;
     const geomagnetic = geomagneticRows[0] ?? null;
     const pollen = pollenRows[0] ?? null;
+
+    const smokeTrend = analyzeSmokeTrend(
+      smokePastRows.map(r => ({
+        timestamp: r.timestamp,
+        pm25: parseFloat(r.pm25),
+        pm10: parseFloat(r.pm10),
+        no2: parseFloat(r.no2),
+        so2: parseFloat(r.so2),
+        usAqi: parseFloat(r.usAqi),
+      })),
+      smokeFutureRows.map(r => ({
+        timestamp: r.timestamp,
+        pm25: parseFloat(r.pm25),
+        pm10: parseFloat(r.pm10),
+        no2: parseFloat(r.no2),
+        so2: parseFloat(r.so2),
+        usAqi: parseFloat(r.usAqi),
+      }))
+    );
 
     // Parse numeric fields
     const pressure = parseFloat(latest.pressure);
@@ -77,6 +133,8 @@ export async function briefingRoutes(app: FastifyInstance): Promise<void> {
       no2: parseFloat(aqi.no2),
       so2: parseFloat(aqi.so2),
       co: parseFloat(aqi.co),
+      hyperlocal: hyperlocalAqi,
+      smokeTrend,
     } : null;
 
     const geoInput = geomagnetic ? {
@@ -92,12 +150,19 @@ export async function briefingRoutes(app: FastifyInstance): Promise<void> {
       moldIndex: pollen.moldIndex,
     } : null;
 
+    // Use the worse of model vs. hyperlocal (same rule getAQIRisk uses) -- otherwise
+    // these contributing factors miss exactly the local smoke plume the hyperlocal
+    // sensor exists to catch.
+    const currentAqi = aqiInput
+      ? (aqiInput.hyperlocal ? Math.max(aqiInput.usAqi, aqiInput.hyperlocal.usAqi) : aqiInput.usAqi)
+      : null;
+
     // Compute all 7 health risks
     const risks = [
-      getMigraineRisk(delta1h),
-      getMECFSRisk(delta1h, delta3h, delta6h),
-      getPOTSRisk(delta1h, humidity, temp),
-      getJointPainRisk(delta1h, humidity, temp),
+      getMigraineRisk(delta1h, currentAqi),
+      getMECFSRisk(delta1h, delta3h, delta6h, currentAqi),
+      getPOTSRisk(delta1h, humidity, temp, currentAqi),
+      getJointPainRisk(delta1h, humidity, temp, currentAqi),
       getAQIRisk(aqiInput),
       getGeomagneticRisk(geoInput),
       getPollenRisk(pollenInput),

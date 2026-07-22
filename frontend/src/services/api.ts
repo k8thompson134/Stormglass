@@ -35,6 +35,20 @@ export interface CurrentWeather {
     no2: number;
     so2: number;
     co: number;
+    hyperlocal: {
+      usAqi: number;
+      pm25: number;
+      sensorCount: number;
+      nearestMiles: number;
+    } | null;
+    smokeTrend: {
+      direction: 'worsening' | 'improving' | 'stable';
+      currentPm25: number;
+      next24hPeakPm25: number;
+      next24hPeakUsAqi: number;
+      next24hPeakAt: string | null;
+      likelyWildfireSmoke: boolean;
+    } | null;
   } | null;
   geomagnetic: {
     kpIndex: number;

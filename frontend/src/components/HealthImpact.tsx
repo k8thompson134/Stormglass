@@ -351,15 +351,21 @@ export default function HealthImpact({ data, loading, healthToggles }: Props) {
     const pollenMax = data.pollen
         ? Math.max(data.pollen.treeIndex, data.pollen.grassIndex, data.pollen.weedIndex, data.pollen.moldIndex)
         : 0;
+    // Use the worse of model vs. hyperlocal (same rule getAQIRisk and the
+    // CurrentConditions badge use) -- otherwise these contributing factors miss
+    // exactly the local smoke plume the hyperlocal sensor exists to catch.
+    const currentAqi = data.aqi
+        ? (data.aqi.hyperlocal ? Math.max(data.aqi.usAqi, data.aqi.hyperlocal.usAqi) : data.aqi.usAqi)
+        : null;
 
     const risks: HealthRisk[] = [];
-    if (healthToggles.migraine)     risks.push(getMigraineRisk(delta1h, delta3h, delta6h));
+    if (healthToggles.migraine)     risks.push(getMigraineRisk(delta1h, delta3h, delta6h, currentAqi));
     if (healthToggles.cluster)      risks.push(getClusterHeadacheRisk(delta1h, delta3h, delta6h, data.uvIndex));
-    if (healthToggles.sinus)        risks.push(getSinusRisk(delta1h, data.humidity, data.temperature, pollenMax));
-    if (healthToggles.pots)         risks.push(getPOTSRisk(delta1h, data.humidity, data.temperature));
-    if (healthToggles.mecfs)        risks.push(getMECFSRisk(delta1h, delta3h, delta6h));
-    if (healthToggles.joints)       risks.push(getJointPainRisk(delta1h, data.humidity, data.temperature));
-    if (healthToggles.fibromyalgia) risks.push(getFibromyalgiaRisk(delta1h, data.humidity, data.temperature));
+    if (healthToggles.sinus)        risks.push(getSinusRisk(delta1h, data.humidity, data.temperature, pollenMax, currentAqi));
+    if (healthToggles.pots)         risks.push(getPOTSRisk(delta1h, data.humidity, data.temperature, currentAqi));
+    if (healthToggles.mecfs)        risks.push(getMECFSRisk(delta1h, delta3h, delta6h, currentAqi));
+    if (healthToggles.joints)       risks.push(getJointPainRisk(delta1h, data.humidity, data.temperature, currentAqi));
+    if (healthToggles.fibromyalgia) risks.push(getFibromyalgiaRisk(delta1h, data.humidity, data.temperature, currentAqi));
     if (healthToggles.eds)          risks.push(getEDSRisk(delta1h, data.humidity, data.temperature));
     if (healthToggles.raynauds)     risks.push(getRaynaudsRisk(data.temperature, data.humidity, data.windSpeed));
     if (healthToggles.sleep)        risks.push(getSleepRisk(delta1h, delta3h, delta6h, data.temperature, data.humidity, data.geomagnetic?.kpIndex ?? null, data.aqi?.usAqi ?? null));
