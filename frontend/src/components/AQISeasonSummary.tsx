@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchAQIBurden, type AQIBurdenSummary } from '../services/api';
+import { CATEGORY_ORDER, AQI_CATEGORY_THEME } from '../utils/aqiCategory';
 
 export default function AQISeasonSummary() {
   const [summary, setSummary] = useState<AQIBurdenSummary | null>(null);
@@ -35,13 +36,20 @@ export default function AQISeasonSummary() {
     return null;
   }
 
-  const { totalDaysTracked, daysAtOrAboveThreshold, threshold } = summary;
+  const { totalDaysTracked, daysAtOrAboveThreshold, threshold, byCategory } = summary;
   const pct = Math.round((daysAtOrAboveThreshold / totalDaysTracked) * 100);
   const isNotable = daysAtOrAboveThreshold > 0;
 
+  // Days at each category, in worst-to-best order, skipping empty tiers -- shows the
+  // actual spread of a swingy season (e.g. mostly Good with a couple Hazardous spikes)
+  // rather than collapsing everything into a single above/below-100 count.
+  const breakdown = [...CATEGORY_ORDER].reverse()
+    .map(category => ({ category, days: byCategory?.[category] ?? 0 }))
+    .filter(b => b.days > 0);
+
   return (
     <div className="bg-[#131d2e] rounded-2xl p-4 sm:p-5 border border-[#1e2d45] shadow-xl">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+      <div className="flex items-center justify-between gap-4 flex-wrap mb-3">
         <div>
           <h2 className="text-gray-300 text-xs font-bold uppercase tracking-wider mb-1">
             Last {totalDaysTracked} Days
@@ -53,13 +61,28 @@ export default function AQISeasonSummary() {
             {' '}have hit AQI {threshold}+ ({pct}%)
           </p>
         </div>
-        <div className="flex gap-0.5 h-2 w-32 rounded-full overflow-hidden bg-gray-800/60">
-          <div
-            className={isNotable ? 'bg-amber-400' : 'bg-emerald-400'}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
       </div>
+
+      {breakdown.length > 0 && (
+        <>
+          <div className="flex h-2 w-full rounded-full overflow-hidden bg-gray-800/60">
+            {breakdown.map(b => (
+              <div
+                key={b.category}
+                style={{ width: `${(b.days / totalDaysTracked) * 100}%`, backgroundColor: AQI_CATEGORY_THEME[b.category].dot }}
+                title={`${b.category}: ${b.days} day${b.days === 1 ? '' : 's'}`}
+              />
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2">
+            {breakdown.map(b => (
+              <span key={b.category} className={`text-[10px] font-mono ${AQI_CATEGORY_THEME[b.category].text}`}>
+                {AQI_CATEGORY_THEME[b.category].shortLabel}: {b.days}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

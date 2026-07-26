@@ -98,17 +98,19 @@ describe('nextSafeWindow', () => {
 });
 
 describe('classifyAqiCategory', () => {
-    it('matches the boundaries used by getAQIRisk', () => {
+    it('matches the official EPA/AirNow US AQI category breakpoints', () => {
         expect(classifyAqiCategory(0)).toBe('Good');
         expect(classifyAqiCategory(50)).toBe('Good');
         expect(classifyAqiCategory(51)).toBe('Moderate');
-        expect(classifyAqiCategory(99)).toBe('Moderate');
-        expect(classifyAqiCategory(100)).toBe('Unhealthy for Sensitive Groups');
-        expect(classifyAqiCategory(149)).toBe('Unhealthy for Sensitive Groups');
-        expect(classifyAqiCategory(150)).toBe('Unhealthy');
-        expect(classifyAqiCategory(199)).toBe('Unhealthy');
-        expect(classifyAqiCategory(200)).toBe('Very Unhealthy');
-        expect(classifyAqiCategory(400)).toBe('Very Unhealthy');
+        expect(classifyAqiCategory(100)).toBe('Moderate');
+        expect(classifyAqiCategory(101)).toBe('Unhealthy for Sensitive Groups');
+        expect(classifyAqiCategory(150)).toBe('Unhealthy for Sensitive Groups');
+        expect(classifyAqiCategory(151)).toBe('Unhealthy');
+        expect(classifyAqiCategory(200)).toBe('Unhealthy');
+        expect(classifyAqiCategory(201)).toBe('Very Unhealthy');
+        expect(classifyAqiCategory(300)).toBe('Very Unhealthy');
+        expect(classifyAqiCategory(301)).toBe('Hazardous');
+        expect(classifyAqiCategory(500)).toBe('Hazardous');
     });
 });
 

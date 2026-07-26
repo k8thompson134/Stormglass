@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import { fetchAQIForecast, type AQIForecast, type AQIForecastPoint } from '../services/api';
 import { SEVERITY_THEME, type EnvSeverity } from '../utils/severity';
+import { classifyAqiCategory, AQI_CATEGORY_THEME, type AqiCategory } from '../utils/aqiCategory';
 
 const TIME_RANGES = [
   { label: '6h', value: 6 },
@@ -21,14 +22,27 @@ const TIME_RANGES = [
   { label: '7d', value: 168 },
 ];
 
-// Mirrors AQI_CONFIG's US AQI thresholds in healthRisks.ts -- kept in sync manually
-// since this is presentation-layer bucketing, not the health-risk source of truth.
+// Collapses the 6 EPA categories onto the 4-tier EnvSeverity scale shared with
+// PressureChart/CurrentConditions for the chart's line/reference-line coloring.
+// Full 6-tier detail is still shown via the category name itself (tooltip, banners).
 function classifyAqi(usAqi: number): EnvSeverity {
-  if (usAqi >= 200) return 'severe';
-  if (usAqi >= 150) return 'high';
-  if (usAqi >= 100) return 'moderate';
+  const category = classifyAqiCategory(usAqi);
+  if (category === 'Very Unhealthy' || category === 'Hazardous') return 'severe';
+  if (category === 'Unhealthy') return 'high';
+  if (category === 'Unhealthy for Sensitive Groups') return 'moderate';
   return 'low';
 }
+
+// The AQI value at the floor of each category, used to draw a reference line at
+// every EPA category boundary rather than just the 3 boundaries EnvSeverity has room
+// for -- so a chart spanning Moderate all the way to Hazardous shows every crossing.
+const CATEGORY_BOUNDARIES: { aqi: number; category: AqiCategory }[] = [
+  { aqi: 51, category: 'Moderate' },
+  { aqi: 101, category: 'Unhealthy for Sensitive Groups' },
+  { aqi: 151, category: 'Unhealthy' },
+  { aqi: 201, category: 'Very Unhealthy' },
+  { aqi: 301, category: 'Hazardous' },
+];
 
 function formatTime(isoString: string): string {
   try {
@@ -76,7 +90,8 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
   if (!active || !payload?.length) return null;
   const point = payload[0]?.payload;
   if (!point) return null;
-  const severity = classifyAqi(point.usAqi);
+  const category = classifyAqiCategory(point.usAqi);
+  const theme = AQI_CATEGORY_THEME[category];
   const isForecast = payload.some(e => e.dataKey === 'forecastAqi' && e.value != null)
     && !payload.some(e => e.dataKey === 'aqiChart' && e.value != null);
 
@@ -89,7 +104,11 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
       <div className="space-y-1.5">
         <div className="flex justify-between gap-6">
           <span className="text-gray-400">US AQI</span>
-          <span className="font-mono font-medium" style={{ color: SEVERITY_THEME[severity].chartFill }}>{point.usAqi}</span>
+          <span className="font-mono font-medium" style={{ color: theme.dot }}>{point.usAqi}</span>
+        </div>
+        <div className="flex justify-between gap-6">
+          <span className="text-gray-400">Category</span>
+          <span className={`font-medium ${theme.text}`}>{category}</span>
         </div>
         <div className="flex justify-between gap-6">
           <span className="text-gray-400">PM2.5</span>
@@ -123,13 +142,14 @@ function CategoryCrossingBanner({ forecast }: { forecast: AQIForecast }) {
 
 function SafeWindowCallout({ forecast }: { forecast: AQIForecast }) {
   const { nextSafeWindow: next, threshold } = forecast;
+  const ceilingCategory = classifyAqiCategory(threshold);
 
   if (!next) {
     return (
       <div className="rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-3 mb-4">
-        <p className="text-orange-300 text-[13px] font-semibold">AQI not expected below {threshold} in the next 72h</p>
+        <p className="text-orange-300 text-[13px] font-semibold">Not expected to drop to {ceilingCategory} or better in the next 72h</p>
         <p className="text-orange-300/70 text-[11px] mt-0.5">
-          The forecast stays at or above AQI {threshold} for the full 3-day outlook.
+          The forecast stays above AQI {threshold} ({ceilingCategory}'s ceiling) for the full 3-day outlook.
         </p>
       </div>
     );
@@ -144,11 +164,11 @@ function SafeWindowCallout({ forecast }: { forecast: AQIForecast }) {
     <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 mb-4">
       <p className="text-emerald-300 text-[13px] font-semibold">
         {startsNow
-          ? <>Currently below AQI {threshold} — expected to hold through {formatDayTime(next.end)}</>
-          : <>Next stretch below AQI {threshold}: {formatDayTime(next.start)} – {formatDayTime(next.end)}</>}
+          ? <>Currently {ceilingCategory} or better — expected to hold through {formatDayTime(next.end)}</>
+          : <>Next stretch at {ceilingCategory} or better: {formatDayTime(next.start)} – {formatDayTime(next.end)}</>}
       </p>
       <p className="text-emerald-300/70 text-[11px] mt-0.5">
-        {durationLabel} under AQI {threshold} · avg {next.avgAqi}
+        {durationLabel} at or below AQI {threshold} · avg {next.avgAqi}
         {next.maxAqi > threshold && ` (brief spike to ${next.maxAqi} included)`}
       </p>
     </div>
@@ -315,7 +335,7 @@ export default function AQIForecastChart() {
           {formatDate(validData[0].timestamp)} {' → '} {formatTime(validData[validData.length - 1].timestamp)}
         </span>
         <span className="text-gray-500">|</span>
-        <span>Peak: <span className={maxAqiVal > 100 ? 'text-amber-400' : 'text-emerald-400'}>{Math.round(peak?.usAqi ?? 0)}</span></span>
+        <span>Peak: <span className={AQI_CATEGORY_THEME[classifyAqiCategory(peak?.usAqi ?? 0)].text}>{Math.round(peak?.usAqi ?? 0)} ({classifyAqiCategory(peak?.usAqi ?? 0)})</span></span>
       </div>
 
       <div className="h-[260px] sm:h-[320px] w-full" role="img" aria-label={`Air quality chart. Current AQI ${nowPoint?.usAqi ?? '—'}, peak ${peak?.usAqi ?? '—'}.`}>
@@ -367,10 +387,19 @@ export default function AQIForecastChart() {
               />
             ))}
 
-            {/* AQI category reference lines */}
-            <ReferenceLine yAxisId="left" y={100} stroke={SEVERITY_THEME.moderate.chartFill} strokeDasharray="3 3" opacity={0.4} />
-            <ReferenceLine yAxisId="left" y={150} stroke={SEVERITY_THEME.high.chartFill} strokeDasharray="3 3" opacity={0.4} />
-            <ReferenceLine yAxisId="left" y={200} stroke={SEVERITY_THEME.severe.chartFill} strokeDasharray="3 3" opacity={0.4} />
+            {/* AQI category reference lines -- one per EPA category floor, so a chart
+                that swings from Moderate all the way to Hazardous shows every crossing,
+                not just the 3 boundaries the old 4-tier severity scale had room for. */}
+            {CATEGORY_BOUNDARIES.filter(b => b.aqi <= Math.max(maxAqiVal + 20, 120)).map(b => (
+              <ReferenceLine
+                key={b.category}
+                yAxisId="left"
+                y={b.aqi}
+                stroke={AQI_CATEGORY_THEME[b.category].dot}
+                strokeDasharray="3 3"
+                opacity={0.4}
+              />
+            ))}
 
             {nowPoint && (
               <ReferenceLine
@@ -472,7 +501,7 @@ export default function AQIForecastChart() {
         </div>
         <span className="flex items-center gap-1 text-[10px] text-gray-400">
           <span className="w-2 h-2 rounded-sm inline-block" style={{ backgroundColor: SEVERITY_THEME.low.chartFill, opacity: 0.3 }} />
-          Shaded = below AQI {forecast.threshold}
+          Shaded = {classifyAqiCategory(forecast.threshold)} or better (AQI {forecast.threshold})
         </span>
       </div>
 

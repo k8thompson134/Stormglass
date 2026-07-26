@@ -99,17 +99,46 @@ export function nextSafeWindow(windows: SafeWindow[], now: Date): SafeWindow | n
     return upcoming.reduce((soonest, w) => w.start < soonest.start ? w : soonest, upcoming[0]);
 }
 
-// Mirrors the category boundaries used in getAQIRisk's own aqiCategory ternary --
-// keep in sync if either changes.
-export type AqiCategory = 'Good' | 'Moderate' | 'Unhealthy for Sensitive Groups' | 'Unhealthy' | 'Very Unhealthy';
-const CATEGORY_ORDER: AqiCategory[] = ['Good', 'Moderate', 'Unhealthy for Sensitive Groups', 'Unhealthy', 'Very Unhealthy'];
+// Single source of truth for the official EPA/AirNow US AQI category bands --
+// getAQIRisk (backend) and aqiCategory.ts (frontend) both call into this rather
+// than hand-copying the boundaries.
+export type AqiCategory = 'Good' | 'Moderate' | 'Unhealthy for Sensitive Groups' | 'Unhealthy' | 'Very Unhealthy' | 'Hazardous';
+export const CATEGORY_ORDER: AqiCategory[] = ['Good', 'Moderate', 'Unhealthy for Sensitive Groups', 'Unhealthy', 'Very Unhealthy', 'Hazardous'];
+
+// Lower bound (inclusive) of each category, per EPA's official breakpoints.
+export const CATEGORY_FLOOR: Record<AqiCategory, number> = {
+    'Good': 0,
+    'Moderate': 51,
+    'Unhealthy for Sensitive Groups': 101,
+    'Unhealthy': 151,
+    'Very Unhealthy': 201,
+    'Hazardous': 301,
+};
 
 export function classifyAqiCategory(usAqi: number): AqiCategory {
-    if (usAqi >= 200) return 'Very Unhealthy';
-    if (usAqi >= 150) return 'Unhealthy';
-    if (usAqi >= 100) return 'Unhealthy for Sensitive Groups';
+    if (usAqi >= 301) return 'Hazardous';
+    if (usAqi >= 201) return 'Very Unhealthy';
+    if (usAqi >= 151) return 'Unhealthy';
+    if (usAqi >= 101) return 'Unhealthy for Sensitive Groups';
     if (usAqi >= 51) return 'Moderate';
     return 'Good';
+}
+
+// Highest AQI still considered part of `category` -- e.g. the ceiling of 'Moderate'
+// is 100 (one below the next category's floor). Used to turn a category name into
+// a numeric "safe below this" threshold for findSafeWindows.
+export function categoryCeiling(category: AqiCategory): number {
+    const idx = CATEGORY_ORDER.indexOf(category);
+    const next = CATEGORY_ORDER[idx + 1];
+    return next ? CATEGORY_FLOOR[next] - 1 : 500;
+}
+
+// PurpleAir's dense sensor network catches localized smoke plumes that the
+// ~11km-grid regional model can miss or lag; take the worse (higher) of the two
+// readings so downstream risk/category logic errs toward protecting against smoke
+// the model hasn't caught up to yet, rather than averaging it away.
+export function effectiveAqi(modelAqi: number, hyperlocalAqi: number | null | undefined): number {
+    return hyperlocalAqi != null ? Math.max(modelAqi, hyperlocalAqi) : modelAqi;
 }
 
 export interface CategoryCrossing {

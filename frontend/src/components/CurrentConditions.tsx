@@ -1,6 +1,7 @@
 import type { CurrentWeather, WeatherPoint } from '../services/api';
 import { toF } from '../utils/conversions';
 import { classifyPressureRate, SEVERITY_THEME, type EnvSeverity } from '../utils/severity';
+import { classifyAqiCategory, effectiveAqi as computeEffectiveAqi, AQI_CATEGORY_THEME } from '../utils/aqiCategory';
 
 interface Props {
   data: CurrentWeather | null;
@@ -136,27 +137,23 @@ export default function CurrentConditions({ data, loading, history }: Props) {
           // Match getAQIRisk's logic: take the worse of model vs. hyperlocal so the
           // headline number here agrees with the severity used in the risk card,
           // rather than always showing the (possibly lower) regional-model value.
-          const effectiveAqi = hyperlocal ? Math.max(data.aqi.usAqi, hyperlocal.usAqi) : data.aqi.usAqi;
+          const effectiveAqi = computeEffectiveAqi(data.aqi.usAqi, hyperlocal?.usAqi);
           const usingHyperlocal = hyperlocal ? hyperlocal.usAqi >= data.aqi.usAqi : false;
+          const category = classifyAqiCategory(effectiveAqi);
+          const theme = AQI_CATEGORY_THEME[category];
 
           return (
           <div className="border-t border-gray-700/20 py-3 sm:py-2.5 flex items-center justify-between flex-wrap gap-2 sm:gap-1.5 text-[11px] sm:text-[10px]">
             <div className="flex items-center gap-2 sm:gap-1.5">
               <span className="text-gray-400 font-mono uppercase tracking-wider text-[11px] sm:text-[10px]">AQI</span>
-              <span className={`font-bold text-lg sm:text-base ${effectiveAqi >= 200 ? 'text-red-300' :
-                effectiveAqi >= 150 ? 'text-orange-300' :
-                  effectiveAqi >= 100 ? 'text-amber-300' :
-                    effectiveAqi >= 51 ? 'text-yellow-300' : 'text-emerald-300'
-                }`}>
+              <span className={`font-bold text-lg sm:text-base ${theme.text}`}>
                 {effectiveAqi.toFixed(0)}
               </span>
-              <span className={`font-bold uppercase px-2.5 py-1 sm:px-2 sm:py-0.5 rounded-lg text-[11px] sm:text-[10px] border transition-all ${effectiveAqi >= 200 ? 'bg-red-500/20 text-red-300 border-red-500/35' :
-                effectiveAqi >= 150 ? 'bg-orange-500/20 text-orange-300 border-orange-500/35' :
-                  effectiveAqi >= 100 ? 'bg-amber-500/20 text-amber-300 border-amber-500/35' :
-                    effectiveAqi >= 51 ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/35' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/35'
-                }`}>
-                {effectiveAqi >= 200 ? 'V. Unhealthy' : effectiveAqi >= 150 ? 'Unhealthy' :
-                  effectiveAqi >= 100 ? 'Sensitive' : effectiveAqi >= 51 ? 'Moderate' : 'Good'}
+              <span
+                className={`font-bold uppercase px-2.5 py-1 sm:px-2 sm:py-0.5 rounded-lg text-[11px] sm:text-[10px] border transition-all ${theme.bg} ${theme.text} ${theme.border}`}
+                title={category}
+              >
+                {theme.shortLabel}
               </span>
               <span
                 className={`flex items-center gap-1 font-mono uppercase tracking-wide px-1.5 py-0.5 rounded border text-[10px] sm:text-[9px] ${

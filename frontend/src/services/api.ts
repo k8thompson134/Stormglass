@@ -112,7 +112,7 @@ export interface AQISafeWindow {
   isCurrent: boolean;
 }
 
-export type AqiCategory = 'Good' | 'Moderate' | 'Unhealthy for Sensitive Groups' | 'Unhealthy' | 'Very Unhealthy';
+export type AqiCategory = 'Good' | 'Moderate' | 'Unhealthy for Sensitive Groups' | 'Unhealthy' | 'Very Unhealthy' | 'Hazardous';
 
 export interface AQICategoryCrossing {
   fromCategory: AqiCategory;
@@ -148,6 +148,7 @@ export interface AQIBurdenSummary {
   threshold: number;
   totalDaysTracked: number;
   daysAtOrAboveThreshold: number;
+  byCategory: Record<AqiCategory, number>;
   dailyMax: { date: string; maxAqi: number }[];
 }
 

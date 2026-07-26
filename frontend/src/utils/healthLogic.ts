@@ -1,6 +1,7 @@
 import type { HealthRisk, RiskLevel } from '../types/health';
 import { MIGRAINE_CONFIG, MECFS_CONFIG, GEOMAGNETIC_CONFIG, AQI_CONFIG, type RiskConfig } from './healthRisks';
 import { toF } from './conversions';
+import { classifyAqiCategory, effectiveAqi as computeEffectiveAqi } from './aqiCategory';
 
 // Helper to determine risk from a single numeric value based on simple min thresholds
 function evaluateRisk(value: number, config: RiskConfig): HealthRisk {
@@ -162,7 +163,7 @@ export function getAQIRisk(aqiData: AQIData | null): HealthRisk {
     // ~11km-grid regional model can miss or lag; take the worse (higher) of the two
     // readings so the risk level errs toward protecting against smoke the model hasn't
     // caught up to yet, rather than averaging it away.
-    const effectiveAqi = hyperlocal ? Math.max(aqiData.usAqi, hyperlocal.usAqi) : aqiData.usAqi;
+    const effectiveAqi = computeEffectiveAqi(aqiData.usAqi, hyperlocal?.usAqi);
 
     const risk = evaluateRisk(effectiveAqi, AQI_CONFIG);
 
@@ -202,7 +203,7 @@ export function getAQIRisk(aqiData: AQIData | null): HealthRisk {
         risk.recommendations.push(`PM2.5 is elevated (${effectivePm25.toFixed(1)} μg/m³) — consider wearing a well-fitting N95 outdoors`);
     }
 
-    const aqiCategory = effectiveAqi >= 200 ? 'Very Unhealthy' : effectiveAqi >= 150 ? 'Unhealthy' : effectiveAqi >= 100 ? 'Unhealthy for Sensitive Groups' : effectiveAqi >= 51 ? 'Moderate' : 'Good';
+    const aqiCategory = classifyAqiCategory(effectiveAqi);
     risk.trigger = `US AQI ${effectiveAqi} — ${aqiCategory}`;
     risk.description = `Current US AQI is ${effectiveAqi} (${aqiCategory})${hyperlocal ? ', from nearby ground sensors' : ''}. ${risk.description}`;
 

@@ -5,7 +5,7 @@ import { weatherData, pressureDerivatives, symptomLogs, airQualityData, geomagne
 import { getCurrentConfig } from '../jobs/weather-poll.js';
 import { fetchHyperlocalAQI } from '../services/purpleair.js';
 import { analyzeSmokeTrend } from '../utils/smoke.js';
-import { findSafeWindows, nextSafeWindow, findNextCategoryCrossing } from '../utils/aqiWindows.js';
+import { findSafeWindows, nextSafeWindow, findNextCategoryCrossing, categoryCeiling, CATEGORY_ORDER, type AqiCategory } from '../utils/aqiWindows.js';
 import { summarizeAqiBurden } from '../utils/aqiBurden.js';
 
 interface HistoryQuery {
@@ -14,6 +14,7 @@ interface HistoryQuery {
 
 interface AQIForecastQuery {
   threshold?: string;
+  category?: string;
   hours?: string;
 }
 
@@ -276,14 +277,19 @@ export async function weatherRoutes(app: FastifyInstance): Promise<void> {
     const config = getCurrentConfig();
     const location = config ? `${config.latitude},${config.longitude}` : null;
 
-    // Default threshold of 100 (US AQI "moderate" ceiling) matches AQI_CONFIG's line
-    // between "safe for most" and "sensitive groups should limit exertion" -- the
-    // natural cutoff for "safe to go outside." Callers with a different sensitivity
-    // level can override it.
+    // `?category=` lets a caller ask for "safe below Unhealthy for Sensitive Groups"
+    // in EPA terms rather than a bare number; it takes precedence over `?threshold=`
+    // when both are given (and is well-formed) since the category name is the more
+    // legible ask. Default threshold of 100 (US AQI "Moderate" ceiling) matches
+    // AQI_CONFIG's line between "safe for most" and "sensitive groups should limit
+    // exertion" -- the natural cutoff for "safe to go outside."
+    const requestedCategory = CATEGORY_ORDER.find(c => c === request.query.category) as AqiCategory | undefined;
     const parsedThreshold = parseInt(request.query.threshold ?? '', 10);
     // `parsedThreshold || 100` would be wrong here -- a legitimately requested
     // ?threshold=0 is falsy in JS and would silently be overridden back to 100.
-    const threshold = Math.max(0, Math.min(500, Number.isNaN(parsedThreshold) ? 100 : parsedThreshold));
+    const threshold = requestedCategory
+      ? categoryCeiling(requestedCategory)
+      : Math.max(0, Math.min(500, Number.isNaN(parsedThreshold) ? 100 : parsedThreshold));
 
     // History lookback is configurable (matches /api/weather/history's ?hours=
     // pattern, same 6h/24h/48h/7d options as PressureChart) -- default 6h keeps the

@@ -55,6 +55,26 @@ describe('summarizeAqiBurden', () => {
         expect(result.dailyMax).toEqual([{ date: '2026-07-01', maxAqi: 130 }]);
     });
 
+    it('breaks days down by EPA category, not just a single threshold', () => {
+        const rows = [
+            point('2026-07-01T12:00:00Z', 40),  // Good
+            point('2026-07-02T12:00:00Z', 75),  // Moderate
+            point('2026-07-03T12:00:00Z', 120), // Unhealthy for Sensitive Groups
+            point('2026-07-04T12:00:00Z', 170), // Unhealthy
+            point('2026-07-05T12:00:00Z', 250), // Very Unhealthy
+            point('2026-07-06T12:00:00Z', 450), // Hazardous
+        ];
+        const result = summarizeAqiBurden(rows, 100);
+        expect(result.byCategory).toEqual({
+            'Good': 1,
+            'Moderate': 1,
+            'Unhealthy for Sensitive Groups': 1,
+            'Unhealthy': 1,
+            'Very Unhealthy': 1,
+            'Hazardous': 1,
+        });
+    });
+
     describe('timezone handling', () => {
         it('defaults to UTC when no timezone is given', () => {
             const result = summarizeAqiBurden([point('2026-07-01T23:30:00Z', 50)], 100);
