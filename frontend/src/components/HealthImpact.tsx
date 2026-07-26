@@ -71,6 +71,11 @@ function RiskCard({ risk, onClick, personalizedInfo }: { risk: HealthRisk; onCli
         },
     }[risk.risk];
 
+    // Dynamic state: as risk climbs, surface more -- a low card stays quiet, but a
+    // high/severe card leads with the single most actionable recommendation instead
+    // of making you open the modal to find out what to actually do about it.
+    const topRecommendation = (risk.risk === 'high' || risk.risk === 'severe') ? risk.recommendations[0] : null;
+
     return (
         <button
             type="button"
@@ -81,8 +86,8 @@ function RiskCard({ risk, onClick, personalizedInfo }: { risk: HealthRisk; onCli
                 flex h-full ${theme.card} ${theme.glow}
             `}
         >
-            {/* Left accent stripe */}
-            <div className={`w-1 shrink-0 ${theme.stripe} transition-all duration-300 group-hover:w-1.5`} />
+            {/* Left accent stripe -- pulses for severe to draw the eye without a modal */}
+            <div className={`w-1 shrink-0 ${theme.stripe} transition-all duration-300 group-hover:w-1.5 ${risk.risk === 'severe' ? 'animate-pulse' : ''}`} />
 
             {/* Card content */}
             <div className="flex-1 p-4 flex flex-col min-w-0">
@@ -100,6 +105,14 @@ function RiskCard({ risk, onClick, personalizedInfo }: { risk: HealthRisk; onCli
                 <p className={`text-[11px] sm:text-[10px] leading-relaxed flex-1 ${theme.desc}`}>
                     {risk.description}
                 </p>
+
+                {/* Dynamic state: top recommendation surfaces directly on high/severe cards */}
+                {topRecommendation && (
+                    <div className="mt-2 pt-2 border-t border-gray-700/20 flex items-start gap-1.5">
+                        <span className={`text-[10px] leading-none mt-0.5 shrink-0 ${theme.detail}`}>→</span>
+                        <span className={`text-[10px] sm:text-[9px] leading-relaxed ${theme.detail}`}>{topRecommendation}</span>
+                    </div>
+                )}
 
                 {/* Personalized Info */}
                 {personalizedInfo && (

@@ -1,7 +1,7 @@
 import type { HealthRisk, RiskLevel } from '../types/health';
 import { MIGRAINE_CONFIG, MECFS_CONFIG, GEOMAGNETIC_CONFIG, AQI_CONFIG, type RiskConfig } from './healthRisks';
 import { toF } from './conversions';
-import { classifyAqiCategory, effectiveAqi as computeEffectiveAqi } from './aqiCategory';
+import { classifyAqiCategory, effectiveAqi as computeEffectiveAqi, aqiSeverityFactor, aqiScoreBump } from './aqiCategory';
 
 // Helper to determine risk from a single numeric value based on simple min thresholds
 function evaluateRisk(value: number, config: RiskConfig): HealthRisk {
@@ -37,10 +37,7 @@ function evaluateRisk(value: number, config: RiskConfig): HealthRisk {
 // amplifier of the pressure-driven risk rather than an independent trigger, since
 // pressure change is still the dominant, best-evidenced driver for this condition.
 function aqiMigraineMultiplier(usAqi: number | null): number {
-    if (usAqi === null) return 1;
-    if (usAqi > 150) return 1.25;
-    if (usAqi > 100) return 1.15;
-    return 1;
+    return 1 + aqiSeverityFactor(usAqi) * 0.5;
 }
 
 export function getMigraineRisk(delta: number, delta3h = 0, delta6h = 0, usAqi: number | null = null): HealthRisk {
@@ -60,8 +57,12 @@ export function getMigraineRisk(delta: number, delta3h = 0, delta6h = 0, usAqi: 
             `Sustained ${delta < 0 ? 'falling' : 'rising'} pressure over 6+ hours — cumulative stress elevated`
         );
     }
-    if (aqiMigraineMultiplier(usAqi) > 1) {
-        result.currentFactors.push(`Air quality (AQI ${usAqi}) is amplifying migraine risk`);
+    if (usAqi !== null && usAqi > 50) {
+        result.currentFactors.push(`AQI: ${usAqi}`);
+        // Tailored to migraine specifically (not the generic "close windows" advice
+        // that belongs on the Air Quality card) -- PM2.5/ozone exposure is a trigger
+        // amplifier here, so the actionable step is having abortive treatment ready.
+        result.recommendations.push('Air quality is adding to today\'s migraine trigger load — keep your usual abortive medication within easy reach');
     }
 
     return result;
@@ -72,7 +73,7 @@ export function getMECFSRisk(delta1h: number, delta3h: number, delta6h: number, 
     // ME/CFS/PEM is driven by cumulative environmental/immune burden -- elevated air
     // quality is a plausible added burden on top of pressure volatility, not a separate
     // trigger, so it's folded into the same volatility score rather than scored alone.
-    const aqiBurden = usAqi !== null && usAqi > 150 ? 0.5 : usAqi !== null && usAqi > 100 ? 0.25 : 0;
+    const aqiBurden = aqiSeverityFactor(usAqi) * 0.8;
     const risk = evaluateRisk(volatility + aqiBurden, MECFS_CONFIG);
 
     // Add specific factors for ME/CFS that aren't generic
@@ -81,9 +82,14 @@ export function getMECFSRisk(delta1h: number, delta3h: number, delta6h: number, 
         `3-hour change: ${delta3h.toFixed(2)} hPa/hour`,
         `6-hour change: ${delta6h.toFixed(2)} hPa/hour`,
         `Total volatility: ${volatility.toFixed(2)} (${risk.risk})`,
-        ...(aqiBurden > 0 ? [`Air quality (AQI ${usAqi}) adding to environmental burden`] : []),
+        ...(usAqi !== null && usAqi > 50 ? [`AQI: ${usAqi}`] : []),
         ...(risk.currentFactors || [])
     ];
+    if (usAqi !== null && usAqi > 50) {
+        // Tailored to ME/CFS's pacing model, not generic AQI mitigation -- air
+        // quality here is treated as added burden on a limited energy envelope.
+        risk.recommendations.push('Air quality is adding to today\'s cumulative burden — factor it into your pacing alongside the pressure volatility');
+    }
 
     return risk;
 }
@@ -221,8 +227,9 @@ export function getPOTSRisk(delta: number, humidity: number, temp: number, usAqi
     const isVeryCold = temp < -5;
     const isDamp = humidity > 65;
     // Air pollution exposure is associated with autonomic/cardiovascular dysregulation
-    // via oxidative stress -- a plausible, modest additional load for POTS.
-    const isPolluted = usAqi !== null && usAqi > 100;
+    // via oxidative stress -- a plausible additional load for POTS, graduated so a
+    // Hazardous day weighs more than a bare Unhealthy-for-Sensitive-Groups one.
+    const aqiBump = aqiScoreBump(usAqi);
 
     let score = 0;
     if (isFalling) score += 2;
@@ -232,7 +239,7 @@ export function getPOTSRisk(delta: number, humidity: number, temp: number, usAqi
     if (isVeryCold) score += 1;
     if (isDamp) score += 1;
     if (Math.abs(delta) > 0.8) score += 1;
-    if (isPolluted) score += 1;
+    score += aqiBump;
 
     const primaryStressor = isVeryHot || isHot ? 'heat' : (isVeryCold || isCold ? 'cold' : 'pressure');
 
@@ -261,7 +268,11 @@ export function getPOTSRisk(delta: number, humidity: number, temp: number, usAqi
     currentFactors.push(`Temperature: ${tempF}°F`);
     currentFactors.push(`Humidity: ${humidity.toFixed(0)}%`);
     currentFactors.push(`Pressure change: ${delta.toFixed(2)} hPa/hour`);
-    if (isPolluted) currentFactors.push(`Air quality (AQI ${usAqi}) adding autonomic load`);
+    if (usAqi !== null && usAqi > 50) currentFactors.push(`AQI: ${usAqi}`);
+    // Tailored to POTS's autonomic/cardiovascular angle, not generic AQI mitigation.
+    if (usAqi !== null && usAqi > 50) {
+        recommendations.push('Air quality is adding extra autonomic load today — pace standing/upright time a bit more conservatively than usual');
+    }
 
     return {
         condition: 'POTS / Dysautonomia',
@@ -278,15 +289,16 @@ export function getPOTSRisk(delta: number, humidity: number, temp: number, usAqi
 export function getJointPainRisk(delta: number, humidity: number, temp: number, usAqi: number | null = null): HealthRisk {
     const tempF = toF(temp);
     // Air pollution's systemic inflammatory effect is linked to increased inflammatory
-    // arthritis symptoms in several studies -- a modest additional contributor here.
-    const isPolluted = usAqi !== null && usAqi > 100;
+    // arthritis symptoms in several studies -- graduated so a Hazardous day
+    // contributes more than a bare Unhealthy-for-Sensitive-Groups one.
+    const aqiBump = aqiScoreBump(usAqi);
 
     let risk: RiskLevel = 'low';
     let score = 0;
     if (Math.abs(delta) > 0.5) score += 2;
     if (temp < 10) score += 1;
     if (humidity > 60) score += 1;
-    if (isPolluted) score += 1;
+    score += aqiBump;
 
     if (score >= 4) risk = 'severe';
     else if (score >= 3) risk = 'high';
@@ -305,9 +317,14 @@ export function getJointPainRisk(delta: number, humidity: number, temp: number, 
         `Temperature: ${tempF}°F`,
         `Humidity: ${humidity.toFixed(0)}%`,
         `Pressure change: ${delta.toFixed(2)} hPa/hour`,
-        ...(isPolluted ? [`Air quality (AQI ${usAqi}) may add inflammatory load`] : []),
+        ...(usAqi !== null && usAqi > 50 ? [`AQI: ${usAqi}`] : []),
       ],
-      recommendations: ['Keep joints warm and protected', 'Use gentle movement or stretching within your comfort range']
+      recommendations: [
+        'Keep joints warm and protected',
+        'Use gentle movement or stretching within your comfort range',
+        // Tailored to joint pain's inflammatory angle, not generic AQI mitigation.
+        ...(usAqi !== null && usAqi > 50 ? ['Air pollution\'s inflammatory effect may be compounding today\'s joint stress — anti-inflammatory routines you already use are worth timing around today'] : []),
+      ]
     };
 }
 
@@ -339,8 +356,9 @@ export function getFibromyalgiaRisk(delta: number, humidity: number, temp: numbe
     const absD = Math.abs(delta);
     // Central sensitization in fibromyalgia is linked to systemic inflammation;
     // air pollution exposure is associated with increased pain sensitivity in
-    // several studies -- a modest additional contributor here.
-    const isPolluted = usAqi !== null && usAqi > 100;
+    // several studies -- graduated so a Hazardous day contributes more than a bare
+    // Unhealthy-for-Sensitive-Groups one.
+    const aqiBump = aqiScoreBump(usAqi);
 
     let score = 0;
     if (absD > 0.5) score += 2;
@@ -351,7 +369,7 @@ export function getFibromyalgiaRisk(delta: number, humidity: number, temp: numbe
     if (humidity > 60) score += 1;
     if (humidity > 75) score += 1;
     if (temp < 10 && humidity > 60) score += 1;  // cold+damp compound effect
-    if (isPolluted) score += 1;
+    score += aqiBump;
 
     let risk: RiskLevel = 'low';
     if (score >= 5)      risk = 'severe';
@@ -383,13 +401,15 @@ export function getFibromyalgiaRisk(delta: number, humidity: number, temp: numbe
             `Temperature: ${tempF}°F`,
             `Humidity: ${humidity.toFixed(0)}%`,
             `Pressure change: ${delta.toFixed(2)} hPa/hour`,
-            ...(isPolluted ? [`Air quality (AQI ${usAqi}) may heighten pain sensitivity`] : []),
+            ...(usAqi !== null && usAqi > 50 ? [`AQI: ${usAqi}`] : []),
         ],
         recommendations: [
             'Keep warm and layer clothing in cold or damp conditions',
             'Use heat packs or warm baths to ease stiffness',
             'Pace activity carefully — weather flares often lag by several hours',
             'Stay hydrated and maintain gentle movement within your limits',
+            // Tailored to fibromyalgia's central-sensitization angle, not generic AQI mitigation.
+            ...(usAqi !== null && usAqi > 50 ? ['Air quality may be heightening pain sensitivity today — a little extra pacing margin is reasonable on top of the weather triggers'] : []),
         ],
     };
 }
@@ -398,7 +418,9 @@ export function getSinusRisk(delta: number, humidity: number, temp: number, poll
     const absD = Math.abs(delta);
     // Airborne particulates and irritants directly inflame the sinus mucosa -- one of
     // the more direct, well-established air-quality pathways among these conditions.
-    const isPolluted = usAqi !== null && usAqi > 100;
+    // Graduated so a Hazardous day contributes more than a bare
+    // Unhealthy-for-Sensitive-Groups one.
+    const aqiBump = aqiScoreBump(usAqi);
     let score = 0;
 
     if (absD > 0.4) score += 2;
@@ -408,7 +430,7 @@ export function getSinusRisk(delta: number, humidity: number, temp: number, poll
     if (temp < 5)  score += 1;   // cold dry air irritates sinuses
     if (pollenMax >= 3) score += 1;
     if (pollenMax >= 5) score += 1;
-    if (isPolluted) score += 1;
+    score += aqiBump;
 
     let risk: RiskLevel = 'low';
     if (score >= 5)      risk = 'severe';
@@ -435,13 +457,15 @@ export function getSinusRisk(delta: number, humidity: number, temp: number, poll
             `Humidity: ${humidity.toFixed(0)}%`,
             `Temperature: ${tempF}°F`,
             ...(pollenMax > 0 ? [`Peak pollen index: ${pollenMax}`] : []),
-            ...(isPolluted ? [`Air quality (AQI ${usAqi}) is directly irritating sinus tissue`] : []),
+            ...(usAqi !== null && usAqi > 50 ? [`AQI: ${usAqi}`] : []),
         ],
         recommendations: [
             'Use a saline rinse to clear irritants and equalise sinus pressure',
             'Stay well hydrated to thin mucus',
             'Avoid rapid temperature transitions (e.g. heated indoors to cold outdoors)',
             'Consider an antihistamine if pollen is elevated',
+            // Tailored to sinus's direct-irritation angle, not generic AQI mitigation.
+            ...(usAqi !== null && usAqi > 50 ? ['Air pollution directly irritates sinus tissue — a more frequent saline rinse than usual may help today'] : []),
         ],
     };
 }
@@ -508,7 +532,9 @@ export function getSleepRisk(
     if (humidity > 65) score += 1;
     if (kp !== null && kp >= 4) score += 1;   // geomagnetic disrupts melatonin
     if (kp !== null && kp >= 6) score += 1;
-    if (usAqi !== null && usAqi > 100) score += 1;
+    // Graduated so a Hazardous night contributes more than a bare
+    // Unhealthy-for-Sensitive-Groups one, same as the other AQI-amplified risks.
+    score += aqiScoreBump(usAqi);
 
     let risk: RiskLevel = 'low';
     if (score >= 6)      risk = 'severe';
@@ -543,6 +569,8 @@ export function getSleepRisk(
             'Use blackout curtains and white noise to offset light/sound disruption',
             'Avoid screens 60–90 min before bed on high-Kp nights',
             'On high-volatility pressure nights, avoid late meals and alcohol',
+            // Tailored to sleep-stage depth specifically, not generic AQI mitigation.
+            ...(usAqi !== null && usAqi > 50 ? ['Poor air quality can reduce sleep-stage depth — running an air purifier in the bedroom overnight may help more than usual'] : []),
         ],
     };
 }

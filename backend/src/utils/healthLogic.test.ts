@@ -175,29 +175,30 @@ describe('getAQIRisk', () => {
     expect(getAQIRisk(null).risk).toBe('low');
   });
 
-  it('low — AQI 0–50', () => {
+  it('low — AQI 0–50 (EPA Good)', () => {
     expect(getAQIRisk({ ...base, usAqi: 0 }).risk).toBe('low');
     expect(getAQIRisk({ ...base, usAqi: 50 }).risk).toBe('low');
   });
 
-  it('low — AQI 51–99 (moderate band, still low risk level)', () => {
+  it('low — AQI 51–100 (EPA Moderate, still low risk level)', () => {
     expect(getAQIRisk({ ...base, usAqi: 51 }).risk).toBe('low');
-    expect(getAQIRisk({ ...base, usAqi: 99 }).risk).toBe('low');
+    expect(getAQIRisk({ ...base, usAqi: 100 }).risk).toBe('low');
   });
 
-  it('moderate — AQI crosses 100', () => {
-    expect(getAQIRisk({ ...base, usAqi: 100 }).risk).toBe('moderate');
-    expect(getAQIRisk({ ...base, usAqi: 149 }).risk).toBe('moderate');
+  it('moderate — AQI 101–150 (EPA Unhealthy for Sensitive Groups)', () => {
+    expect(getAQIRisk({ ...base, usAqi: 101 }).risk).toBe('moderate');
+    expect(getAQIRisk({ ...base, usAqi: 150 }).risk).toBe('moderate');
   });
 
-  it('high — AQI crosses 150', () => {
-    expect(getAQIRisk({ ...base, usAqi: 150 }).risk).toBe('high');
-    expect(getAQIRisk({ ...base, usAqi: 199 }).risk).toBe('high');
+  it('high — AQI 151–200 (EPA Unhealthy)', () => {
+    expect(getAQIRisk({ ...base, usAqi: 151 }).risk).toBe('high');
+    expect(getAQIRisk({ ...base, usAqi: 200 }).risk).toBe('high');
   });
 
-  it('severe — AQI crosses 200', () => {
-    expect(getAQIRisk({ ...base, usAqi: 200 }).risk).toBe('severe');
+  it('severe — AQI 201+ (EPA Very Unhealthy / Hazardous)', () => {
+    expect(getAQIRisk({ ...base, usAqi: 201 }).risk).toBe('severe');
     expect(getAQIRisk({ ...base, usAqi: 300 }).risk).toBe('severe');
+    expect(getAQIRisk({ ...base, usAqi: 500 }).risk).toBe('severe');
   });
 
   it('appends PM2.5 N95 recommendation when elevated', () => {

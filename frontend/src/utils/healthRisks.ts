@@ -144,9 +144,9 @@ export const AQI_CONFIG: RiskConfig = {
     thresholds: [
         {
             level: 'severe',
-            min: 200,
-            description: 'Very unhealthy air. Everyone is at increased risk of symptoms or flare‑ups.',
-            detailedExplanation: 'Air quality is very poor (US AQI ≥ 200). High levels of fine particles and gases can irritate the lungs and airways, strain the heart and blood vessels, and trigger headaches or fatigue. People with asthma, COPD, heart disease, or migraine are especially vulnerable, but even healthy people may feel effects.',
+            min: 201,
+            description: 'Very unhealthy to hazardous air. Everyone is at increased risk of symptoms or flare‑ups.',
+            detailedExplanation: 'Air quality is very poor to hazardous (US AQI 201+, EPA "Very Unhealthy"/"Hazardous"). High levels of fine particles and gases can irritate the lungs and airways, strain the heart and blood vessels, and trigger headaches or fatigue. People with asthma, COPD, heart disease, or migraine are especially vulnerable, but even healthy people may feel effects — and above US AQI 300 (Hazardous), the entire population is at risk.',
             recommendations: [
                 'Seal up windows and doors — tape or a towel over gaps helps if you can smell smoke inside',
                 'Run a HEPA air purifier, or a box fan with a furnace filter taped to it',
@@ -158,9 +158,9 @@ export const AQI_CONFIG: RiskConfig = {
         },
         {
             level: 'high',
-            min: 150,
+            min: 151,
             description: 'Unhealthy air. Sensitive groups should limit outdoor time and exertion.',
-            detailedExplanation: 'Air quality is unhealthy (US AQI roughly 150–199). Pollutants and fine particles can aggravate asthma, COPD, and heart conditions, and may trigger headaches or fatigue in sensitive people.',
+            detailedExplanation: 'Air quality is unhealthy (US AQI 151–200, EPA "Unhealthy"). Pollutants and fine particles can aggravate asthma, COPD, and heart conditions, and may trigger headaches or fatigue in sensitive people.',
             recommendations: [
                 'Limit time spent outdoors, especially for exercise',
                 'Keep windows closed and run an air purifier if you have one',
@@ -171,16 +171,16 @@ export const AQI_CONFIG: RiskConfig = {
         },
         {
             level: 'moderate',
-            min: 100,
+            min: 101,
             description: 'Air quality is acceptable for most, but sensitive people may feel mild effects.',
-            detailedExplanation: 'US AQI around 100–149 is considered moderate to unhealthy for sensitive groups. Most people can be active outside, but those with respiratory or heart conditions may notice coughing, shortness of breath, or tiredness sooner than usual.',
+            detailedExplanation: 'US AQI 101–150 is EPA "Unhealthy for Sensitive Groups." Most people can be active outside, but those with respiratory or heart conditions may notice coughing, shortness of breath, or tiredness sooner than usual.',
             recommendations: ['Sensitive groups should limit long or intense outdoor exertion', 'Monitor your breathing and energy; ease up if symptoms appear', 'Consider moving strenuous exercise indoors']
         },
         {
             level: 'low',
             min: 51,
             description: 'Slightly elevated pollution. Generally fine, with only mild risk for unusually sensitive people.',
-            detailedExplanation: 'Air quality is in the upper “moderate” band (US AQI 51–99). Most people will not notice any effect, but those who are very sensitive to pollution may feel mild irritation or discomfort during long outdoor activities.',
+            detailedExplanation: 'Air quality is in the EPA "Moderate" band (US AQI 51–100). Most people will not notice any effect, but those who are very sensitive to pollution may feel mild irritation or discomfort during long outdoor activities.',
             recommendations: ['Safe for most outdoor activities', 'If you are very sensitive, consider shortening or spacing out intense outdoor exercise']
         },
         {

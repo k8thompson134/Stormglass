@@ -141,6 +141,37 @@ export function effectiveAqi(modelAqi: number, hyperlocalAqi: number | null | un
     return hyperlocalAqi != null ? Math.max(modelAqi, hyperlocalAqi) : modelAqi;
 }
 
+// Continuous 0-1 severity used to graduate AQI's influence on OTHER risk
+// calculations (migraine, ME/CFS, POTS, joint pain) across all 6 EPA categories,
+// rather than saturating at a single "unhealthy" cutoff -- a Hazardous day should
+// weigh more heavily than a bare Unhealthy one, not identically. Coefficients here
+// are a heuristic ladder, not derived from a specific study; keep escalation modest
+// and monotonic rather than implying more precision than the evidence supports.
+const SEVERITY_FACTOR: Record<AqiCategory, number> = {
+    'Good': 0,
+    'Moderate': 0.15,
+    'Unhealthy for Sensitive Groups': 0.35,
+    'Unhealthy': 0.6,
+    'Very Unhealthy': 0.8,
+    'Hazardous': 1,
+};
+
+export function aqiSeverityFactor(usAqi: number | null | undefined): number {
+    if (usAqi == null) return 0;
+    return SEVERITY_FACTOR[classifyAqiCategory(usAqi)];
+}
+
+// Graduated 0/1/2 contribution to an integer risk score (POTS, joint pain, etc.),
+// escalating once air quality crosses into genuinely worse categories instead of a
+// flat +1 for anything past a single "polluted" threshold.
+export function aqiScoreBump(usAqi: number | null | undefined): 0 | 1 | 2 {
+    if (usAqi == null) return 0;
+    const category = classifyAqiCategory(usAqi);
+    if (category === 'Very Unhealthy' || category === 'Hazardous') return 2;
+    if (category === 'Unhealthy for Sensitive Groups' || category === 'Unhealthy') return 1;
+    return 0;
+}
+
 export interface CategoryCrossing {
     fromCategory: AqiCategory;
     toCategory: AqiCategory;
