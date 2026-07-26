@@ -62,7 +62,7 @@ export function getMigraineRisk(delta: number, delta3h = 0, delta6h = 0, usAqi: 
         // Tailored to migraine specifically (not the generic "close windows" advice
         // that belongs on the Air Quality card) -- PM2.5/ozone exposure is a trigger
         // amplifier here, so the actionable step is having abortive treatment ready.
-        result.recommendations.push('Air quality is adding to today\'s migraine trigger load — keep your usual abortive medication within easy reach');
+        result.recommendations.push('Keep your usual abortive medication within easy reach — air quality is adding to today\'s trigger load');
     }
 
     return result;
@@ -88,7 +88,7 @@ export function getMECFSRisk(delta1h: number, delta3h: number, delta6h: number, 
     if (usAqi !== null && usAqi > 50) {
         // Tailored to ME/CFS's pacing model, not generic AQI mitigation -- air
         // quality here is treated as added burden on a limited energy envelope.
-        risk.recommendations.push('Air quality is adding to today\'s cumulative burden — factor it into your pacing alongside the pressure volatility');
+        risk.recommendations.push('Factor today\'s air quality into your pacing alongside the pressure volatility');
     }
 
     return risk;
@@ -271,7 +271,7 @@ export function getPOTSRisk(delta: number, humidity: number, temp: number, usAqi
     if (usAqi !== null && usAqi > 50) currentFactors.push(`AQI: ${usAqi}`);
     // Tailored to POTS's autonomic/cardiovascular angle, not generic AQI mitigation.
     if (usAqi !== null && usAqi > 50) {
-        recommendations.push('Air quality is adding extra autonomic load today — pace standing/upright time a bit more conservatively than usual');
+        recommendations.push('Pace standing/upright time a bit more conservatively today — air quality is adding extra autonomic load');
     }
 
     return {
@@ -323,7 +323,7 @@ export function getJointPainRisk(delta: number, humidity: number, temp: number, 
         'Keep joints warm and protected',
         'Use gentle movement or stretching within your comfort range',
         // Tailored to joint pain's inflammatory angle, not generic AQI mitigation.
-        ...(usAqi !== null && usAqi > 50 ? ['Air pollution\'s inflammatory effect may be compounding today\'s joint stress — anti-inflammatory routines you already use are worth timing around today'] : []),
+        ...(usAqi !== null && usAqi > 50 ? ['Time any anti-inflammatory routines you use around today — air quality may be compounding joint stress'] : []),
       ]
     };
 }
@@ -409,7 +409,7 @@ export function getFibromyalgiaRisk(delta: number, humidity: number, temp: numbe
             'Pace activity carefully — weather flares often lag by several hours',
             'Stay hydrated and maintain gentle movement within your limits',
             // Tailored to fibromyalgia's central-sensitization angle, not generic AQI mitigation.
-            ...(usAqi !== null && usAqi > 50 ? ['Air quality may be heightening pain sensitivity today — a little extra pacing margin is reasonable on top of the weather triggers'] : []),
+            ...(usAqi !== null && usAqi > 50 ? ['Build in a little extra pacing margin today — air quality may be heightening pain sensitivity'] : []),
         ],
     };
 }
@@ -465,7 +465,7 @@ export function getSinusRisk(delta: number, humidity: number, temp: number, poll
             'Avoid rapid temperature transitions (e.g. heated indoors to cold outdoors)',
             'Consider an antihistamine if pollen is elevated',
             // Tailored to sinus's direct-irritation angle, not generic AQI mitigation.
-            ...(usAqi !== null && usAqi > 50 ? ['Air pollution directly irritates sinus tissue — a more frequent saline rinse than usual may help today'] : []),
+            ...(usAqi !== null && usAqi > 50 ? ['Use saline rinses more frequently today — air pollution directly irritates sinus tissue'] : []),
         ],
     };
 }
@@ -570,7 +570,7 @@ export function getSleepRisk(
             'Avoid screens 60–90 min before bed on high-Kp nights',
             'On high-volatility pressure nights, avoid late meals and alcohol',
             // Tailored to sleep-stage depth specifically, not generic AQI mitigation.
-            ...(usAqi !== null && usAqi > 50 ? ['Poor air quality can reduce sleep-stage depth — running an air purifier in the bedroom overnight may help more than usual'] : []),
+            ...(usAqi !== null && usAqi > 50 ? ['Run an air purifier in the bedroom overnight — poor air quality can reduce sleep-stage depth'] : []),
         ],
     };
 }

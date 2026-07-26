@@ -48,7 +48,7 @@ export function getMigraineRisk(delta: number, usAqi: number | null = null): Hea
     risk.currentFactors.push(`AQI: ${usAqi}`);
     // Tailored to migraine specifically (not the generic "close windows" advice
     // that belongs on the Air Quality card).
-    risk.recommendations.push('Air quality is adding to today\'s migraine trigger load — keep your usual abortive medication within easy reach');
+    risk.recommendations.push('Keep your usual abortive medication within easy reach — air quality is adding to today\'s trigger load');
   }
 
   return risk;
@@ -72,7 +72,7 @@ export function getMECFSRisk(delta1h: number, delta3h: number, delta6h: number, 
   ];
   if (usAqi !== null && usAqi > 50) {
     // Tailored to ME/CFS's pacing model, not generic AQI mitigation.
-    risk.recommendations.push('Air quality is adding to today\'s cumulative burden — factor it into your pacing alongside the pressure volatility');
+    risk.recommendations.push('Factor today\'s air quality into your pacing alongside the pressure volatility');
   }
 
   return risk;
@@ -246,7 +246,7 @@ export function getPOTSRisk(delta: number, humidity: number, temp: number, usAqi
   if (usAqi !== null && usAqi > 50) currentFactors.push(`AQI: ${usAqi}`);
   // Tailored to POTS's autonomic/cardiovascular angle, not generic AQI mitigation.
   if (usAqi !== null && usAqi > 50) {
-    recommendations.push('Air quality is adding extra autonomic load today — pace standing/upright time a bit more conservatively than usual');
+    recommendations.push('Pace standing/upright time a bit more conservatively today — air quality is adding extra autonomic load');
   }
 
   return {
@@ -298,7 +298,7 @@ export function getJointPainRisk(delta: number, humidity: number, temp: number, 
       'Keep joints warm and protected',
       'Use gentle movement or stretching within your comfort range',
       // Tailored to joint pain's inflammatory angle, not generic AQI mitigation.
-      ...(usAqi !== null && usAqi > 50 ? ['Air pollution\'s inflammatory effect may be compounding today\'s joint stress — anti-inflammatory routines you already use are worth timing around today'] : []),
+      ...(usAqi !== null && usAqi > 50 ? ['Time any anti-inflammatory routines you use around today — air quality may be compounding joint stress'] : []),
     ]
   };
 }
