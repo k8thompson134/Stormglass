@@ -336,24 +336,27 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                             />
                             <span className="text-[11px] text-gray-300">Track air quality</span>
                         </label>
-                        <p className="text-[11px] text-gray-300 mb-3">
-                            The highest AQI category you consider safe. Used for the safe-window callout and chart shading.
-                        </p>
-                        <div className={`flex bg-[#0f172a] rounded-xl border border-[#1e2d45] p-1 gap-1 transition-opacity ${healthToggles.aqi ? '' : 'opacity-40 pointer-events-none'}`}>
-                            {AQI_SENSITIVITY_OPTIONS.map(opt => (
-                                <button
-                                    key={opt.category}
-                                    type="button"
-                                    disabled={!healthToggles.aqi}
-                                    onClick={() => onAqiSensitivityChange(opt.category)}
-                                    aria-pressed={aqiSensitivity === opt.category}
-                                    title={`${opt.category} or better counts as "safe" (AQI ≤ ${opt.ceiling})`}
-                                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${aqiSensitivity === opt.category ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-white/5'}`}
-                                >
-                                    {opt.label}
-                                </button>
-                            ))}
-                        </div>
+                        {healthToggles.aqi && (
+                            <>
+                                <p className="text-[11px] text-gray-300 mb-3">
+                                    The highest AQI category you consider safe. Used for the safe-window callout and chart shading.
+                                </p>
+                                <div className="flex bg-[#0f172a] rounded-xl border border-[#1e2d45] p-1 gap-1">
+                                    {AQI_SENSITIVITY_OPTIONS.map(opt => (
+                                        <button
+                                            key={opt.category}
+                                            type="button"
+                                            onClick={() => onAqiSensitivityChange(opt.category)}
+                                            aria-pressed={aqiSensitivity === opt.category}
+                                            title={`${opt.category} or better counts as "safe" (AQI ≤ ${opt.ceiling})`}
+                                            className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${aqiSensitivity === opt.category ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-white/5'}`}
+                                        >
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     {/* API Access */}
