@@ -13,7 +13,13 @@ import {
 } from 'recharts';
 import { fetchAQIForecast, type AQIForecast, type AQIForecastPoint } from '../services/api';
 import { SEVERITY_THEME, type EnvSeverity } from '../utils/severity';
-import { classifyAqiCategory, AQI_CATEGORY_THEME, type AqiCategory } from '../utils/aqiCategory';
+import {
+  classifyAqiCategory,
+  AQI_CATEGORY_THEME,
+  AQI_SENSITIVITY_OPTIONS,
+  type AqiCategory,
+  type AqiSensitivity,
+} from '../utils/aqiCategory';
 
 const TIME_RANGES = [
   { label: '6h', value: 6 },
@@ -42,18 +48,6 @@ const CATEGORY_BOUNDARIES: { aqi: number; category: AqiCategory }[] = [
   { aqi: 151, category: 'Unhealthy' },
   { aqi: 201, category: 'Very Unhealthy' },
   { aqi: 301, category: 'Hazardous' },
-];
-
-// Sensitivity presets for the "safe window" ceiling, expressed as EPA categories
-// rather than bare numbers. Moderate (AQI 100) is the default -- it's the standard
-// EPA "safe for the general public" line and matches AQI_CONFIG's own low/elevated
-// split, so most people should leave it alone. The picker exists for people who know
-// their personal tolerance differs (e.g. wanting to know about Good-only stretches,
-// or someone less AQI-sensitive who only cares once it crosses into Unhealthy).
-const SENSITIVITY_OPTIONS: { label: string; category: AqiCategory; ceiling: number }[] = [
-  { label: 'Good only', category: 'Good', ceiling: 50 },
-  { label: 'Moderate', category: 'Moderate', ceiling: 100 },
-  { label: 'Sensitive-OK', category: 'Unhealthy for Sensitive Groups', ceiling: 150 },
 ];
 
 function formatTime(isoString: string): string {
@@ -187,7 +181,13 @@ function SafeWindowCallout({ forecast }: { forecast: AQIForecast }) {
   );
 }
 
-export default function AQIForecastChart() {
+interface Props {
+  // The user's persisted "safe up to" threshold (set once in onboarding/Settings,
+  // not something flipped through per-visit -- see AQI_SENSITIVITY_OPTIONS).
+  sensitivity: AqiSensitivity;
+}
+
+export default function AQIForecastChart({ sensitivity }: Props) {
   const [forecast, setForecast] = useState<AQIForecast | null>(null);
   const [loading, setLoading] = useState(true);
   // Distinct from "no data yet" (forecast: null via a clean 404) -- a real fetch
@@ -198,17 +198,17 @@ export default function AQIForecastChart() {
   const [hours, setHours] = useState(6);
   const [showForecast, setShowForecast] = useState(true);
   const [showPm25, setShowPm25] = useState(true);
-  const [sensitivity, setSensitivity] = useState(SENSITIVITY_OPTIONS[1]); // Moderate (AQI 100) default
+  const sensitivityOption = AQI_SENSITIVITY_OPTIONS.find(opt => opt.category === sensitivity) ?? AQI_SENSITIVITY_OPTIONS[1];
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetchAQIForecast(hours, sensitivity.ceiling)
+    fetchAQIForecast(hours, sensitivityOption.ceiling)
       .then(result => { if (!cancelled) { setForecast(result); setError(false); } })
       .catch(() => { if (!cancelled) { setForecast(null); setError(true); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [hours, sensitivity]);
+  }, [hours, sensitivityOption.ceiling]);
 
   // Validate + coerce raw series -- guards against a stray non-numeric row rather
   // than letting NaN silently break the chart's domain/scale calculations.
@@ -336,22 +336,14 @@ export default function AQIForecastChart() {
         </div>
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <p className="text-[10px] text-gray-500">Regional model — PurpleAir sensors (when available) may read higher during smoke</p>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <span className="text-[10px] text-gray-500 font-mono uppercase tracking-wide">Safe up to:</span>
-            <div className="flex bg-gray-900/50 p-1 rounded-md">
-              {SENSITIVITY_OPTIONS.map(opt => (
-                <button
-                  key={opt.category}
-                  onClick={() => setSensitivity(opt)}
-                  aria-pressed={sensitivity.category === opt.category}
-                  title={`${opt.category} or better counts as "safe" (AQI ≤ ${opt.ceiling})`}
-                  className={`px-2.5 py-1 text-[10px] font-bold rounded ${sensitivity.category === opt.category ? 'bg-blue-600 text-white' : 'text-gray-400'}`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* Passive readout, not a control -- this is a set-once preference (onboarding
+              or Settings), not something you flip through per visit. */}
+          <span
+            className="text-[10px] text-gray-500 font-mono uppercase tracking-wide shrink-0"
+            title={`${sensitivityOption.category} or better counts as "safe" (AQI ≤ ${sensitivityOption.ceiling}) — change this in Settings`}
+          >
+            Safe up to: <span className="text-gray-400">{sensitivityOption.label}</span>
+          </span>
         </div>
       </div>
 

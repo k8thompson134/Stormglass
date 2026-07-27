@@ -45,6 +45,11 @@ export default defineConfig({
     // Tailscale/LAN, e.g. from a phone -- pass --host on the CLI or set host here;
     // both work, this is the persistent default so `npm run dev` alone is enough.
     host: true,
+    // Pinned explicitly (matches Vite's own default, but don't let that become
+    // implicit) -- the lair mobile dashboard's More tab has a hardcoded shortcut to
+    // this exact port for quick phone access. Changing it silently breaks that
+    // bookmark; update it there too if this ever needs to move.
+    port: 5173,
     // Vite blocks requests with an unrecognized Host header by default (DNS-rebinding
     // protection). Tailscale's MagicDNS name needs an explicit allowlist entry; the
     // bare Tailscale IP doesn't trigger this check at all.

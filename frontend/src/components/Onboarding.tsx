@@ -1,10 +1,11 @@
 import { useState, useRef } from 'react';
 import type { HealthToggles, HealthConditionKey } from '../types/health';
 import { geocodeSearch, updateLocation, type GeoResult } from '../services/api';
+import { AQI_SENSITIVITY_OPTIONS, DEFAULT_AQI_SENSITIVITY, type AqiSensitivity } from '../utils/aqiCategory';
 import logo from '../assets/logo.png';
 
 interface Props {
-    onComplete: (toggles: HealthToggles) => void;
+    onComplete: (toggles: HealthToggles, aqiSensitivity: AqiSensitivity) => void;
 }
 
 interface Condition {
@@ -67,12 +68,13 @@ const GROUPS: Group[] = [
 const ALL_KEYS = GROUPS.flatMap(g => g.conditions.map(c => c.key));
 
 export default function Onboarding({ onComplete }: Props) {
-    const [step, setStep] = useState<0 | 1 | 2>(0);
+    const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
     const [selected, setSelected] = useState<Set<HealthConditionKey>>(new Set());
     const [locationQuery, setLocationQuery] = useState('');
     const [locationResults, setLocationResults] = useState<GeoResult[]>([]);
     const [locationSearching, setLocationSearching] = useState(false);
     const [pendingLocation, setPendingLocation] = useState<GeoResult | null>(null);
+    const [aqiSensitivity, setAqiSensitivity] = useState<AqiSensitivity>(DEFAULT_AQI_SENSITIVITY);
     const [saving, setSaving] = useState(false);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const latestQueryRef = useRef('');
@@ -89,7 +91,7 @@ export default function Onboarding({ onComplete }: Props) {
     const clearAll = () => setSelected(new Set());
     const handleEnableAll = () => {
         const toggles = Object.fromEntries(ALL_KEYS.map(k => [k, true])) as HealthToggles;
-        onComplete(toggles);
+        onComplete(toggles, DEFAULT_AQI_SENSITIVITY);
     };
 
     const handleLocationQueryChange = (query: string) => {
@@ -135,7 +137,7 @@ export default function Onboarding({ onComplete }: Props) {
             const toggles = Object.fromEntries(
                 ALL_KEYS.map(k => [k, selected.has(k)])
             ) as HealthToggles;
-            onComplete(toggles);
+            onComplete(toggles, aqiSensitivity);
         } finally {
             setSaving(false);
         }
@@ -159,11 +161,12 @@ export default function Onboarding({ onComplete }: Props) {
                         </p>
                     </div>
 
-                    {/* Step indicator (shown on steps 1-2) */}
+                    {/* Step indicator (shown on steps 1-3) */}
                     {step > 0 && (
-                        <div className="flex justify-center gap-2 mb-5" role="progressbar" aria-valuenow={step} aria-valuemin={1} aria-valuemax={2} aria-label={`Step ${step} of 2`}>
+                        <div className="flex justify-center gap-2 mb-5" role="progressbar" aria-valuenow={step} aria-valuemin={1} aria-valuemax={3} aria-label={`Step ${step} of 3`}>
                             <div className={`w-2 h-2 rounded-full transition-colors duration-200 ${step >= 1 ? 'bg-blue-400' : 'bg-gray-600'}`} />
                             <div className={`w-2 h-2 rounded-full transition-colors duration-200 ${step >= 2 ? 'bg-blue-400' : 'bg-gray-600'}`} />
+                            <div className={`w-2 h-2 rounded-full transition-colors duration-200 ${step >= 3 ? 'bg-blue-400' : 'bg-gray-600'}`} />
                         </div>
                     )}
 
@@ -316,6 +319,37 @@ export default function Onboarding({ onComplete }: Props) {
                             </div>
                         </>
                     )}
+
+                    {/* Step 3: Air quality safety threshold (only relevant if AQI tracking is on) */}
+                    {step === 3 && (
+                        <>
+                            <p className="text-gray-300 text-xs leading-relaxed mb-5">
+                                What air quality level do you consider "safe" for being outside? This drives the safe-window callout on the Air Quality chart. You can change it anytime in Settings.
+                            </p>
+                            <div className="flex flex-col gap-2">
+                                {AQI_SENSITIVITY_OPTIONS.map(opt => (
+                                    <button
+                                        key={opt.category}
+                                        type="button"
+                                        onClick={() => setAqiSensitivity(opt.category)}
+                                        aria-pressed={aqiSensitivity === opt.category}
+                                        className={`w-full text-left px-4 py-3 rounded-lg border transition-colors min-h-[44px] ${
+                                            aqiSensitivity === opt.category
+                                                ? 'bg-blue-500/15 border-blue-500/40'
+                                                : 'bg-gray-800/30 border-gray-700/40 hover:bg-gray-800/50 hover:border-gray-700/60'
+                                        }`}
+                                    >
+                                        <div className={`text-sm font-medium ${aqiSensitivity === opt.category ? 'text-white' : 'text-gray-300'}`}>
+                                            {opt.label}
+                                        </div>
+                                        <div className="text-[10px] text-gray-400 mt-0.5">
+                                            {opt.category} or better counts as safe (AQI ≤ {opt.ceiling})
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </>
+                    )}
                 </div>
 
                 {/* Footer buttons (sticky) */}
@@ -345,6 +379,28 @@ export default function Onboarding({ onComplete }: Props) {
                                 Or enable all and customize later
                             </button>
                         </>
+                    ) : step === 2 ? (
+                        <>
+                            <button
+                                onClick={() => selected.has('aqi') ? setStep(3) : handleComplete()}
+                                disabled={saving}
+                                className="w-full py-2.5 rounded-lg font-semibold text-sm transition-all duration-200
+                                    bg-blue-600 hover:bg-blue-500 text-white
+                                    disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                                {saving
+                                    ? 'Setting up...'
+                                    : selected.has('aqi')
+                                        ? 'Next: Air quality →'
+                                        : `Start with ${selected.size} condition${selected.size !== 1 ? 's' : ''}`}
+                            </button>
+                            <button
+                                onClick={() => setStep(1)}
+                                className="w-full py-1.5 text-xs text-gray-300 hover:text-gray-200 transition-colors font-medium"
+                            >
+                                ← Back to conditions
+                            </button>
+                        </>
                     ) : (
                         <>
                             <button
@@ -357,10 +413,10 @@ export default function Onboarding({ onComplete }: Props) {
                                 {saving ? 'Setting up...' : `Start with ${selected.size} condition${selected.size !== 1 ? 's' : ''}`}
                             </button>
                             <button
-                                onClick={() => setStep(1)}
+                                onClick={() => setStep(2)}
                                 className="w-full py-1.5 text-xs text-gray-300 hover:text-gray-200 transition-colors font-medium"
                             >
-                                ← Back to conditions
+                                ← Back to location
                             </button>
                         </>
                     )}

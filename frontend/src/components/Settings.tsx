@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { fetchSettings, updateLocation, geocodeSearch, type GeoResult } from '../services/api';
 import type { HealthToggles, HealthConditionKey } from '../types/health';
 import { useFocusTrap } from '../hooks/useFocusTrap';
+import { AQI_SENSITIVITY_OPTIONS, type AqiSensitivity } from '../utils/aqiCategory';
 
 interface SettingsProps {
     open: boolean;
@@ -9,9 +10,11 @@ interface SettingsProps {
     onLocationChanged: () => void;
     healthToggles: HealthToggles;
     onHealthTogglesChange: (toggles: HealthToggles) => void;
+    aqiSensitivity: AqiSensitivity;
+    onAqiSensitivityChange: (sensitivity: AqiSensitivity) => void;
 }
 
-export default function Settings({ open, onClose, onLocationChanged, healthToggles, onHealthTogglesChange }: SettingsProps) {
+export default function Settings({ open, onClose, onLocationChanged, healthToggles, onHealthTogglesChange, aqiSensitivity, onAqiSensitivityChange }: SettingsProps) {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<GeoResult[]>([]);
     const [searching, setSearching] = useState(false);
@@ -304,6 +307,30 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                                     </label>
                                 );
                             })}
+                        </div>
+                    </div>
+
+                    {/* Air Quality Sensitivity */}
+                    <div className="border-t border-[#1e2d45] pt-5">
+                        <label className="text-[10px] text-gray-300 font-bold uppercase tracking-wider block mb-2">
+                            Air Quality Safety Threshold
+                        </label>
+                        <p className="text-[11px] text-gray-300 mb-3">
+                            The highest AQI category you're comfortable calling "safe" — used for the safe-window callout and chart shading.
+                        </p>
+                        <div className="flex bg-[#0f172a] rounded-xl border border-[#1e2d45] p-1 gap-1">
+                            {AQI_SENSITIVITY_OPTIONS.map(opt => (
+                                <button
+                                    key={opt.category}
+                                    type="button"
+                                    onClick={() => onAqiSensitivityChange(opt.category)}
+                                    aria-pressed={aqiSensitivity === opt.category}
+                                    title={`${opt.category} or better counts as "safe" (AQI ≤ ${opt.ceiling})`}
+                                    className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${aqiSensitivity === opt.category ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-white/5'}`}
+                                >
+                                    {opt.label}
+                                </button>
+                            ))}
                         </div>
                     </div>
 

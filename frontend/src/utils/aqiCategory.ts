@@ -75,3 +75,42 @@ export const AQI_CATEGORY_THEME: Record<AqiCategory, {
   'Very Unhealthy': { shortLabel: 'V. Unhealthy', text: 'text-purple-300', bg: 'bg-purple-500/20', border: 'border-purple-500/35', dot: '#a855f7' },
   'Hazardous': { shortLabel: 'Hazardous', text: 'text-rose-200', bg: 'bg-[#7e0023]/30', border: 'border-[#7e0023]/60', dot: '#7e0023' },
 };
+
+// A stricter type than AqiCategory -- only the 3 categories a person can actually
+// choose as their "safe" ceiling (never Unhealthy/Very Unhealthy/Hazardous).
+export type AqiSensitivity = 'Good' | 'Moderate' | 'Unhealthy for Sensitive Groups';
+
+// The 3 sensible "safe up to" presets a person picks ONCE (onboarding/Settings), not
+// something flipped through per-visit -- Very Unhealthy/Hazardous aren't offered here
+// since nobody wants to call those "safe." Single source of truth for onboarding,
+// Settings, the one-time announcement, and the chart's passive read-only display.
+export interface AqiSensitivityOption {
+  label: string;
+  category: AqiSensitivity;
+  ceiling: number;
+}
+
+export const AQI_SENSITIVITY_OPTIONS: AqiSensitivityOption[] = [
+  { label: 'Good only', category: 'Good', ceiling: 50 },
+  { label: 'Moderate', category: 'Moderate', ceiling: 100 },
+  { label: 'Sensitive-OK', category: 'Unhealthy for Sensitive Groups', ceiling: 150 },
+];
+
+export const DEFAULT_AQI_SENSITIVITY: AqiSensitivity = 'Moderate';
+
+const AQI_SENSITIVITY_STORAGE_KEY = 'stormglass_aqi_sensitivity';
+
+function isValidSensitivity(value: string | null): value is AqiSensitivity {
+  return AQI_SENSITIVITY_OPTIONS.some(opt => opt.category === value);
+}
+
+export function getStoredAqiSensitivity(): AqiSensitivity | null {
+  if (typeof window === 'undefined') return null;
+  const stored = window.localStorage.getItem(AQI_SENSITIVITY_STORAGE_KEY);
+  return isValidSensitivity(stored) ? stored : null;
+}
+
+export function setStoredAqiSensitivity(value: AqiSensitivity): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(AQI_SENSITIVITY_STORAGE_KEY, value);
+}

@@ -4,6 +4,7 @@ import CurrentConditions from './components/CurrentConditions';
 import PressureChart from './components/PressureChart';
 import AQIForecastChart from './components/AQIForecastChart';
 import AQISeasonSummary from './components/AQISeasonSummary';
+import AqiSensitivityAnnouncement from './components/AqiSensitivityAnnouncement';
 import HealthImpact from './components/HealthImpact';
 import Settings from './components/Settings';
 import Onboarding from './components/Onboarding';
@@ -19,6 +20,7 @@ import {
   type WeatherPoint,
 } from './services/api';
 import type { HealthToggles } from './types/health';
+import { getStoredAqiSensitivity, setStoredAqiSensitivity, DEFAULT_AQI_SENSITIVITY, type AqiSensitivity } from './utils/aqiCategory';
 
 function App() {
   const [current, setCurrent] = useState<CurrentWeather | null>(null);
@@ -48,6 +50,23 @@ function App() {
 
   const [onboardingOpen, setOnboardingOpen] = useState(!onboardingDone);
 
+  const [aqiSensitivity, setAqiSensitivity] = useState<AqiSensitivity>(
+    () => getStoredAqiSensitivity() ?? DEFAULT_AQI_SENSITIVITY
+  );
+  // Someone who finished onboarding before this preference existed has no stored
+  // value yet -- show the one-time announcement exactly once for them. Captured at
+  // mount, not recomputed, so choosing an option (which sets the value) doesn't
+  // immediately re-evaluate this to false out from under the dismiss animation.
+  const [showAqiAnnouncement] = useState(
+    () => onboardingDone && getStoredAqiSensitivity() === null
+  );
+  const [aqiAnnouncementDismissed, setAqiAnnouncementDismissed] = useState(false);
+
+  const handleAqiSensitivityChange = (sensitivity: AqiSensitivity) => {
+    setAqiSensitivity(sensitivity);
+    setStoredAqiSensitivity(sensitivity);
+  };
+
   const [healthToggles, setHealthToggles] = useState<HealthToggles>(() => {
     const stored = typeof window !== 'undefined' ? window.localStorage.getItem('stormglass_health_toggles') : null;
     if (stored) {
@@ -62,10 +81,11 @@ function App() {
     return onboardingDone ? allTogglesOn : allTogglesOff;
   });
 
-  const handleOnboardingComplete = async (toggles: HealthToggles) => {
+  const handleOnboardingComplete = async (toggles: HealthToggles, sensitivity: AqiSensitivity) => {
     setHealthToggles(toggles);
     window.localStorage.setItem('stormglass_health_toggles', JSON.stringify(toggles));
     window.localStorage.setItem('stormglass_onboarding_done', '1');
+    handleAqiSensitivityChange(sensitivity);
     setOnboardingOpen(false);
     // Reload settings to display the location the user just set
     try {
@@ -326,10 +346,20 @@ function App() {
           </div>
         </div>
 
+        {/* One-time announcement for existing users who predate this preference */}
+        {healthToggles.aqi && showAqiAnnouncement && !aqiAnnouncementDismissed && (
+          <AqiSensitivityAnnouncement
+            onChoose={(sensitivity) => {
+              handleAqiSensitivityChange(sensitivity);
+              setAqiAnnouncementDismissed(true);
+            }}
+          />
+        )}
+
         {/* AQI Forecast Section */}
         {healthToggles.aqi && (
           <div className="mb-6 space-y-4">
-            <AQIForecastChart />
+            <AQIForecastChart sensitivity={aqiSensitivity} />
             <AQISeasonSummary />
           </div>
         )}
@@ -356,6 +386,8 @@ function App() {
           onLocationChanged={() => loadData(hours)}
           healthToggles={healthToggles}
           onHealthTogglesChange={setHealthToggles}
+          aqiSensitivity={aqiSensitivity}
+          onAqiSensitivityChange={handleAqiSensitivityChange}
         />
 
         {/* Symptom Logger Modal */}
