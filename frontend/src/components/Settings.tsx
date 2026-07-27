@@ -316,7 +316,7 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                             Air Quality Safety Threshold
                         </label>
                         <p className="text-[11px] text-gray-300 mb-3">
-                            The highest AQI category you're comfortable calling "safe" — used for the safe-window callout and chart shading.
+                            The highest AQI category you consider safe. Used for the safe-window callout and chart shading.
                         </p>
                         <div className="flex bg-[#0f172a] rounded-xl border border-[#1e2d45] p-1 gap-1">
                             {AQI_SENSITIVITY_OPTIONS.map(opt => (

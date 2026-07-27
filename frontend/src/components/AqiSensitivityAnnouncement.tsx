@@ -11,10 +11,9 @@ interface Props {
 export default function AqiSensitivityAnnouncement({ onChoose }: Props) {
     return (
         <div className="mb-6 bg-blue-500/10 border border-blue-500/25 rounded-2xl p-4 sm:p-5">
-            <p className="text-blue-300 text-sm font-semibold mb-1">New: air quality safety threshold</p>
+            <p className="text-blue-300 text-sm font-semibold mb-1">New: Air quality safety threshold</p>
             <p className="text-[12px] text-gray-300 leading-relaxed mb-4">
-                You can now set which air quality level counts as "safe" for you — it drives the safe-window callout
-                and chart shading on the Air Quality card. Pick one below (you can change it anytime in Settings):
+                Choose the highest air quality level you consider safe. It sets the safe-window callout and chart shading on the Air Quality card. You can change this anytime in Settings.
             </p>
             <div className="flex flex-col sm:flex-row gap-2">
                 {AQI_SENSITIVITY_OPTIONS.map(opt => (
