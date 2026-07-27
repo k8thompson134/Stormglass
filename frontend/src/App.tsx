@@ -346,11 +346,21 @@ function App() {
           </div>
         </div>
 
-        {/* One-time announcement for existing users who predate this preference */}
-        {healthToggles.aqi && showAqiAnnouncement && !aqiAnnouncementDismissed && (
+        {/* One-time announcement for existing users who predate this preference --
+            shown regardless of current Air Quality toggle state, since someone who
+            skipped it originally may want it now, or vice versa. */}
+        {showAqiAnnouncement && !aqiAnnouncementDismissed && (
           <AqiSensitivityAnnouncement
             onChoose={(sensitivity) => {
               handleAqiSensitivityChange(sensitivity);
+              setHealthToggles(prev => ({ ...prev, aqi: true }));
+              setAqiAnnouncementDismissed(true);
+            }}
+            onOptOut={() => {
+              // Still persist a default so this doesn't re-prompt every session --
+              // the choice being recorded is "off," not "undecided."
+              handleAqiSensitivityChange(DEFAULT_AQI_SENSITIVITY);
+              setHealthToggles(prev => ({ ...prev, aqi: false }));
               setAqiAnnouncementDismissed(true);
             }}
           />
