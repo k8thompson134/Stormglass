@@ -1,22 +1,31 @@
 import { useEffect, useState } from 'react';
 import { fetchAQIBurden, type AQIBurdenSummary } from '../services/api';
-import { CATEGORY_ORDER, AQI_CATEGORY_THEME } from '../utils/aqiCategory';
+import { CATEGORY_ORDER, AQI_CATEGORY_THEME, AQI_SENSITIVITY_OPTIONS, type AqiSensitivity } from '../utils/aqiCategory';
 
-export default function AQISeasonSummary() {
+interface Props {
+  // Same persisted "safe up to" preference AQIForecastChart uses -- keeps the
+  // headline threshold consistent across both AQI surfaces instead of this one
+  // silently defaulting to Moderate regardless of what the user actually chose.
+  sensitivity: AqiSensitivity;
+}
+
+export default function AQISeasonSummary({ sensitivity }: Props) {
   const [summary, setSummary] = useState<AQIBurdenSummary | null>(null);
   const [loading, setLoading] = useState(true);
   // Distinct from "no history yet" -- a real fetch failure shouldn't look identical
   // to a fresh install with nothing tracked yet.
   const [error, setError] = useState(false);
+  const ceiling = AQI_SENSITIVITY_OPTIONS.find(opt => opt.category === sensitivity)?.ceiling ?? 100;
 
   useEffect(() => {
     let cancelled = false;
-    fetchAQIBurden()
+    setLoading(true);
+    fetchAQIBurden(undefined, ceiling)
       .then(result => { if (!cancelled) { setSummary(result); setError(false); } })
       .catch(() => { if (!cancelled) { setSummary(null); setError(true); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, []);
+  }, [ceiling]);
 
   if (loading) {
     return <div className="bg-gray-800/20 rounded-2xl h-[90px] animate-pulse" />;

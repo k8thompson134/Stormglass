@@ -370,7 +370,7 @@ function App() {
         {healthToggles.aqi && (
           <div className="mb-6 space-y-4">
             <AQIForecastChart sensitivity={aqiSensitivity} />
-            <AQISeasonSummary />
+            <AQISeasonSummary sensitivity={aqiSensitivity} />
           </div>
         )}
 

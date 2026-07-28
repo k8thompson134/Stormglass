@@ -257,7 +257,10 @@ export function getPOTSRisk(delta: number, humidity: number, temp: number, usAqi
     icon: '🫀',
     detailedExplanation: detailedExplanation || description,
     currentFactors,
-    recommendations: ['Stay hydrated', 'Monitor symptoms', ...recommendations]
+    // Severity-specific and AQI-tailored tips lead; the two generic fillers trail --
+    // otherwise a UI reading recommendations[0] as "the most actionable tip" would
+    // always surface "Stay hydrated" instead of anything severity-specific.
+    recommendations: [...recommendations, 'Stay hydrated', 'Monitor symptoms']
   };
 }
 
