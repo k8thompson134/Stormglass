@@ -2,6 +2,11 @@
 
 **Status:** Scoped, not started. Explicitly deferred to ship the AQI/smoke work first.
 Written 2026-07-21 as a quick scoping pass for the task board, not a detailed plan.
+**Update (2026-07-28):** the platform question below is resolved — Kate's phone is
+Android, not iOS. Web Push works in a plain browser tab on Android Chrome, no
+"Add to Home Screen" install required. This removes the biggest blocker to building
+this (see "Open questions" #1, now answered) — Web Push is viable as-is for the
+regular-browser-tab-over-Tailscale setup already in use.
 
 ## The idea
 
@@ -15,22 +20,19 @@ pattern already used for which conditions show up in Health Impact.
 ## The one thing that changes the shape of this: how you actually use the app
 
 You're using Stormglass as a **regular browser tab over Tailscale** (confirmed this
-session), not an installed PWA. This matters a lot:
+session), not an installed PWA. This mattered a lot when the phone in question was
+assumed to be an iPhone -- **resolved 2026-07-28: it's Android**, which sidesteps
+the whole problem:
 
-- **iOS Safari only supports Web Push for installed PWAs** ("Add to Home Screen"),
-  not regular browser tabs, since iOS 16.4. If you stay in a browser tab, push
-  notifications silently won't work on iPhone no matter how correctly the backend
-  is built.
-- Android Chrome supports Web Push in a regular tab, no install required.
+- iOS Safari only supports Web Push for installed PWAs ("Add to Home Screen"), not
+  regular browser tabs, since iOS 16.4 -- this would have blocked a plain-tab setup
+  entirely on iPhone. Not a concern here.
+- **Android Chrome supports Web Push in a regular tab, no install required** -- this
+  is the actual platform in use, so Web Push works as-is, no "Add to Home Screen"
+  decision needed.
 - Desktop Chrome/Firefox/Edge support it in a regular tab too.
 
-**First decision before building anything:** are you willing to "Add to Home Screen"
-on your phone (one-time, ~10 seconds), or does this need to work in a plain browser
-tab? If the latter, Web Push is off the table for iOS and the realistic options are
-much narrower (e.g. a scheduled SMS/email digest instead, which is a different and
-probably simpler build). This alone is worth a real answer before scoping the rest.
-
-## Rough shape (assuming Web Push, installed PWA is acceptable)
+## Rough shape (Web Push -- viable as-is, no PWA install needed on Android)
 
 **Backend, new:**
 - VAPID key pair (generated once, stored in `.env` — public key also needed by frontend)
@@ -56,6 +58,7 @@ was correct.
 
 ## Open questions for whoever picks this up
 
-1. Home-screen-install answer from above — blocks whether Web Push is even viable on iOS.
+1. ~~Home-screen-install answer from above — blocks whether Web Push is even viable on iOS.~~
+   **Resolved 2026-07-28:** Android, plain browser tab, Web Push works with no install step.
 2. Where does the "don't resend the same alert repeatedly" state live — a new column, or reuse something?
 3. Does this ever need to reach a second device/person, or is it always just you? (Affects whether `push_subscriptions` needs a user_id at all vs. being effectively global.)
