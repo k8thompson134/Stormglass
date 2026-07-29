@@ -29,6 +29,7 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
     const [pushEnabled, setPushEnabled] = useState(false);
     const [pushBusy, setPushBusy] = useState(false);
     const [pushError, setPushError] = useState<string | null>(null);
+    const [pushSuccess, setPushSuccess] = useState<string | null>(null);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const latestQueryRef = useRef('');
     const modalRef = useRef<HTMLDivElement>(null);
@@ -45,6 +46,7 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
     const togglePush = async () => {
         setPushBusy(true);
         setPushError(null);
+        setPushSuccess(null);
         try {
             if (pushEnabled) {
                 await disablePushNotifications();
@@ -53,6 +55,15 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                 const result: PushEnableResult = await enablePushNotifications();
                 if (result.ok) {
                     setPushEnabled(true);
+                    // In-app confirmation shows immediately regardless of OS-level delivery
+                    // (Do Not Disturb, notification-style settings, etc. are all outside our
+                    // control) -- the welcome push is a bonus real-world confirmation, not
+                    // the only one.
+                    setPushSuccess(
+                        result.welcomeSent
+                            ? "You're all set up! Check for a confirmation notification."
+                            : "You're subscribed, though the confirmation push itself didn't go through -- alerts should still work."
+                    );
                 } else {
                     const messages: Record<Exclude<PushEnableResult, { ok: true }>['reason'], string> = {
                         unsupported: 'This browser doesn\'t support push notifications.',
@@ -428,6 +439,12 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                                         {pushBusy ? 'Updating…' : 'Air quality alerts (push notification when AQI worsens)'}
                                     </span>
                                 </label>
+                                {pushSuccess && (
+                                    <p className="text-[11px] text-emerald-300 mt-2 flex items-start gap-1.5">
+                                        <span>✓</span>
+                                        <span>{pushSuccess}</span>
+                                    </p>
+                                )}
                                 {pushError && (
                                     <p className="text-[11px] text-amber-300 mt-2">{pushError}</p>
                                 )}

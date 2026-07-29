@@ -14,7 +14,10 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
 }
 
 export type PushEnableResult =
-  | { ok: true }
+  // `welcomeSent` distinguishes "subscribed, and we confirmed delivery works" from
+  // "subscribed, but the confirmation push itself failed" -- both leave you
+  // correctly enrolled, but only one should show an unqualified success message.
+  | { ok: true; welcomeSent: boolean }
   | { ok: false; reason: 'unsupported' | 'not-configured' | 'permission-denied' | 'error' };
 
 /**
@@ -46,8 +49,8 @@ export async function enablePushNotifications(): Promise<PushEnableResult> {
         applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
       });
     }
-    await subscribeToPush(subscription.toJSON() as PushSubscriptionJSON);
-    return { ok: true };
+    const { welcomeSent } = await subscribeToPush(subscription.toJSON() as PushSubscriptionJSON);
+    return { ok: true, welcomeSent };
   } catch {
     return { ok: false, reason: 'error' };
   }

@@ -373,13 +373,14 @@ export async function fetchPushPublicKey(): Promise<string | null> {
   return data.publicKey;
 }
 
-export async function subscribeToPush(subscription: PushSubscriptionJSON): Promise<void> {
+export async function subscribeToPush(subscription: PushSubscriptionJSON): Promise<{ welcomeSent: boolean }> {
   const res = await fetch(`${API_BASE}/push/subscribe`, {
     method: 'POST',
     headers: getHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(subscription),
   });
   if (!res.ok) throw new Error(`Push subscribe failed: ${res.status}`);
+  return res.json();
 }
 
 export async function unsubscribeFromPush(endpoint: string): Promise<void> {

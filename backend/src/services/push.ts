@@ -28,11 +28,48 @@ export interface AqiAlertPayload {
   at: string;
 }
 
+interface SubscriptionRow {
+  id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}
+
+interface NotificationPayload {
+  title: string;
+  body: string;
+  tag: string;
+  url: string;
+}
+
 /**
- * Sends the AQI category-crossing alert to every subscription opted into it,
- * skipping (and clearing) any subscription the push service reports as gone --
- * a 404/410 from sendNotification means the browser unsubscribed or the endpoint
- * expired, and re-sending to it every poll cycle forever would be silent waste.
+ * Sends one push notification to one subscription, cleaning up (deleting) the row
+ * if the push service reports it gone -- a 404/410 from sendNotification means the
+ * browser unsubscribed or the endpoint expired, and retrying it forever would be
+ * silent waste. Returns whether the send actually succeeded, so callers that need
+ * to know (e.g. the subscribe route confirming setup worked) can react to it.
+ */
+async function sendToSubscription(sub: SubscriptionRow, payload: NotificationPayload): Promise<boolean> {
+  try {
+    await webpush.sendNotification(
+      { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+      JSON.stringify(payload)
+    );
+    return true;
+  } catch (err) {
+    const statusCode = (err as { statusCode?: number }).statusCode;
+    if (statusCode === 404 || statusCode === 410) {
+      logger.info({ service: 'push', subscriptionId: sub.id }, 'Subscription gone -- removing');
+      await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, sub.id));
+    } else {
+      logger.error({ service: 'push', err, subscriptionId: sub.id }, 'Failed to send push notification');
+    }
+    return false;
+  }
+}
+
+/**
+ * Sends the AQI category-crossing alert to every subscription opted into it.
  */
 export async function sendAqiCrossingAlert(payload: AqiAlertPayload): Promise<void> {
   if (!vapidConfigured) return;
@@ -51,31 +88,32 @@ export async function sendAqiCrossingAlert(payload: AqiAlertPayload): Promise<vo
       // lastNotifiedCategory for why this lives per-subscription.
       if (sub.lastNotifiedCategory === payload.toCategory) return;
 
-      try {
-        await webpush.sendNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          JSON.stringify({
-            title: 'Air quality worsening',
-            body,
-            tag: 'aqi-category-crossing',
-            url: '/',
-          })
-        );
+      const sent = await sendToSubscription(sub, { title: 'Air quality worsening', body, tag: 'aqi-category-crossing', url: '/' });
+      if (sent) {
         await db
           .update(pushSubscriptions)
           .set({ lastNotifiedCategory: payload.toCategory })
           .where(eq(pushSubscriptions.id, sub.id));
-      } catch (err) {
-        const statusCode = (err as { statusCode?: number }).statusCode;
-        if (statusCode === 404 || statusCode === 410) {
-          logger.info({ service: 'push', subscriptionId: sub.id }, 'Subscription gone -- removing');
-          await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, sub.id));
-        } else {
-          logger.error({ service: 'push', err, subscriptionId: sub.id }, 'Failed to send push notification');
-        }
       }
     })
   );
+}
+
+/**
+ * Sends a one-time confirmation push right after a subscription is created --
+ * both a friendly "you're all set up" moment and a real, immediate end-to-end test
+ * of the exact delivery path the AQI alert will later use, rather than the user's
+ * first real confirmation being a silent no-op days later when AQI actually crosses
+ * a category.
+ */
+export async function sendWelcomeNotification(sub: SubscriptionRow): Promise<boolean> {
+  if (!vapidConfigured) return false;
+  return sendToSubscription(sub, {
+    title: "You're all set up!",
+    body: "Stormglass will alert you here when air quality is forecast to worsen.",
+    tag: 'push-welcome',
+    url: '/',
+  });
 }
 
 /**

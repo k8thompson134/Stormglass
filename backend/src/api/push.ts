@@ -4,7 +4,7 @@ import { db } from '../db/index.js';
 import { pushSubscriptions } from '../db/schema.js';
 import { getCurrentConfig } from '../jobs/weather-poll.js';
 import { env } from '../env.js';
-import { isPushConfigured } from '../services/push.js';
+import { isPushConfigured, sendWelcomeNotification } from '../services/push.js';
 
 interface SubscribeBody {
   endpoint: string;
@@ -49,21 +49,27 @@ export async function pushRoutes(app: FastifyInstance): Promise<void> {
       .where(eq(pushSubscriptions.endpoint, endpoint))
       .limit(1);
 
+    let subscriptionId: string;
     if (existing.length > 0) {
+      subscriptionId = existing[0].id;
       await db
         .update(pushSubscriptions)
         .set({ p256dh: keys.p256dh, auth: keys.auth, aqiAlertsEnabled: true, lastNotifiedCategory: null })
         .where(eq(pushSubscriptions.endpoint, endpoint));
     } else {
-      await db.insert(pushSubscriptions).values({
-        userId: config.userId,
-        endpoint,
-        p256dh: keys.p256dh,
-        auth: keys.auth,
-      });
+      const [inserted] = await db
+        .insert(pushSubscriptions)
+        .values({ userId: config.userId, endpoint, p256dh: keys.p256dh, auth: keys.auth })
+        .returning({ id: pushSubscriptions.id });
+      subscriptionId = inserted.id;
     }
 
-    return reply.status(201).send({ ok: true });
+    // Real end-to-end confirmation, not just "the database write succeeded" -- if
+    // this fails, setup itself still succeeded (the alert will still fire later),
+    // so a failed welcome push is reported but doesn't fail the request.
+    const welcomeSent = await sendWelcomeNotification({ id: subscriptionId, endpoint, p256dh: keys.p256dh, auth: keys.auth });
+
+    return reply.status(201).send({ ok: true, welcomeSent });
   });
 
   // POST /api/push/unsubscribe — remove a subscription (called on toggle-off,
