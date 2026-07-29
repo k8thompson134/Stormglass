@@ -15,6 +15,11 @@ interface UnsubscribeBody {
   endpoint: string;
 }
 
+interface MigraineAlertsBody {
+  endpoint: string;
+  enabled: boolean;
+}
+
 export async function pushRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/push/vapid-public-key — the frontend fetches this rather than baking
   // it into a build-time env var, so rotating the key doesn't require a rebuild.
@@ -64,12 +69,14 @@ export async function pushRoutes(app: FastifyInstance): Promise<void> {
       subscriptionId = inserted.id;
     }
 
-    // Real end-to-end confirmation, not just "the database write succeeded" -- if
-    // this fails, setup itself still succeeded (the alert will still fire later),
-    // so a failed welcome push is reported but doesn't fail the request.
-    const welcomeSent = await sendWelcomeNotification({ id: subscriptionId, endpoint, p256dh: keys.p256dh, auth: keys.auth });
+    // Deliberately NOT awaited -- sendWelcomeNotification has a built-in delay
+    // (subscriptions need a moment to settle with the push service), and blocking
+    // this response on that would make the Settings toggle look stuck for seconds.
+    // Errors are logged inside sendToSubscription; nothing here needs to react to
+    // failure since setup itself already succeeded regardless.
+    void sendWelcomeNotification({ id: subscriptionId, endpoint, p256dh: keys.p256dh, auth: keys.auth });
 
-    return reply.status(201).send({ ok: true, welcomeSent });
+    return reply.status(201).send({ ok: true });
   });
 
   // POST /api/push/unsubscribe — remove a subscription (called on toggle-off,
@@ -81,6 +88,45 @@ export async function pushRoutes(app: FastifyInstance): Promise<void> {
     }
 
     await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint));
+    return { ok: true };
+  });
+
+  // GET /api/push/migraine-alerts — read this device's current opt-in state, kept
+  // separate from the main AQI toggle since migraine alerts are a distinct opt-in.
+  app.get<{ Querystring: { endpoint: string } }>('/api/push/migraine-alerts', async (request, reply) => {
+    const { endpoint } = request.query ?? {};
+    if (!endpoint) {
+      return reply.status(400).send({ error: 'endpoint is required' });
+    }
+
+    const [row] = await db
+      .select({ enabled: pushSubscriptions.migraineAlertsEnabled })
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.endpoint, endpoint))
+      .limit(1);
+
+    return { enabled: row?.enabled ?? false };
+  });
+
+  // POST /api/push/migraine-alerts — toggle this device's opt-in for migraine-risk
+  // alerts. Clears dedup state on enable so a currently-elevated risk can alert
+  // right away rather than waiting for the next level change.
+  app.post<{ Body: MigraineAlertsBody }>('/api/push/migraine-alerts', async (request, reply) => {
+    const { endpoint, enabled } = request.body ?? {};
+    if (!endpoint || typeof enabled !== 'boolean') {
+      return reply.status(400).send({ error: 'endpoint and enabled are required' });
+    }
+
+    const result = await db
+      .update(pushSubscriptions)
+      .set({ migraineAlertsEnabled: enabled, lastNotifiedMigraineRisk: null })
+      .where(eq(pushSubscriptions.endpoint, endpoint))
+      .returning({ id: pushSubscriptions.id });
+
+    if (result.length === 0) {
+      return reply.status(404).send({ error: 'Subscription not found' });
+    }
+
     return { ok: true };
   });
 }

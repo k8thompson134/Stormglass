@@ -159,7 +159,7 @@ export async function briefingRoutes(app: FastifyInstance): Promise<void> {
 
     // Compute all 7 health risks
     const risks = [
-      getMigraineRisk(delta1h, currentAqi),
+      getMigraineRisk(delta1h, delta3h, delta6h, currentAqi),
       getMECFSRisk(delta1h, delta3h, delta6h, currentAqi),
       getPOTSRisk(delta1h, humidity, temp, currentAqi),
       getJointPainRisk(delta1h, humidity, temp, currentAqi),

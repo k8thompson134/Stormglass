@@ -1,0 +1,2 @@
+ALTER TABLE "push_subscriptions" ADD COLUMN "migraine_alerts_enabled" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "push_subscriptions" ADD COLUMN "last_notified_migraine_risk" text;

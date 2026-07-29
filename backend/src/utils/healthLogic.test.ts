@@ -52,16 +52,22 @@ describe('getMigraineRisk', () => {
 
   it('elevated AQI amplifies an otherwise-moderate pressure reading into high', () => {
     // 0.7 alone is moderate (< 0.8 threshold); * 1.15 = 0.805, crosses into high.
-    expect(getMigraineRisk(0.7, null).risk).toBe('moderate');
-    expect(getMigraineRisk(0.7, 130).risk).toBe('high');
-    const withAqi = getMigraineRisk(0.7, 130);
+    expect(getMigraineRisk(0.7, 0, 0, null).risk).toBe('moderate');
+    expect(getMigraineRisk(0.7, 0, 0, 130).risk).toBe('high');
+    const withAqi = getMigraineRisk(0.7, 0, 0, 130);
     expect(withAqi.currentFactors.some(f => f.includes('130'))).toBe(true);
   });
 
   it('does not amplify or annotate when AQI is not elevated', () => {
-    const clean = getMigraineRisk(0.7, 50);
-    expect(clean.risk).toBe(getMigraineRisk(0.7, null).risk);
+    const clean = getMigraineRisk(0.7, 0, 0, 50);
+    expect(clean.risk).toBe(getMigraineRisk(0.7, 0, 0, null).risk);
     expect(clean.currentFactors.some(f => f.toLowerCase().includes('air quality'))).toBe(false);
+  });
+
+  it('sustained same-direction change across all three windows amplifies risk', () => {
+    // 0.7 alone is moderate; sustained * 1.25 = 0.875, crosses into high.
+    expect(getMigraineRisk(0.7, 0.5, 0.4).risk).toBe('high');
+    expect(getMigraineRisk(0.7, 0, 0).risk).toBe('moderate');
   });
 });
 

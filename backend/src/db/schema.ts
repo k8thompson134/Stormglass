@@ -228,6 +228,11 @@ export const pushSubscriptions = pgTable('push_subscriptions', {
   auth: text('auth').notNull(),
   aqiAlertsEnabled: boolean('aqi_alerts_enabled').default(true).notNull(),
   lastNotifiedCategory: text('last_notified_category'),
+  // Separate opt-in from aqiAlertsEnabled -- migraine risk oscillates far more than
+  // AQI category, so bundling it with the main push toggle would surprise people
+  // who only wanted AQI alerts with a much noisier notification stream.
+  migraineAlertsEnabled: boolean('migraine_alerts_enabled').default(false).notNull(),
+  lastNotifiedMigraineRisk: text('last_notified_migraine_risk'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

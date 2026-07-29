@@ -1,14 +1,21 @@
 import cron from 'node-cron';
-import { and, eq, gte, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, lte } from 'drizzle-orm';
 import { fetchWeatherData } from '../services/openmeteo.js';
 import { computePressureDerivatives } from '../services/pressure.js';
 import { fetchAirQualityData } from '../services/airquality.js';
 import { fetchGeomagneticData } from '../services/geomagnetic.js';
 import { fetchPollenData } from '../services/tomorrow.js';
 import { findNextCategoryCrossing } from '../utils/aqiWindows.js';
-import { isPushConfigured, sendAqiCrossingAlert, clearAqiCrossingDedupState } from '../services/push.js';
+import {
+  isPushConfigured,
+  sendAqiCrossingAlert,
+  clearAqiCrossingDedupState,
+  sendMigraineRiskAlert,
+  clearMigraineRiskDedupState,
+} from '../services/push.js';
+import { getMigraineRisk } from '../utils/healthLogic.js';
 import { db } from '../db/index.js';
-import { airQualityData } from '../db/schema.js';
+import { airQualityData, pressureDerivatives } from '../db/schema.js';
 import { logger } from '../logger.js';
 
 export interface PollConfig {
@@ -43,8 +50,57 @@ async function runPoll(config: PollConfig): Promise<void> {
     logger.info({ service: 'pollen-poll', inserted: pollenInserted }, 'Fetched new pollen readings');
 
     await checkAqiCategoryCrossing(location);
+    await checkMigraineRisk(userId, location);
   } catch (error) {
     logger.error({ service: 'weather-poll', err: error }, 'Poll cycle failed');
+  }
+}
+
+/**
+ * Runs every poll cycle so a spike in migraine risk reaches you even if the app
+ * isn't open -- only alerts on high/severe (not moderate) since pressure risk
+ * oscillates far more than AQI category and a lower threshold would cry wolf.
+ */
+async function checkMigraineRisk(userId: string, location: string): Promise<void> {
+  if (!isPushConfigured()) return;
+
+  try {
+    const [latestDerivative] = await db
+      .select({
+        delta1h: pressureDerivatives.delta1h,
+        delta3h: pressureDerivatives.delta3h,
+        delta6h: pressureDerivatives.delta6h,
+      })
+      .from(pressureDerivatives)
+      .where(and(eq(pressureDerivatives.userId, userId), eq(pressureDerivatives.location, location)))
+      .orderBy(desc(pressureDerivatives.timestamp))
+      .limit(1);
+
+    if (!latestDerivative) return;
+
+    const now = new Date();
+    const [latestAqi] = await db
+      .select({ usAqi: airQualityData.usAqi })
+      .from(airQualityData)
+      .where(and(eq(airQualityData.location, location), lte(airQualityData.timestamp, now)))
+      .orderBy(desc(airQualityData.timestamp))
+      .limit(1);
+
+    const currentAqi = latestAqi ? parseFloat(latestAqi.usAqi) : null;
+    const risk = getMigraineRisk(
+      parseFloat(latestDerivative.delta1h),
+      parseFloat(latestDerivative.delta3h),
+      parseFloat(latestDerivative.delta6h),
+      currentAqi
+    );
+
+    if (risk.risk === 'high' || risk.risk === 'severe') {
+      await sendMigraineRiskAlert({ riskLevel: risk.risk, delta1h: parseFloat(latestDerivative.delta1h) });
+    } else {
+      await clearMigraineRiskDedupState();
+    }
+  } catch (error) {
+    logger.error({ service: 'push' }, `Migraine risk check failed: ${error}`);
   }
 }
 

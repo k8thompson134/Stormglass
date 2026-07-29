@@ -39,11 +39,23 @@ function aqiMigraineMultiplier(usAqi: number | null): number {
   return 1 + aqiSeverityFactor(usAqi) * 0.5;
 }
 
-export function getMigraineRisk(delta: number, usAqi: number | null = null): HealthRisk {
-  const abs = Math.abs(delta);
-  const multiplier = aqiMigraineMultiplier(usAqi);
-  const risk = evaluateRisk(abs * multiplier, MIGRAINE_CONFIG);
+export function getMigraineRisk(delta: number, delta3h = 0, delta6h = 0, usAqi: number | null = null): HealthRisk {
+  const abs1h = Math.abs(delta);
 
+  // Sustained drop/rise in the same direction across all three windows amplifies risk
+  const sustained =
+    delta !== 0 &&
+    Math.sign(delta) === Math.sign(delta3h) &&
+    Math.sign(delta3h) === Math.sign(delta6h);
+  const effective = (sustained ? abs1h * 1.25 : abs1h) * aqiMigraineMultiplier(usAqi);
+
+  const risk = evaluateRisk(effective, MIGRAINE_CONFIG);
+
+  if (sustained && abs1h >= 0.3) {
+    risk.currentFactors.unshift(
+      `Sustained ${delta < 0 ? 'falling' : 'rising'} pressure over 6+ hours — cumulative stress elevated`
+    );
+  }
   if (usAqi !== null && usAqi > 50) {
     risk.currentFactors.push(`AQI: ${usAqi}`);
     // Tailored to migraine specifically (not the generic "close windows" advice

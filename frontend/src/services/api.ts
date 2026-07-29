@@ -373,14 +373,13 @@ export async function fetchPushPublicKey(): Promise<string | null> {
   return data.publicKey;
 }
 
-export async function subscribeToPush(subscription: PushSubscriptionJSON): Promise<{ welcomeSent: boolean }> {
+export async function subscribeToPush(subscription: PushSubscriptionJSON): Promise<void> {
   const res = await fetch(`${API_BASE}/push/subscribe`, {
     method: 'POST',
     headers: getHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(subscription),
   });
   if (!res.ok) throw new Error(`Push subscribe failed: ${res.status}`);
-  return res.json();
 }
 
 export async function unsubscribeFromPush(endpoint: string): Promise<void> {
@@ -390,4 +389,22 @@ export async function unsubscribeFromPush(endpoint: string): Promise<void> {
     body: JSON.stringify({ endpoint }),
   });
   if (!res.ok) throw new Error(`Push unsubscribe failed: ${res.status}`);
+}
+
+export async function fetchMigraineAlertsEnabled(endpoint: string): Promise<boolean> {
+  const res = await fetch(`${API_BASE}/push/migraine-alerts?endpoint=${encodeURIComponent(endpoint)}`, {
+    headers: getHeaders(),
+  });
+  if (!res.ok) throw new Error(`Fetch migraine alert setting failed: ${res.status}`);
+  const data = await res.json();
+  return data.enabled;
+}
+
+export async function setMigraineAlertsEnabled(endpoint: string, enabled: boolean): Promise<void> {
+  const res = await fetch(`${API_BASE}/push/migraine-alerts`, {
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ endpoint, enabled }),
+  });
+  if (!res.ok) throw new Error(`Set migraine alert setting failed: ${res.status}`);
 }

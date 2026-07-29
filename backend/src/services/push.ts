@@ -28,6 +28,16 @@ export interface AqiAlertPayload {
   at: string;
 }
 
+// Ordinal so we can tell "risk went up" from "risk went down" -- unlike AQI category
+// crossings (which only fire on worsening), migraine pressure risk has no natural
+// forward-looking crossing helper, so dedup has to compare levels directly.
+const RISK_ORDER: Record<string, number> = { low: 0, moderate: 1, high: 2, severe: 3 };
+
+export interface MigraineRiskPayload {
+  riskLevel: 'high' | 'severe';
+  delta1h: number;
+}
+
 interface SubscriptionRow {
   id: string;
   endpoint: string;
@@ -100,14 +110,73 @@ export async function sendAqiCrossingAlert(payload: AqiAlertPayload): Promise<vo
 }
 
 /**
- * Sends a one-time confirmation push right after a subscription is created --
- * both a friendly "you're all set up" moment and a real, immediate end-to-end test
- * of the exact delivery path the AQI alert will later use, rather than the user's
- * first real confirmation being a silent no-op days later when AQI actually crosses
- * a category.
+ * Sends a migraine-risk alert to every subscription opted into it, only when the
+ * risk level has gotten WORSE than what that device was last notified about --
+ * pressure risk oscillates far more than AQI category, so a plain equality check
+ * would miss re-alerting on high -> severe but also miss suppressing severe -> high
+ * (an improvement) from re-firing the day risk drifts back up to high again.
+ */
+export async function sendMigraineRiskAlert(payload: MigraineRiskPayload): Promise<void> {
+  if (!vapidConfigured) return;
+
+  const subs = await db
+    .select()
+    .from(pushSubscriptions)
+    .where(eq(pushSubscriptions.migraineAlertsEnabled, true));
+
+  const body = payload.riskLevel === 'severe'
+    ? `Migraine risk is severe right now (pressure change ${payload.delta1h.toFixed(2)} hPa/hour) -- consider using rescue treatment early`
+    : `Migraine risk is high right now (pressure change ${payload.delta1h.toFixed(2)} hPa/hour)`;
+
+  await Promise.all(
+    subs.map(async (sub) => {
+      const lastLevel = sub.lastNotifiedMigraineRisk;
+      const lastOrder = lastLevel ? (RISK_ORDER[lastLevel] ?? -1) : -1;
+      if (RISK_ORDER[payload.riskLevel] <= lastOrder) return;
+
+      const sent = await sendToSubscription(sub, { title: 'Migraine risk elevated', body, tag: 'migraine-risk', url: '/' });
+      if (sent) {
+        await db
+          .update(pushSubscriptions)
+          .set({ lastNotifiedMigraineRisk: payload.riskLevel })
+          .where(eq(pushSubscriptions.id, sub.id));
+      }
+    })
+  );
+}
+
+/**
+ * Clears migraine-risk dedup state once risk drops back to moderate/low, so a later
+ * climb back into high/severe fires a fresh alert instead of being silently skipped
+ * as "already notified."
+ */
+export async function clearMigraineRiskDedupState(): Promise<void> {
+  await db
+    .update(pushSubscriptions)
+    .set({ lastNotifiedMigraineRisk: null })
+    .where(eq(pushSubscriptions.migraineAlertsEnabled, true));
+}
+
+// A push subscription needs a moment to fully settle with the push service (FCM)
+// right after creation -- sending instantly, in the same tick as subscribe, is
+// measurably less reliable than sending a few seconds later once things have
+// caught up. Observed directly: a real device got its first *real* AQI alert hours
+// later without issue, but missed the instant welcome push sent the moment it
+// subscribed.
+const WELCOME_PUSH_DELAY_MS = 5000;
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Sends a one-time confirmation push shortly after a subscription is created --
+ * both a friendly "you're all set up" moment and a real end-to-end test of the exact
+ * delivery path the AQI alert will later use, rather than the user's first real
+ * confirmation being a silent no-op days later when AQI actually crosses a category.
  */
 export async function sendWelcomeNotification(sub: SubscriptionRow): Promise<boolean> {
   if (!vapidConfigured) return false;
+  await delay(WELCOME_PUSH_DELAY_MS);
   return sendToSubscription(sub, {
     title: "You're all set up!",
     body: "Stormglass will alert you here when air quality is forecast to worsen.",

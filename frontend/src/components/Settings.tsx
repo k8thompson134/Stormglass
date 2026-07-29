@@ -3,7 +3,15 @@ import { fetchSettings, updateLocation, geocodeSearch, type GeoResult } from '..
 import type { HealthToggles, HealthConditionKey } from '../types/health';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { AQI_SENSITIVITY_OPTIONS, type AqiSensitivity } from '../utils/aqiCategory';
-import { isPushSupported, isPushEnabled, enablePushNotifications, disablePushNotifications, type PushEnableResult } from '../utils/pushNotifications';
+import {
+    isPushSupported,
+    isPushEnabled,
+    enablePushNotifications,
+    disablePushNotifications,
+    getMigraineAlertsEnabled,
+    toggleMigraineAlerts,
+    type PushEnableResult,
+} from '../utils/pushNotifications';
 
 interface SettingsProps {
     open: boolean;
@@ -30,6 +38,8 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
     const [pushBusy, setPushBusy] = useState(false);
     const [pushError, setPushError] = useState<string | null>(null);
     const [pushSuccess, setPushSuccess] = useState<string | null>(null);
+    const [migraineAlertsEnabled, setMigraineAlertsEnabledState] = useState(false);
+    const [migraineAlertsBusy, setMigraineAlertsBusy] = useState(false);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const latestQueryRef = useRef('');
     const modalRef = useRef<HTMLDivElement>(null);
@@ -40,8 +50,22 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
     // knowing, so check the real PushManager subscription each time the modal opens.
     useEffect(() => {
         if (!open) return;
-        isPushEnabled().then(setPushEnabled);
+        isPushEnabled().then((enabled) => {
+            setPushEnabled(enabled);
+            if (enabled) getMigraineAlertsEnabled().then(setMigraineAlertsEnabledState);
+        });
     }, [open]);
+
+    const handleToggleMigraineAlerts = async () => {
+        setMigraineAlertsBusy(true);
+        try {
+            const next = !migraineAlertsEnabled;
+            const ok = await toggleMigraineAlerts(next);
+            if (ok) setMigraineAlertsEnabledState(next);
+        } finally {
+            setMigraineAlertsBusy(false);
+        }
+    };
 
     const togglePush = async () => {
         setPushBusy(true);
@@ -56,14 +80,12 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                 if (result.ok) {
                     setPushEnabled(true);
                     // In-app confirmation shows immediately regardless of OS-level delivery
-                    // (Do Not Disturb, notification-style settings, etc. are all outside our
-                    // control) -- the welcome push is a bonus real-world confirmation, not
-                    // the only one.
-                    setPushSuccess(
-                        result.welcomeSent
-                            ? "You're all set up! Check for a confirmation notification."
-                            : "You're subscribed, though the confirmation push itself didn't go through -- alerts should still work."
-                    );
+                    // (Do Not Disturb, notification-style settings, etc. are outside our
+                    // control) -- the confirmation push itself is sent a few seconds later
+                    // (see push.ts's WELCOME_PUSH_DELAY_MS) to give the fresh subscription
+                    // time to settle with the push service, so it's a bonus real-world
+                    // confirmation, not the only one, and not synchronous with this message.
+                    setPushSuccess("You're all set up! A confirmation notification should arrive in a few seconds.");
                 } else {
                     const messages: Record<Exclude<PushEnableResult, { ok: true }>['reason'], string> = {
                         unsupported: 'This browser doesn\'t support push notifications.',
@@ -447,6 +469,32 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                                 )}
                                 {pushError && (
                                     <p className="text-[11px] text-amber-300 mt-2">{pushError}</p>
+                                )}
+                                {pushEnabled && (
+                                    <label className="flex items-center gap-3 cursor-pointer select-none mt-3">
+                                        <span
+                                            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors duration-200 ${
+                                                migraineAlertsEnabled ? 'border-blue-500/50 bg-blue-500/20 text-blue-300' : 'border-[#1e2d45] bg-[#131d2e]'
+                                            }`}
+                                            aria-hidden
+                                        >
+                                            {migraineAlertsEnabled && (
+                                                <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                </svg>
+                                            )}
+                                        </span>
+                                        <input
+                                            type="checkbox"
+                                            className="sr-only"
+                                            checked={migraineAlertsEnabled}
+                                            disabled={migraineAlertsBusy}
+                                            onChange={handleToggleMigraineAlerts}
+                                        />
+                                        <span className="text-[11px] text-gray-300">
+                                            {migraineAlertsBusy ? 'Updating…' : 'Migraine risk alerts (push notification when risk is high or severe)'}
+                                        </span>
+                                    </label>
                                 )}
                             </>
                         ) : (

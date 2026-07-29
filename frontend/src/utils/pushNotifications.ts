@@ -1,4 +1,10 @@
-import { fetchPushPublicKey, subscribeToPush, unsubscribeFromPush } from '../services/api';
+import {
+  fetchPushPublicKey,
+  subscribeToPush,
+  unsubscribeFromPush,
+  fetchMigraineAlertsEnabled,
+  setMigraineAlertsEnabled,
+} from '../services/api';
 
 export function isPushSupported(): boolean {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
@@ -14,10 +20,7 @@ function urlBase64ToUint8Array(base64: string): Uint8Array {
 }
 
 export type PushEnableResult =
-  // `welcomeSent` distinguishes "subscribed, and we confirmed delivery works" from
-  // "subscribed, but the confirmation push itself failed" -- both leave you
-  // correctly enrolled, but only one should show an unqualified success message.
-  | { ok: true; welcomeSent: boolean }
+  | { ok: true }
   | { ok: false; reason: 'unsupported' | 'not-configured' | 'permission-denied' | 'error' };
 
 /**
@@ -49,8 +52,8 @@ export async function enablePushNotifications(): Promise<PushEnableResult> {
         applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
       });
     }
-    const { welcomeSent } = await subscribeToPush(subscription.toJSON() as PushSubscriptionJSON);
-    return { ok: true, welcomeSent };
+    await subscribeToPush(subscription.toJSON() as PushSubscriptionJSON);
+    return { ok: true };
   } catch {
     return { ok: false, reason: 'error' };
   }
@@ -78,4 +81,23 @@ export async function isPushEnabled(): Promise<boolean> {
   const registration = await navigator.serviceWorker.ready;
   const subscription = await registration.pushManager.getSubscription();
   return !!subscription;
+}
+
+// Migraine alerts are a separate opt-in, scoped to this device's subscription
+// endpoint, so they can only be read/changed while push itself is enabled.
+export async function getMigraineAlertsEnabled(): Promise<boolean> {
+  if (!isPushSupported()) return false;
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = await registration.pushManager.getSubscription();
+  if (!subscription) return false;
+  return fetchMigraineAlertsEnabled(subscription.endpoint);
+}
+
+export async function toggleMigraineAlerts(enabled: boolean): Promise<boolean> {
+  if (!isPushSupported()) return false;
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = await registration.pushManager.getSubscription();
+  if (!subscription) return false;
+  await setMigraineAlertsEnabled(subscription.endpoint, enabled);
+  return true;
 }

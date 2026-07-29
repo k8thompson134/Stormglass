@@ -43,6 +43,13 @@
       "when": 1785281995649,
       "tag": "0005_quiet_prowler",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1785348674997,
+      "tag": "0006_calm_sphinx",
+      "breakpoints": true
     }
   ]
 }
