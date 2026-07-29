@@ -78,4 +78,10 @@ export const env = {
 
   // Auth token for API access — auto-generated on first production startup if not set
   API_TOKEN: getOrGenerateApiToken(),
+
+  // Optional Web Push credentials — AQI category-crossing push alerts are skipped
+  // entirely (subscribe endpoint returns 503) if either half of the pair is unset.
+  VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY?.trim() || null,
+  VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY?.trim() || null,
+  VAPID_SUBJECT: process.env.VAPID_SUBJECT?.trim() || 'mailto:admin@example.com',
 } as const;

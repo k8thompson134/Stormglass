@@ -360,3 +360,33 @@ export async function fetchCorrelationTimeseries(
   if (!res.ok) throw new Error(`Fetch timeseries failed: ${res.status}`);
   return res.json();
 }
+
+// --- Push notifications ---
+
+// null (not thrown) when the server has no VAPID keys configured -- that's a
+// legitimate "feature not available here" state, not a fetch error.
+export async function fetchPushPublicKey(): Promise<string | null> {
+  const res = await fetch(`${API_BASE}/push/vapid-public-key`, { headers: getHeaders() });
+  if (res.status === 503) return null;
+  if (!res.ok) throw new Error(`Fetch push public key failed: ${res.status}`);
+  const data = await res.json();
+  return data.publicKey;
+}
+
+export async function subscribeToPush(subscription: PushSubscriptionJSON): Promise<void> {
+  const res = await fetch(`${API_BASE}/push/subscribe`, {
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(subscription),
+  });
+  if (!res.ok) throw new Error(`Push subscribe failed: ${res.status}`);
+}
+
+export async function unsubscribeFromPush(endpoint: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/push/unsubscribe`, {
+    method: 'POST',
+    headers: getHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ endpoint }),
+  });
+  if (!res.ok) throw new Error(`Push unsubscribe failed: ${res.status}`);
+}

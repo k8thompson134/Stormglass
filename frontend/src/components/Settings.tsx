@@ -3,6 +3,7 @@ import { fetchSettings, updateLocation, geocodeSearch, type GeoResult } from '..
 import type { HealthToggles, HealthConditionKey } from '../types/health';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { AQI_SENSITIVITY_OPTIONS, type AqiSensitivity } from '../utils/aqiCategory';
+import { isPushSupported, isPushEnabled, enablePushNotifications, disablePushNotifications, type PushEnableResult } from '../utils/pushNotifications';
 
 interface SettingsProps {
     open: boolean;
@@ -25,10 +26,47 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
     const [saved, setSaved] = useState(false);
     const [tokenCopied, setTokenCopied] = useState(false);
     const [tokenRevealed, setTokenRevealed] = useState(false);
+    const [pushEnabled, setPushEnabled] = useState(false);
+    const [pushBusy, setPushBusy] = useState(false);
+    const [pushError, setPushError] = useState<string | null>(null);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const latestQueryRef = useRef('');
     const modalRef = useRef<HTMLDivElement>(null);
     useFocusTrap(open, modalRef, { onEscape: onClose });
+
+    // Reflect actual subscription state (not just "did the user check the box last
+    // time") -- permission can be revoked from browser settings without this app
+    // knowing, so check the real PushManager subscription each time the modal opens.
+    useEffect(() => {
+        if (!open) return;
+        isPushEnabled().then(setPushEnabled);
+    }, [open]);
+
+    const togglePush = async () => {
+        setPushBusy(true);
+        setPushError(null);
+        try {
+            if (pushEnabled) {
+                await disablePushNotifications();
+                setPushEnabled(false);
+            } else {
+                const result: PushEnableResult = await enablePushNotifications();
+                if (result.ok) {
+                    setPushEnabled(true);
+                } else {
+                    const messages: Record<Exclude<PushEnableResult, { ok: true }>['reason'], string> = {
+                        unsupported: 'This browser doesn\'t support push notifications.',
+                        'not-configured': 'Push notifications aren\'t set up on this server yet.',
+                        'permission-denied': 'Notification permission was denied — check your browser\'s site settings.',
+                        error: 'Something went wrong enabling notifications. Try again.',
+                    };
+                    setPushError(messages[result.reason]);
+                }
+            }
+        } finally {
+            setPushBusy(false);
+        }
+    };
 
     const apiToken = import.meta.env.VITE_API_TOKEN as string | undefined;
 
@@ -356,6 +394,46 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                                     ))}
                                 </div>
                             </>
+                        )}
+                    </div>
+
+                    {/* Push Notifications */}
+                    <div className="border-t border-[#1e2d45] pt-5">
+                        <label className="text-[10px] text-gray-300 font-bold uppercase tracking-wider block mb-2">
+                            Notifications
+                        </label>
+                        {isPushSupported() ? (
+                            <>
+                                <label className="flex items-center gap-3 cursor-pointer select-none">
+                                    <span
+                                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors duration-200 ${
+                                            pushEnabled ? 'border-blue-500/50 bg-blue-500/20 text-blue-300' : 'border-[#1e2d45] bg-[#131d2e]'
+                                        }`}
+                                        aria-hidden
+                                    >
+                                        {pushEnabled && (
+                                            <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        )}
+                                    </span>
+                                    <input
+                                        type="checkbox"
+                                        className="sr-only"
+                                        checked={pushEnabled}
+                                        disabled={pushBusy}
+                                        onChange={togglePush}
+                                    />
+                                    <span className="text-[11px] text-gray-300">
+                                        {pushBusy ? 'Updating…' : 'Air quality alerts (push notification when AQI worsens)'}
+                                    </span>
+                                </label>
+                                {pushError && (
+                                    <p className="text-[11px] text-amber-300 mt-2">{pushError}</p>
+                                )}
+                            </>
+                        ) : (
+                            <p className="text-[11px] text-gray-500">Push notifications aren't supported in this browser.</p>
                         )}
                     </div>
 

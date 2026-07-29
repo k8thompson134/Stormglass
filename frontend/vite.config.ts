@@ -13,8 +13,22 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      workbox: {
+      // Switched from the default `generateSW` to `injectManifest` so src/sw.ts can
+      // add a custom `push`/`notificationclick` handler -- generateSW's auto-built
+      // Workbox worker has no hook for that.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+      },
+      // Serves a real (non-precached) build of src/sw.ts under `vite dev` too --
+      // without this, injectManifest only produces a service worker on `vite build`,
+      // making the push/notificationclick handlers untestable without a full
+      // production-mode run.
+      devOptions: {
+        enabled: true,
+        type: 'module',
       },
       manifest: {
         name: 'Stormglass',

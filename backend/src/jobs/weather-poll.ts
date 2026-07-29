@@ -1,9 +1,14 @@
 import cron from 'node-cron';
+import { and, eq, gte, lte } from 'drizzle-orm';
 import { fetchWeatherData } from '../services/openmeteo.js';
 import { computePressureDerivatives } from '../services/pressure.js';
 import { fetchAirQualityData } from '../services/airquality.js';
 import { fetchGeomagneticData } from '../services/geomagnetic.js';
 import { fetchPollenData } from '../services/tomorrow.js';
+import { findNextCategoryCrossing } from '../utils/aqiWindows.js';
+import { isPushConfigured, sendAqiCrossingAlert, clearAqiCrossingDedupState } from '../services/push.js';
+import { db } from '../db/index.js';
+import { airQualityData } from '../db/schema.js';
 import { logger } from '../logger.js';
 
 export interface PollConfig {
@@ -36,8 +41,49 @@ async function runPoll(config: PollConfig): Promise<void> {
     logger.info({ service: 'air-quality-poll', inserted: aqInserted }, 'Fetched new AQ readings');
     logger.info({ service: 'geomagnetic-poll', inserted: geoInserted }, 'Fetched new Kp readings');
     logger.info({ service: 'pollen-poll', inserted: pollenInserted }, 'Fetched new pollen readings');
+
+    await checkAqiCategoryCrossing(location);
   } catch (error) {
     logger.error({ service: 'weather-poll', err: error }, 'Poll cycle failed');
+  }
+}
+
+/**
+ * Runs on every poll cycle (not just when the frontend happens to be open) so a
+ * worsening AQI forecast reaches you even if the app isn't sitting open in a tab --
+ * the whole point of push notifications over the in-app-only banner.
+ */
+async function checkAqiCategoryCrossing(location: string): Promise<void> {
+  if (!isPushConfigured()) return;
+
+  try {
+    const now = new Date();
+    const since = new Date(now.getTime() - 60 * 60 * 1000); // 1h back, enough to find "current"
+    const until = new Date(now.getTime() + 72 * 60 * 60 * 1000);
+
+    const rows = await db
+      .select({ timestamp: airQualityData.timestamp, usAqi: airQualityData.usAqi })
+      .from(airQualityData)
+      .where(and(gte(airQualityData.timestamp, since), lte(airQualityData.timestamp, until), eq(airQualityData.location, location)))
+      .orderBy(airQualityData.timestamp)
+      .limit(200);
+
+    if (rows.length === 0) return;
+
+    const points = rows.map(r => ({ timestamp: r.timestamp, usAqi: parseFloat(r.usAqi) }));
+    const pastPoints = points.filter(p => p.timestamp <= now);
+    const currentPoint = pastPoints[pastPoints.length - 1] ?? points[0];
+    const futurePoints = points.filter(p => p.timestamp > now);
+
+    const crossing = findNextCategoryCrossing(currentPoint.usAqi, futurePoints, now);
+
+    if (crossing) {
+      await sendAqiCrossingAlert({ toCategory: crossing.toCategory, usAqi: crossing.usAqi, at: crossing.at.toISOString() });
+    } else {
+      await clearAqiCrossingDedupState();
+    }
+  } catch (error) {
+    logger.error({ service: 'push' }, `AQI category-crossing check failed: ${error}`);
   }
 }
 

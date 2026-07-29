@@ -15,6 +15,7 @@ import { settingsRoutes } from './api/settings.js';
 import { symptomRoutes } from './api/symptoms.js';
 import { correlationRoutes } from './api/correlations.js';
 import { briefingRoutes } from './api/briefing.js';
+import { pushRoutes } from './api/push.js';
 import { startWeatherPolling, stopPolling } from './jobs/weather-poll.js';
 import { client } from './db/index.js';
 
@@ -100,6 +101,7 @@ await app.register(settingsRoutes);
 await app.register(symptomRoutes);
 await app.register(correlationRoutes);
 await app.register(briefingRoutes);
+await app.register(pushRoutes);
 
 // Serve frontend in production
 if (env.NODE_ENV === 'production') {

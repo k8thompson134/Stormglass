@@ -18,6 +18,8 @@ build/
 /backend/build
 out/
 *.tsbuildinfo
+# vite-plugin-pwa's dev-mode service worker cache (devOptions.enabled)
+/frontend/dev-dist
 
 # Debug / Logs
 logs/

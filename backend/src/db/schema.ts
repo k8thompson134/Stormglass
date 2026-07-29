@@ -211,3 +211,23 @@ export const alertHistory = pgTable(
   })
 );
 
+// One row per subscribed browser/device (Web Push). `endpoint` is the unique push
+// service URL the browser gives us on subscribe -- naturally unique per device, so
+// it doubles as the natural key rather than needing a separate device id.
+// `lastNotifiedCategory` is the dedup state for the AQI category-crossing alert: we
+// only send again once the forecast's next crossing resolves to a DIFFERENT category
+// than the one we last notified this device about, so a re-poll every 30 minutes
+// doesn't resend the same "crosses into Unhealthy" alert repeatedly.
+export const pushSubscriptions = pgTable('push_subscriptions', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  userId: uuid('user_id')
+    .references(() => users.id, { onDelete: 'cascade' })
+    .notNull(),
+  endpoint: text('endpoint').notNull().unique(),
+  p256dh: text('p256dh').notNull(),
+  auth: text('auth').notNull(),
+  aqiAlertsEnabled: boolean('aqi_alerts_enabled').default(true).notNull(),
+  lastNotifiedCategory: text('last_notified_category'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
