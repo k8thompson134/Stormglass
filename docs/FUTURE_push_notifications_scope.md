@@ -1,12 +1,13 @@
-# Future task: Push notifications (opt-in, app-wide)
+# Push notifications (opt-in, app-wide)
 
-**Status:** Scoped, not started. Explicitly deferred to ship the AQI/smoke work first.
-Written 2026-07-21 as a quick scoping pass for the task board, not a detailed plan.
-**Update (2026-07-28):** the platform question below is resolved — Kate's phone is
-Android, not iOS. Web Push works in a plain browser tab on Android Chrome, no
-"Add to Home Screen" install required. This removes the biggest blocker to building
-this (see "Open questions" #1, now answered) — Web Push is viable as-is for the
-regular-browser-tab-over-Tailscale setup already in use.
+**Status: MVP built (2026-07-29).** Written 2026-07-21 as a quick scoping pass;
+resolved 2026-07-28 (Android, not iOS — Web Push works in a plain browser tab, no
+install needed); built 2026-07-29 exactly to the "Rough shape" below, MVP scope only
+(AQI category-crossing alert, one alert type). Verified end-to-end: subscribing
+persists a real `push_subscriptions` row (backed by Google's FCM), and a real send
+via `sendAqiCrossingAlert` succeeds against it. Extending to other conditions
+(safe-window ending, other severity changes) is still a later iteration -- see
+"MVP scope" below, unchanged from the original plan.
 
 ## The idea
 
