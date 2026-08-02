@@ -4,6 +4,8 @@ import {
   unsubscribeFromPush,
   fetchMigraineAlertsEnabled,
   setMigraineAlertsEnabled,
+  fetchNotificationLog,
+  type PushNotificationLogEntry,
 } from '../services/api';
 
 export function isPushSupported(): boolean {
@@ -100,4 +102,12 @@ export async function toggleMigraineAlerts(enabled: boolean): Promise<boolean> {
   if (!subscription) return false;
   await setMigraineAlertsEnabled(subscription.endpoint, enabled);
   return true;
+}
+
+export async function getNotificationLog(): Promise<PushNotificationLogEntry[]> {
+  if (!isPushSupported()) return [];
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = await registration.pushManager.getSubscription();
+  if (!subscription) return [];
+  return fetchNotificationLog(subscription.endpoint);
 }

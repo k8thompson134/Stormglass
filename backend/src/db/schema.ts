@@ -236,3 +236,29 @@ export const pushSubscriptions = pgTable('push_subscriptions', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+// One row per alert-worthy DECISION (not just per send) -- an AQI category crossing
+// or a high/severe migraine risk that was found during a poll cycle, whether or not
+// it actually resulted in a push. This is what makes "why didn't I get an alert I
+// needed" answerable: a suppressed-by-dedup or failed-delivery row leaves a trace,
+// where a send-only log would look identical to "nothing happened." Cycles with no
+// alert-worthy condition are not logged, to keep this readable.
+export const pushNotificationLog = pgTable(
+  'push_notification_log',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    subscriptionId: uuid('subscription_id').references(() => pushSubscriptions.id, { onDelete: 'set null' }),
+    type: text('type').notNull(), // 'aqi' | 'migraine' | 'welcome'
+    outcome: text('outcome').notNull(), // 'sent' | 'suppressed_dedup' | 'delivery_failed'
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    eventAt: timestamp('event_at'), // for AQI: the forecast crossing time; null otherwise
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => ({
+    subscriptionIdCreatedAtIdx: index('push_notification_log_subscription_id_created_at_idx').on(
+      table.subscriptionId,
+      table.createdAt
+    ),
+  })
+);
+

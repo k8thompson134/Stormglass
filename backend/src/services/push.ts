@@ -1,9 +1,23 @@
 import webpush from 'web-push';
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { db } from '../db/index.js';
-import { pushSubscriptions } from '../db/schema.js';
+import { pushSubscriptions, pushNotificationLog } from '../db/schema.js';
 import { env } from '../env.js';
 import { logger } from '../logger.js';
+
+type NotificationType = 'aqi' | 'migraine' | 'welcome';
+type NotificationOutcome = 'sent' | 'suppressed_dedup' | 'delivery_failed';
+
+async function logDecision(
+  subscriptionId: string,
+  type: NotificationType,
+  outcome: NotificationOutcome,
+  title: string,
+  body: string,
+  eventAt?: Date
+): Promise<void> {
+  await db.insert(pushNotificationLog).values({ subscriptionId, type, outcome, title, body, eventAt: eventAt ?? null });
+}
 
 const vapidConfigured = !!(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY);
 
@@ -91,14 +105,21 @@ export async function sendAqiCrossingAlert(payload: AqiAlertPayload): Promise<vo
 
   const body = `Forecast crosses into ${payload.toCategory} around ${new Date(payload.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} (AQI ${payload.usAqi})`;
 
+  const title = 'Air quality worsening';
+  const eventAt = new Date(payload.at);
+
   await Promise.all(
     subs.map(async (sub) => {
       // Dedup: only resend once the crossing resolves to a DIFFERENT category than
       // what this device was last notified about -- see schema.ts's comment on
       // lastNotifiedCategory for why this lives per-subscription.
-      if (sub.lastNotifiedCategory === payload.toCategory) return;
+      if (sub.lastNotifiedCategory === payload.toCategory) {
+        await logDecision(sub.id, 'aqi', 'suppressed_dedup', title, body, eventAt);
+        return;
+      }
 
-      const sent = await sendToSubscription(sub, { title: 'Air quality worsening', body, tag: 'aqi-category-crossing', url: '/' });
+      const sent = await sendToSubscription(sub, { title, body, tag: 'aqi-category-crossing', url: '/' });
+      await logDecision(sub.id, 'aqi', sent ? 'sent' : 'delivery_failed', title, body, eventAt);
       if (sent) {
         await db
           .update(pushSubscriptions)
@@ -128,13 +149,19 @@ export async function sendMigraineRiskAlert(payload: MigraineRiskPayload): Promi
     ? `Migraine risk is severe right now (pressure change ${payload.delta1h.toFixed(2)} hPa/hour) -- consider using rescue treatment early`
     : `Migraine risk is high right now (pressure change ${payload.delta1h.toFixed(2)} hPa/hour)`;
 
+  const title = 'Migraine risk elevated';
+
   await Promise.all(
     subs.map(async (sub) => {
       const lastLevel = sub.lastNotifiedMigraineRisk;
       const lastOrder = lastLevel ? (RISK_ORDER[lastLevel] ?? -1) : -1;
-      if (RISK_ORDER[payload.riskLevel] <= lastOrder) return;
+      if (RISK_ORDER[payload.riskLevel] <= lastOrder) {
+        await logDecision(sub.id, 'migraine', 'suppressed_dedup', title, body);
+        return;
+      }
 
-      const sent = await sendToSubscription(sub, { title: 'Migraine risk elevated', body, tag: 'migraine-risk', url: '/' });
+      const sent = await sendToSubscription(sub, { title, body, tag: 'migraine-risk', url: '/' });
+      await logDecision(sub.id, 'migraine', sent ? 'sent' : 'delivery_failed', title, body);
       if (sent) {
         await db
           .update(pushSubscriptions)
@@ -177,12 +204,41 @@ function delay(ms: number): Promise<void> {
 export async function sendWelcomeNotification(sub: SubscriptionRow): Promise<boolean> {
   if (!vapidConfigured) return false;
   await delay(WELCOME_PUSH_DELAY_MS);
-  return sendToSubscription(sub, {
-    title: "You're all set up!",
-    body: "Stormglass will alert you here when air quality is forecast to worsen.",
-    tag: 'push-welcome',
-    url: '/',
-  });
+  const title = "You're all set up!";
+  const body = "Stormglass will alert you here when air quality is forecast to worsen.";
+  const sent = await sendToSubscription(sub, { title, body, tag: 'push-welcome', url: '/' });
+  await logDecision(sub.id, 'welcome', sent ? 'sent' : 'delivery_failed', title, body);
+  return sent;
+}
+
+export interface NotificationLogEntry {
+  type: NotificationType;
+  outcome: NotificationOutcome;
+  title: string;
+  body: string;
+  eventAt: Date | null;
+  createdAt: Date;
+}
+
+/**
+ * Recent alert-worthy decisions for one device, newest first -- what powers the
+ * "notification history" view so a suppressed or failed alert leaves a visible
+ * trace instead of just looking like nothing happened.
+ */
+export async function getNotificationLog(subscriptionId: string, limit = 30): Promise<NotificationLogEntry[]> {
+  return db
+    .select({
+      type: pushNotificationLog.type,
+      outcome: pushNotificationLog.outcome,
+      title: pushNotificationLog.title,
+      body: pushNotificationLog.body,
+      eventAt: pushNotificationLog.eventAt,
+      createdAt: pushNotificationLog.createdAt,
+    })
+    .from(pushNotificationLog)
+    .where(eq(pushNotificationLog.subscriptionId, subscriptionId))
+    .orderBy(desc(pushNotificationLog.createdAt))
+    .limit(limit) as Promise<NotificationLogEntry[]>;
 }
 
 /**

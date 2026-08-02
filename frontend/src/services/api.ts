@@ -408,3 +408,21 @@ export async function setMigraineAlertsEnabled(endpoint: string, enabled: boolea
   });
   if (!res.ok) throw new Error(`Set migraine alert setting failed: ${res.status}`);
 }
+
+export interface PushNotificationLogEntry {
+  type: 'aqi' | 'migraine' | 'welcome';
+  outcome: 'sent' | 'suppressed_dedup' | 'delivery_failed';
+  title: string;
+  body: string;
+  eventAt: string | null;
+  createdAt: string;
+}
+
+export async function fetchNotificationLog(endpoint: string): Promise<PushNotificationLogEntry[]> {
+  const res = await fetch(`${API_BASE}/push/notification-log?endpoint=${encodeURIComponent(endpoint)}`, {
+    headers: getHeaders(),
+  });
+  if (!res.ok) throw new Error(`Fetch notification log failed: ${res.status}`);
+  const data = await res.json();
+  return data.entries;
+}

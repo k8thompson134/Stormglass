@@ -10,8 +10,10 @@ import {
     disablePushNotifications,
     getMigraineAlertsEnabled,
     toggleMigraineAlerts,
+    getNotificationLog,
     type PushEnableResult,
 } from '../utils/pushNotifications';
+import type { PushNotificationLogEntry } from '../services/api';
 
 interface SettingsProps {
     open: boolean;
@@ -40,6 +42,9 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
     const [pushSuccess, setPushSuccess] = useState<string | null>(null);
     const [migraineAlertsEnabled, setMigraineAlertsEnabledState] = useState(false);
     const [migraineAlertsBusy, setMigraineAlertsBusy] = useState(false);
+    const [logOpen, setLogOpen] = useState(false);
+    const [logEntries, setLogEntries] = useState<PushNotificationLogEntry[] | null>(null);
+    const [logLoading, setLogLoading] = useState(false);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const latestQueryRef = useRef('');
     const modalRef = useRef<HTMLDivElement>(null);
@@ -65,6 +70,40 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
         } finally {
             setMigraineAlertsBusy(false);
         }
+    };
+
+    const toggleLog = async () => {
+        const next = !logOpen;
+        setLogOpen(next);
+        if (next && logEntries === null) {
+            setLogLoading(true);
+            try {
+                setLogEntries(await getNotificationLog());
+            } finally {
+                setLogLoading(false);
+            }
+        }
+    };
+
+    // Reset so reopening the modal later fetches fresh, rather than showing a stale
+    // log from earlier in the session.
+    useEffect(() => {
+        if (!open) {
+            setLogOpen(false);
+            setLogEntries(null);
+        }
+    }, [open]);
+
+    const outcomeLabel: Record<PushNotificationLogEntry['outcome'], { text: string; className: string }> = {
+        sent: { text: 'Delivered', className: 'text-emerald-300' },
+        suppressed_dedup: { text: 'Skipped (already notified)', className: 'text-gray-500' },
+        delivery_failed: { text: 'Delivery failed', className: 'text-amber-300' },
+    };
+
+    const typeLabel: Record<PushNotificationLogEntry['type'], string> = {
+        aqi: 'Air quality',
+        migraine: 'Migraine risk',
+        welcome: 'Setup confirmation',
     };
 
     const togglePush = async () => {
@@ -495,6 +534,43 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                                             {migraineAlertsBusy ? 'Updating…' : 'Migraine risk alerts (push notification when risk is high or severe)'}
                                         </span>
                                     </label>
+                                )}
+                                {pushEnabled && (
+                                    <div className="mt-3">
+                                        <button
+                                            type="button"
+                                            onClick={toggleLog}
+                                            className="text-[11px] text-blue-300 hover:text-blue-200 underline underline-offset-2"
+                                        >
+                                            {logOpen ? 'Hide notification history' : 'View notification history'}
+                                        </button>
+                                        {logOpen && (
+                                            <div className="mt-2 max-h-56 overflow-y-auto rounded border border-[#1e2d45] bg-[#0e1725] p-2 space-y-2">
+                                                {logLoading && (
+                                                    <p className="text-[11px] text-gray-500">Loading…</p>
+                                                )}
+                                                {!logLoading && logEntries !== null && logEntries.length === 0 && (
+                                                    <p className="text-[11px] text-gray-500">No alerts have been triggered yet.</p>
+                                                )}
+                                                {!logLoading && logEntries?.map((entry, i) => (
+                                                    <div key={i} className="text-[11px] border-b border-[#1e2d45] last:border-0 pb-2 last:pb-0">
+                                                        <div className="flex items-center justify-between gap-2">
+                                                            <span className="text-gray-300">{typeLabel[entry.type]}</span>
+                                                            <span className={outcomeLabel[entry.outcome].className}>
+                                                                {outcomeLabel[entry.outcome].text}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-gray-500">
+                                                            {new Date(entry.createdAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                                                            {entry.eventAt && (
+                                                                <> · for {new Date(entry.eventAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</>
+                                                            )}
+                                                        </p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
                             </>
                         ) : (

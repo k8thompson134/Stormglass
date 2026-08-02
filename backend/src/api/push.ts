@@ -4,7 +4,7 @@ import { db } from '../db/index.js';
 import { pushSubscriptions } from '../db/schema.js';
 import { getCurrentConfig } from '../jobs/weather-poll.js';
 import { env } from '../env.js';
-import { isPushConfigured, sendWelcomeNotification } from '../services/push.js';
+import { isPushConfigured, sendWelcomeNotification, getNotificationLog } from '../services/push.js';
 
 interface SubscribeBody {
   endpoint: string;
@@ -128,5 +128,27 @@ export async function pushRoutes(app: FastifyInstance): Promise<void> {
     }
 
     return { ok: true };
+  });
+
+  // GET /api/push/notification-log — recent alert-worthy decisions for this device
+  // (sent, suppressed by dedup, or failed delivery), newest first.
+  app.get<{ Querystring: { endpoint: string } }>('/api/push/notification-log', async (request, reply) => {
+    const { endpoint } = request.query ?? {};
+    if (!endpoint) {
+      return reply.status(400).send({ error: 'endpoint is required' });
+    }
+
+    const [sub] = await db
+      .select({ id: pushSubscriptions.id })
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.endpoint, endpoint))
+      .limit(1);
+
+    if (!sub) {
+      return reply.status(404).send({ error: 'Subscription not found' });
+    }
+
+    const entries = await getNotificationLog(sub.id);
+    return { entries };
   });
 }
