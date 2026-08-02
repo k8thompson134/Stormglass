@@ -227,7 +227,13 @@ export const pushSubscriptions = pgTable('push_subscriptions', {
   p256dh: text('p256dh').notNull(),
   auth: text('auth').notNull(),
   aqiAlertsEnabled: boolean('aqi_alerts_enabled').default(true).notNull(),
+  // Dedup for the forecast heads-up ("crosses into X around 4pm").
   lastNotifiedCategory: text('last_notified_category'),
+  // Separate dedup for "air quality is bad right now" -- distinct from the forecast
+  // heads-up above since it tracks the CURRENT category, not an upcoming crossing,
+  // and needs to re-fire independently if the forecast alert already covered the
+  // earlier crossing but conditions later worsen further.
+  lastNotifiedCurrentBadCategory: text('last_notified_current_bad_category'),
   // Separate opt-in from aqiAlertsEnabled -- migraine risk oscillates far more than
   // AQI category, so bundling it with the main push toggle would surprise people
   // who only wanted AQI alerts with a much noisier notification stream.

@@ -410,7 +410,7 @@ export async function setMigraineAlertsEnabled(endpoint: string, enabled: boolea
 }
 
 export interface PushNotificationLogEntry {
-  type: 'aqi' | 'migraine' | 'welcome';
+  type: 'aqi' | 'aqi_current' | 'migraine' | 'welcome';
   outcome: 'sent' | 'suppressed_dedup' | 'delivery_failed';
   title: string;
   body: string;

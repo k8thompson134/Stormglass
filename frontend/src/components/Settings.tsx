@@ -101,7 +101,8 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
     };
 
     const typeLabel: Record<PushNotificationLogEntry['type'], string> = {
-        aqi: 'Air quality',
+        aqi: 'Air quality (forecast)',
+        aqi_current: 'Air quality (right now)',
         migraine: 'Migraine risk',
         welcome: 'Setup confirmation',
     };

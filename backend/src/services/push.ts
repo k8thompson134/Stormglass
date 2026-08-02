@@ -5,7 +5,7 @@ import { pushSubscriptions, pushNotificationLog } from '../db/schema.js';
 import { env } from '../env.js';
 import { logger } from '../logger.js';
 
-type NotificationType = 'aqi' | 'migraine' | 'welcome';
+type NotificationType = 'aqi' | 'aqi_current' | 'migraine' | 'welcome';
 type NotificationOutcome = 'sent' | 'suppressed_dedup' | 'delivery_failed';
 
 async function logDecision(
@@ -41,6 +41,20 @@ export interface AqiAlertPayload {
   usAqi: number;
   at: string;
 }
+
+export interface CurrentAqiBadPayload {
+  category: string;
+  usAqi: number;
+}
+
+// Short, category-specific action rather than a generic "close your windows" for
+// every severity -- what you'd actually do differs a lot between USG and Hazardous.
+const CATEGORY_GUIDANCE: Record<string, string> = {
+  'Unhealthy for Sensitive Groups': 'if you\'re sensitive to air quality, limit prolonged outdoor exertion',
+  'Unhealthy': 'limit prolonged outdoor exertion',
+  'Very Unhealthy': 'avoid outdoor exertion',
+  'Hazardous': 'stay indoors and avoid outdoor exertion entirely',
+};
 
 // Ordinal so we can tell "risk went up" from "risk went down" -- unlike AQI category
 // crossings (which only fire on worsening), migraine pressure risk has no natural
@@ -103,9 +117,10 @@ export async function sendAqiCrossingAlert(payload: AqiAlertPayload): Promise<vo
     .from(pushSubscriptions)
     .where(eq(pushSubscriptions.aqiAlertsEnabled, true));
 
-  const body = `Forecast crosses into ${payload.toCategory} around ${new Date(payload.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} (AQI ${payload.usAqi})`;
+  const guidance = CATEGORY_GUIDANCE[payload.toCategory];
+  const body = `Forecast crosses into ${payload.toCategory} around ${new Date(payload.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} (AQI ${payload.usAqi})${guidance ? ` -- ${guidance}` : ''}`;
 
-  const title = 'Air quality worsening';
+  const title = 'Air quality worsening soon';
   const eventAt = new Date(payload.at);
 
   await Promise.all(
@@ -128,6 +143,56 @@ export async function sendAqiCrossingAlert(payload: AqiAlertPayload): Promise<vo
       }
     })
   );
+}
+
+/**
+ * Sends a "air quality is bad right now" alert -- separate from the forecast
+ * heads-up above, which only fires once for an upcoming crossing and can end up
+ * silent by the time conditions are actually bad if that crossing was already
+ * acknowledged earlier. This checks the CURRENT reading each poll and only
+ * suppresses on an unchanged current category, so it stays accurate to what's
+ * happening right now rather than a forecast made hours ago.
+ */
+export async function sendCurrentAqiBadAlert(payload: CurrentAqiBadPayload): Promise<void> {
+  if (!vapidConfigured) return;
+
+  const subs = await db
+    .select()
+    .from(pushSubscriptions)
+    .where(eq(pushSubscriptions.aqiAlertsEnabled, true));
+
+  const guidance = CATEGORY_GUIDANCE[payload.category];
+  const body = `Air quality is currently ${payload.category} (AQI ${payload.usAqi})${guidance ? ` -- ${guidance}` : ''}`;
+  const title = 'Air quality is bad right now';
+
+  await Promise.all(
+    subs.map(async (sub) => {
+      if (sub.lastNotifiedCurrentBadCategory === payload.category) {
+        await logDecision(sub.id, 'aqi_current', 'suppressed_dedup', title, body);
+        return;
+      }
+
+      const sent = await sendToSubscription(sub, { title, body, tag: 'aqi-current-bad', url: '/' });
+      await logDecision(sub.id, 'aqi_current', sent ? 'sent' : 'delivery_failed', title, body);
+      if (sent) {
+        await db
+          .update(pushSubscriptions)
+          .set({ lastNotifiedCurrentBadCategory: payload.category })
+          .where(eq(pushSubscriptions.id, sub.id));
+      }
+    })
+  );
+}
+
+/**
+ * Clears the "bad right now" dedup once current AQI drops back below the alerting
+ * threshold, so a later re-entry into a bad category fires a fresh alert.
+ */
+export async function clearCurrentAqiBadDedupState(): Promise<void> {
+  await db
+    .update(pushSubscriptions)
+    .set({ lastNotifiedCurrentBadCategory: null })
+    .where(eq(pushSubscriptions.aqiAlertsEnabled, true));
 }
 
 /**

@@ -5,11 +5,13 @@ import { computePressureDerivatives } from '../services/pressure.js';
 import { fetchAirQualityData } from '../services/airquality.js';
 import { fetchGeomagneticData } from '../services/geomagnetic.js';
 import { fetchPollenData } from '../services/tomorrow.js';
-import { findNextCategoryCrossing } from '../utils/aqiWindows.js';
+import { findNextCategoryCrossing, classifyAqiCategory, CATEGORY_ORDER } from '../utils/aqiWindows.js';
 import {
   isPushConfigured,
   sendAqiCrossingAlert,
   clearAqiCrossingDedupState,
+  sendCurrentAqiBadAlert,
+  clearCurrentAqiBadDedupState,
   sendMigraineRiskAlert,
   clearMigraineRiskDedupState,
 } from '../services/push.js';
@@ -104,6 +106,18 @@ async function checkMigraineRisk(userId: string, location: string): Promise<void
   }
 }
 
+// Only alert on a forecast crossing once it's this close -- a crossing found further
+// out is real but not yet actionable, and pushing for it immediately (a 72h scan
+// used to fire as soon as ANY future crossing was found) is exactly what produced
+// alerts landing at odd hours for events well over half a day away. Each 30-min poll
+// re-evaluates, so as a distant crossing gets closer it naturally enters this window
+// and fires once -- nothing is lost, it's just not pushed before it's relevant.
+const AQI_ALERT_LOOKAHEAD_MS = 3 * 60 * 60 * 1000;
+
+// Threshold for "bad right now" -- matches the app's own "safe to go outside" cutoff
+// (AQI_CONFIG / the aqi-forecast endpoint's default threshold of 100).
+const CURRENT_BAD_THRESHOLD_CATEGORY_IDX = CATEGORY_ORDER.indexOf('Unhealthy for Sensitive Groups');
+
 /**
  * Runs on every poll cycle (not just when the frontend happens to be open) so a
  * worsening AQI forecast reaches you even if the app isn't sitting open in a tab --
@@ -133,10 +147,23 @@ async function checkAqiCategoryCrossing(location: string): Promise<void> {
 
     const crossing = findNextCategoryCrossing(currentPoint.usAqi, futurePoints, now);
 
-    if (crossing) {
+    if (crossing && crossing.at.getTime() - now.getTime() <= AQI_ALERT_LOOKAHEAD_MS) {
       await sendAqiCrossingAlert({ toCategory: crossing.toCategory, usAqi: crossing.usAqi, at: crossing.at.toISOString() });
-    } else {
+    } else if (!crossing) {
       await clearAqiCrossingDedupState();
+    }
+    // else: crossing found but still outside the lookahead window -- leave dedup
+    // state alone, it'll be evaluated again next poll as it gets closer.
+
+    // "Bad right now" is evaluated independently of the forecast crossing above --
+    // it can fire even if the crossing alert already covered this same worsening,
+    // and it's the one that catches "AQI is bad and the forecast heads-up already
+    // fired hours ago" or "AQI worsened faster than the forecast predicted."
+    const currentCategory = classifyAqiCategory(currentPoint.usAqi);
+    if (CATEGORY_ORDER.indexOf(currentCategory) >= CURRENT_BAD_THRESHOLD_CATEGORY_IDX) {
+      await sendCurrentAqiBadAlert({ category: currentCategory, usAqi: currentPoint.usAqi });
+    } else {
+      await clearCurrentAqiBadDedupState();
     }
   } catch (error) {
     logger.error({ service: 'push' }, `AQI category-crossing check failed: ${error}`);
