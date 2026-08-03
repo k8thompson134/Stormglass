@@ -12,11 +12,12 @@ import {
   ComposedChart,
 } from 'recharts';
 import { fetchAQIForecast, type AQIForecast, type AQIForecastPoint } from '../services/api';
-import { SEVERITY_THEME, type EnvSeverity } from '../utils/severity';
+import { SEVERITY_THEME } from '../utils/severity';
 import {
   classifyAqiCategory,
   AQI_CATEGORY_THEME,
   AQI_SENSITIVITY_OPTIONS,
+  CATEGORY_GUIDANCE,
   type AqiCategory,
   type AqiSensitivity,
 } from '../utils/aqiCategory';
@@ -27,17 +28,6 @@ const TIME_RANGES = [
   { label: '48h', value: 48 },
   { label: '7d', value: 168 },
 ];
-
-// Collapses the 6 EPA categories onto the 4-tier EnvSeverity scale shared with
-// PressureChart/CurrentConditions for the chart's line/reference-line coloring.
-// Full 6-tier detail is still shown via the category name itself (tooltip, banners).
-function classifyAqi(usAqi: number): EnvSeverity {
-  const category = classifyAqiCategory(usAqi);
-  if (category === 'Very Unhealthy' || category === 'Hazardous') return 'severe';
-  if (category === 'Unhealthy') return 'high';
-  if (category === 'Unhealthy for Sensitive Groups') return 'moderate';
-  return 'low';
-}
 
 // The AQI value at the floor of each category, used to draw a reference line at
 // every EPA category boundary rather than just the 3 boundaries EnvSeverity has room
@@ -125,57 +115,83 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
   );
 }
 
-function CategoryCrossingBanner({ forecast }: { forecast: AQIForecast }) {
+// Single outlook banner covering both "am I safe" (threshold) and "what's the next
+// category crossing" (EPA boundary) -- these used to be two separate banners that
+// could both fire for the exact same event (e.g. a crossing into Moderate that also
+// happens to be what ends your "Good only" safe window), reading as saying the same
+// thing twice. Now they only appear separately when they're genuinely different
+// facts (a crossing that doesn't affect your chosen safe threshold).
+function AqiOutlookBanner({ forecast, currentAqi }: { forecast: AQIForecast; currentAqi: number | null }) {
   const crossing = forecast.categoryCrossing;
-  if (!crossing) return null;
-
-  const severity = classifyAqi(crossing.usAqi);
-  const theme = severity === 'severe'
-    ? { border: 'border-red-500/30', bg: 'bg-red-500/10', text: 'text-red-300', sub: 'text-red-300/70' }
-    : { border: 'border-orange-500/30', bg: 'bg-orange-500/10', text: 'text-orange-300', sub: 'text-orange-300/70' };
-
-  return (
-    <div className={`rounded-xl border ${theme.border} ${theme.bg} px-4 py-3 mb-4`}>
-      <p className={`${theme.text} text-[13px] font-semibold`}>
-        Heads up — crosses into {crossing.toCategory} around {formatDayTime(crossing.at)}
-      </p>
-      <p className={`${theme.sub} text-[11px] mt-0.5`}>
-        Forecast AQI reaches {crossing.usAqi} then. Worth prepping (windows, filtration) before it arrives.
-      </p>
-    </div>
-  );
-}
-
-function SafeWindowCallout({ forecast }: { forecast: AQIForecast }) {
   const { nextSafeWindow: next, threshold } = forecast;
   const ceilingCategory = classifyAqiCategory(threshold);
+  const startsNow = next?.isCurrent ?? false;
+  const currentCategory = currentAqi != null ? classifyAqiCategory(currentAqi) : null;
 
-  if (!next) {
+  const guidanceFor = (category: AqiCategory): string =>
+    CATEGORY_GUIDANCE[category] ?? 'Close windows and check your filtration before it arrives.';
+
+  // Currently safe, and the crossing IS what ends the safe window -- same event,
+  // said once instead of twice.
+  if (startsNow && next && crossing && crossing.usAqi > threshold) {
     return (
       <div className="rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-3 mb-4">
-        <p className="text-orange-300 text-[13px] font-semibold">Not expected to drop to {ceilingCategory} or better in the next 72h</p>
+        <p className="text-orange-300 text-[13px] font-semibold">
+          Air quality worsens to {crossing.toCategory} around {formatDayTime(crossing.at)}
+        </p>
         <p className="text-orange-300/70 text-[11px] mt-0.5">
-          The forecast stays above AQI {threshold} ({ceilingCategory}'s ceiling) for the full 3-day outlook.
+          Safe until then (AQI {crossing.usAqi}). {guidanceFor(crossing.toCategory)}
         </p>
       </div>
     );
   }
 
-  const startsNow = next.isCurrent;
-  const durationLabel = next.durationHours >= 24
-    ? `${(next.durationHours / 24).toFixed(1)}d`
-    : `${Math.round(next.durationHours)}h`;
+  // Currently safe, and any crossing that exists doesn't breach the chosen
+  // threshold -- a genuinely separate, lower-stakes fact, shown as a quieter note.
+  if (startsNow && next) {
+    const durationLabel = next.durationHours >= 24
+      ? `${(next.durationHours / 24).toFixed(1)}d`
+      : `${Math.round(next.durationHours)}h`;
+    return (
+      <>
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 mb-4">
+          <p className="text-emerald-300 text-[13px] font-semibold">
+            Currently {ceilingCategory} or better — expected to hold through {formatDayTime(next.end)}
+          </p>
+          <p className="text-emerald-300/70 text-[11px] mt-0.5">
+            {durationLabel} at or below AQI {threshold} · avg {next.avgAqi}
+            {next.maxAqi > threshold && ` (brief spike to ${next.maxAqi} included)`}
+          </p>
+        </div>
+        {crossing && (
+          <div className="rounded-xl border border-gray-600/30 bg-gray-500/5 px-4 py-3 mb-4">
+            <p className="text-gray-400 text-[12px]">
+              Crosses into {crossing.toCategory} around {formatDayTime(crossing.at)}, but that stays within your safe threshold.
+            </p>
+          </div>
+        )}
+      </>
+    );
+  }
 
+  // Currently unsafe (no active safe window). Folds "does it get worse first" and
+  // "when does it recover" into one banner instead of two, since both describe the
+  // same ongoing unsafe stretch.
+  const worsensFurther = crossing != null;
   return (
-    <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 mb-4">
-      <p className="text-emerald-300 text-[13px] font-semibold">
-        {startsNow
-          ? <>Currently {ceilingCategory} or better — expected to hold through {formatDayTime(next.end)}</>
-          : <>Next stretch at {ceilingCategory} or better: {formatDayTime(next.start)} – {formatDayTime(next.end)}</>}
+    <div className="rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-3 mb-4">
+      <p className="text-orange-300 text-[13px] font-semibold">
+        {worsensFurther && currentCategory
+          ? <>Already {currentCategory} — peaks at {crossing.toCategory} around {formatDayTime(crossing.at)}</>
+          : next
+            ? <>Next stretch at {ceilingCategory} or better: {formatDayTime(next.start)} – {formatDayTime(next.end)}</>
+            : <>Not expected to drop to {ceilingCategory} or better in the next 72h</>}
       </p>
-      <p className="text-emerald-300/70 text-[11px] mt-0.5">
-        {durationLabel} at or below AQI {threshold} · avg {next.avgAqi}
-        {next.maxAqi > threshold && ` (brief spike to ${next.maxAqi} included)`}
+      <p className="text-orange-300/70 text-[11px] mt-0.5">
+        {worsensFurther && <>Forecast AQI reaches {crossing.usAqi} then. {guidanceFor(crossing.toCategory)} </>}
+        {next
+          ? <>Recovers to {ceilingCategory} or better by {formatDayTime(next.start)}.</>
+          : <>The forecast stays above AQI {threshold} ({ceilingCategory}'s ceiling) for the full 3-day outlook.</>}
       </p>
     </div>
   );
@@ -347,8 +363,7 @@ export default function AQIForecastChart({ sensitivity }: Props) {
         </div>
       </div>
 
-      <CategoryCrossingBanner forecast={forecast} />
-      <SafeWindowCallout forecast={forecast} />
+      <AqiOutlookBanner forecast={forecast} currentAqi={nowPoint?.usAqi ?? null} />
 
       {/* Data summary bar */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 text-[11px] font-mono text-gray-400">

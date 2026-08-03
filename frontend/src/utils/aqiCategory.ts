@@ -76,6 +76,17 @@ export const AQI_CATEGORY_THEME: Record<AqiCategory, {
   'Hazardous': { shortLabel: 'Hazardous', text: 'text-rose-200', bg: 'bg-[#7e0023]/30', border: 'border-[#7e0023]/60', dot: '#7e0023' },
 };
 
+// Short, category-specific action rather than a generic "close your windows" for
+// every severity. Mirrors backend/src/services/push.ts's CATEGORY_GUIDANCE exactly,
+// so the push notification and the in-app banner never say different things about
+// the same category.
+export const CATEGORY_GUIDANCE: Partial<Record<AqiCategory, string>> = {
+  'Unhealthy for Sensitive Groups': "If you're sensitive to air quality, limit prolonged outdoor exertion.",
+  'Unhealthy': 'Limit prolonged outdoor exertion.',
+  'Very Unhealthy': 'Avoid outdoor exertion.',
+  'Hazardous': 'Stay indoors and avoid outdoor exertion entirely.',
+};
+
 // A stricter type than AqiCategory -- only the 3 categories a person can actually
 // choose as their "safe" ceiling (never Unhealthy/Very Unhealthy/Hazardous).
 export type AqiSensitivity = 'Good' | 'Moderate' | 'Unhealthy for Sensitive Groups';
