@@ -131,15 +131,24 @@ function AqiOutlookBanner({ forecast, currentAqi }: { forecast: AQIForecast; cur
   const guidanceFor = (category: AqiCategory): string =>
     CATEGORY_GUIDANCE[category] ?? 'Close windows and check your filtration before it arrives.';
 
+  // Colors by the actual EPA category involved (not a flat orange for every
+  // severity) -- a crossing into Hazardous should read as far more urgent than one
+  // into Moderate, which a single hardcoded color can't convey.
+  const themeFor = (category: AqiCategory) => {
+    const theme = AQI_CATEGORY_THEME[category];
+    return { border: theme.border, bg: theme.bg, text: theme.text, sub: theme.subText };
+  };
+
   // Currently safe, and the crossing IS what ends the safe window -- same event,
   // said once instead of twice.
   if (startsNow && next && crossing && crossing.usAqi > threshold) {
+    const theme = themeFor(crossing.toCategory);
     return (
-      <div className="rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-3 mb-4">
-        <p className="text-orange-300 text-[13px] font-semibold">
+      <div className={`rounded-xl border ${theme.border} ${theme.bg} px-4 py-3 mb-4`}>
+        <p className={`${theme.text} text-[13px] font-semibold`}>
           Air quality worsens to {crossing.toCategory} around {formatDayTime(crossing.at)}
         </p>
-        <p className="text-orange-300/70 text-[11px] mt-0.5">
+        <p className={`${theme.sub} text-[11px] mt-0.5`}>
           Safe until then (AQI {crossing.usAqi}). {guidanceFor(crossing.toCategory)}
         </p>
       </div>
@@ -178,16 +187,21 @@ function AqiOutlookBanner({ forecast, currentAqi }: { forecast: AQIForecast; cur
   // "when does it recover" into one banner instead of two, since both describe the
   // same ongoing unsafe stretch.
   const worsensFurther = crossing != null;
+  // Colors by the peak of the ongoing unsafe stretch (the crossing's target category
+  // if it worsens further, otherwise wherever it is right now) -- same reasoning as
+  // the safe-branch coloring above.
+  const peakCategory = worsensFurther ? crossing.toCategory : (currentCategory ?? ceilingCategory);
+  const unsafeTheme = themeFor(peakCategory);
   return (
-    <div className="rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-3 mb-4">
-      <p className="text-orange-300 text-[13px] font-semibold">
+    <div className={`rounded-xl border ${unsafeTheme.border} ${unsafeTheme.bg} px-4 py-3 mb-4`}>
+      <p className={`${unsafeTheme.text} text-[13px] font-semibold`}>
         {worsensFurther && currentCategory
           ? <>Already {currentCategory} — peaks at {crossing.toCategory} around {formatDayTime(crossing.at)}</>
           : next
             ? <>Next stretch at {ceilingCategory} or better: {formatDayTime(next.start)} – {formatDayTime(next.end)}</>
             : <>Not expected to drop to {ceilingCategory} or better in the next 72h</>}
       </p>
-      <p className="text-orange-300/70 text-[11px] mt-0.5">
+      <p className={`${unsafeTheme.sub} text-[11px] mt-0.5`}>
         {worsensFurther && <>Forecast AQI reaches {crossing.usAqi} then. {guidanceFor(crossing.toCategory)} </>}
         {next
           ? <>Recovers to {ceilingCategory} or better by {formatDayTime(next.start)}.</>

@@ -72,9 +72,12 @@ export async function pushRoutes(app: FastifyInstance): Promise<void> {
     // Deliberately NOT awaited -- sendWelcomeNotification has a built-in delay
     // (subscriptions need a moment to settle with the push service), and blocking
     // this response on that would make the Settings toggle look stuck for seconds.
-    // Errors are logged inside sendToSubscription; nothing here needs to react to
-    // failure since setup itself already succeeded regardless.
-    void sendWelcomeNotification({ id: subscriptionId, endpoint, p256dh: keys.p256dh, auth: keys.auth });
+    // sendWelcomeNotification catches its own errors and never rejects; the .catch
+    // here is a second line of defense so a fire-and-forget call can never become
+    // an unhandled rejection (which would crash the whole process) even if that
+    // internal guarantee is ever weakened by a future edit.
+    void sendWelcomeNotification({ id: subscriptionId, endpoint, p256dh: keys.p256dh, auth: keys.auth })
+      .catch(err => request.log.error({ err }, 'Unexpected error sending welcome push'));
 
     return reply.status(201).send({ ok: true });
   });

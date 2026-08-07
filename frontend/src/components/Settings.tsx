@@ -45,6 +45,7 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
     const [logOpen, setLogOpen] = useState(false);
     const [logEntries, setLogEntries] = useState<PushNotificationLogEntry[] | null>(null);
     const [logLoading, setLogLoading] = useState(false);
+    const [logError, setLogError] = useState(false);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const latestQueryRef = useRef('');
     const modalRef = useRef<HTMLDivElement>(null);
@@ -77,8 +78,15 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
         setLogOpen(next);
         if (next && logEntries === null) {
             setLogLoading(true);
+            setLogError(false);
             try {
                 setLogEntries(await getNotificationLog());
+            } catch {
+                // Distinct from "no alerts yet" (an empty array) -- a failed fetch (e.g.
+                // a stale client-side push subscription the server already deleted)
+                // must say so rather than rendering nothing, indistinguishable from
+                // "hasn't loaded" or "button not clicked."
+                setLogError(true);
             } finally {
                 setLogLoading(false);
             }
@@ -86,11 +94,12 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
     };
 
     // Reset so reopening the modal later fetches fresh, rather than showing a stale
-    // log from earlier in the session.
+    // log (or a stale error) from earlier in the session.
     useEffect(() => {
         if (!open) {
             setLogOpen(false);
             setLogEntries(null);
+            setLogError(false);
         }
     }, [open]);
 
@@ -550,10 +559,13 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                                                 {logLoading && (
                                                     <p className="text-[11px] text-gray-500">Loading…</p>
                                                 )}
-                                                {!logLoading && logEntries !== null && logEntries.length === 0 && (
+                                                {!logLoading && logError && (
+                                                    <p className="text-[11px] text-amber-300">Couldn't load notification history — try again.</p>
+                                                )}
+                                                {!logLoading && !logError && logEntries !== null && logEntries.length === 0 && (
                                                     <p className="text-[11px] text-gray-500">No alerts have been triggered yet.</p>
                                                 )}
-                                                {!logLoading && logEntries?.map((entry, i) => (
+                                                {!logLoading && !logError && logEntries?.map((entry, i) => (
                                                     <div key={i} className="text-[11px] border-b border-[#1e2d45] last:border-0 pb-2 last:pb-0">
                                                         <div className="flex items-center justify-between gap-2">
                                                             <span className="text-gray-300">{typeLabel[entry.type]}</span>

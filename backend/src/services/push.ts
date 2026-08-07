@@ -1,5 +1,5 @@
 import webpush from 'web-push';
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, type SQL } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { pushSubscriptions, pushNotificationLog } from '../db/schema.js';
 import { env } from '../env.js';
@@ -8,6 +8,10 @@ import { logger } from '../logger.js';
 type NotificationType = 'aqi' | 'aqi_current' | 'migraine' | 'welcome';
 type NotificationOutcome = 'sent' | 'suppressed_dedup' | 'delivery_failed';
 
+// A failure to WRITE the log entry must never take down the send path that
+// triggered it (or, for the welcome push's un-awaited fire-and-forget call,
+// crash the process via an unhandled rejection) -- logging is a side-channel,
+// not something the alert's success should depend on.
 async function logDecision(
   subscriptionId: string,
   type: NotificationType,
@@ -16,7 +20,11 @@ async function logDecision(
   body: string,
   eventAt?: Date
 ): Promise<void> {
-  await db.insert(pushNotificationLog).values({ subscriptionId, type, outcome, title, body, eventAt: eventAt ?? null });
+  try {
+    await db.insert(pushNotificationLog).values({ subscriptionId, type, outcome, title, body, eventAt: eventAt ?? null });
+  } catch (err) {
+    logger.error({ service: 'push', err, subscriptionId }, 'Failed to write notification log entry');
+  }
 }
 
 const vapidConfigured = !!(env.VAPID_PUBLIC_KEY && env.VAPID_PRIVATE_KEY);
@@ -49,6 +57,10 @@ export interface CurrentAqiBadPayload {
 
 // Short, category-specific action rather than a generic "close your windows" for
 // every severity -- what you'd actually do differs a lot between USG and Hazardous.
+// Kept word-for-word identical (modulo the capitalization/punctuation each call site
+// needs) to frontend/src/utils/aqiCategory.ts's CATEGORY_GUIDANCE -- verified in sync
+// by backend/src/services/push.test.ts, which fails if the two ever say different
+// things.
 const CATEGORY_GUIDANCE: Record<string, string> = {
   'Unhealthy for Sensitive Groups': 'if you\'re sensitive to air quality, limit prolonged outdoor exertion',
   'Unhealthy': 'limit prolonged outdoor exertion',
@@ -106,43 +118,81 @@ async function sendToSubscription(sub: SubscriptionRow, payload: NotificationPay
   }
 }
 
+type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
+
+interface DispatchAlertConfig {
+  type: NotificationType;
+  subsWhere: SQL;
+  title: string;
+  body: string;
+  tag: string;
+  eventAt?: Date;
+  dedupKey: string;
+  getLastNotified: (sub: PushSubscriptionRow) => string | null;
+  isDuplicate: (lastNotified: string | null, dedupKey: string) => boolean;
+  buildDedupUpdate: (dedupKey: string) => Partial<typeof pushSubscriptions.$inferInsert>;
+}
+
 /**
- * Sends the AQI category-crossing alert to every subscription opted into it.
+ * Shared fetch/dedup/send/log/update pipeline behind every alert type (AQI
+ * category-crossing, AQI-bad-right-now, migraine risk) -- these three used to be
+ * near-identical hand-copied functions; a bug fix to the pattern (e.g. this file's
+ * fix for unhandled logDecision failures) previously had to be applied three times
+ * by hand. New alert types register by calling this with their own dedup logic
+ * instead of copy-pasting the loop.
  */
-export async function sendAqiCrossingAlert(payload: AqiAlertPayload): Promise<void> {
+async function dispatchAlert(config: DispatchAlertConfig): Promise<void> {
   if (!vapidConfigured) return;
 
-  const subs = await db
-    .select()
-    .from(pushSubscriptions)
-    .where(eq(pushSubscriptions.aqiAlertsEnabled, true));
-
-  const guidance = CATEGORY_GUIDANCE[payload.toCategory];
-  const body = `Forecast crosses into ${payload.toCategory} around ${new Date(payload.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} (AQI ${payload.usAqi})${guidance ? ` -- ${guidance}` : ''}`;
-
-  const title = 'Air quality worsening soon';
-  const eventAt = new Date(payload.at);
+  const subs = await db.select().from(pushSubscriptions).where(config.subsWhere);
 
   await Promise.all(
     subs.map(async (sub) => {
-      // Dedup: only resend once the crossing resolves to a DIFFERENT category than
-      // what this device was last notified about -- see schema.ts's comment on
-      // lastNotifiedCategory for why this lives per-subscription.
-      if (sub.lastNotifiedCategory === payload.toCategory) {
-        await logDecision(sub.id, 'aqi', 'suppressed_dedup', title, body, eventAt);
+      const lastNotified = config.getLastNotified(sub);
+      if (config.isDuplicate(lastNotified, config.dedupKey)) {
+        await logDecision(sub.id, config.type, 'suppressed_dedup', config.title, config.body, config.eventAt);
         return;
       }
 
-      const sent = await sendToSubscription(sub, { title, body, tag: 'aqi-category-crossing', url: '/' });
-      await logDecision(sub.id, 'aqi', sent ? 'sent' : 'delivery_failed', title, body, eventAt);
+      const sent = await sendToSubscription(sub, { title: config.title, body: config.body, tag: config.tag, url: '/' });
+      await logDecision(sub.id, config.type, sent ? 'sent' : 'delivery_failed', config.title, config.body, config.eventAt);
       if (sent) {
         await db
           .update(pushSubscriptions)
-          .set({ lastNotifiedCategory: payload.toCategory })
+          .set(config.buildDedupUpdate(config.dedupKey))
           .where(eq(pushSubscriptions.id, sub.id));
       }
     })
   );
+}
+
+/**
+ * Sends the AQI category-crossing alert to every subscription opted into it.
+ *
+ * Dedup key is `category::date` (not just category) -- a plain category-only key
+ * would silently suppress a genuinely new, later crossing into the same category if
+ * the forecast never produced a "no crossing" cycle in between (the lookahead-window
+ * gate in weather-poll.ts deliberately leaves dedup state untouched while a crossing
+ * is real but not yet actionable, so two distinct crossings on different days could
+ * otherwise resolve to the same stored value and the second would never fire).
+ */
+export async function sendAqiCrossingAlert(payload: AqiAlertPayload): Promise<void> {
+  const guidance = CATEGORY_GUIDANCE[payload.toCategory];
+  const body = `Forecast crosses into ${payload.toCategory} around ${new Date(payload.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} (AQI ${payload.usAqi})${guidance ? ` -- ${guidance}` : ''}`;
+  const dedupKey = `${payload.toCategory}::${payload.at.slice(0, 10)}`;
+
+  await dispatchAlert({
+    type: 'aqi',
+    subsWhere: eq(pushSubscriptions.aqiAlertsEnabled, true),
+    title: 'Air quality worsening soon',
+    body,
+    tag: 'aqi-category-crossing',
+    eventAt: new Date(payload.at),
+    dedupKey,
+    getLastNotified: sub => sub.lastNotifiedCategory,
+    isDuplicate: (last, key) => last === key,
+    buildDedupUpdate: key => ({ lastNotifiedCategory: key }),
+  });
 }
 
 /**
@@ -154,34 +204,20 @@ export async function sendAqiCrossingAlert(payload: AqiAlertPayload): Promise<vo
  * happening right now rather than a forecast made hours ago.
  */
 export async function sendCurrentAqiBadAlert(payload: CurrentAqiBadPayload): Promise<void> {
-  if (!vapidConfigured) return;
-
-  const subs = await db
-    .select()
-    .from(pushSubscriptions)
-    .where(eq(pushSubscriptions.aqiAlertsEnabled, true));
-
   const guidance = CATEGORY_GUIDANCE[payload.category];
   const body = `Air quality is currently ${payload.category} (AQI ${payload.usAqi})${guidance ? ` -- ${guidance}` : ''}`;
-  const title = 'Air quality is bad right now';
 
-  await Promise.all(
-    subs.map(async (sub) => {
-      if (sub.lastNotifiedCurrentBadCategory === payload.category) {
-        await logDecision(sub.id, 'aqi_current', 'suppressed_dedup', title, body);
-        return;
-      }
-
-      const sent = await sendToSubscription(sub, { title, body, tag: 'aqi-current-bad', url: '/' });
-      await logDecision(sub.id, 'aqi_current', sent ? 'sent' : 'delivery_failed', title, body);
-      if (sent) {
-        await db
-          .update(pushSubscriptions)
-          .set({ lastNotifiedCurrentBadCategory: payload.category })
-          .where(eq(pushSubscriptions.id, sub.id));
-      }
-    })
-  );
+  await dispatchAlert({
+    type: 'aqi_current',
+    subsWhere: eq(pushSubscriptions.aqiAlertsEnabled, true),
+    title: 'Air quality is bad right now',
+    body,
+    tag: 'aqi-current-bad',
+    dedupKey: payload.category,
+    getLastNotified: sub => sub.lastNotifiedCurrentBadCategory,
+    isDuplicate: (last, key) => last === key,
+    buildDedupUpdate: key => ({ lastNotifiedCurrentBadCategory: key }),
+  });
 }
 
 /**
@@ -203,38 +239,24 @@ export async function clearCurrentAqiBadDedupState(): Promise<void> {
  * (an improvement) from re-firing the day risk drifts back up to high again.
  */
 export async function sendMigraineRiskAlert(payload: MigraineRiskPayload): Promise<void> {
-  if (!vapidConfigured) return;
-
-  const subs = await db
-    .select()
-    .from(pushSubscriptions)
-    .where(eq(pushSubscriptions.migraineAlertsEnabled, true));
-
   const body = payload.riskLevel === 'severe'
     ? `Migraine risk is severe right now (pressure change ${payload.delta1h.toFixed(2)} hPa/hour) -- consider using rescue treatment early`
     : `Migraine risk is high right now (pressure change ${payload.delta1h.toFixed(2)} hPa/hour)`;
 
-  const title = 'Migraine risk elevated';
-
-  await Promise.all(
-    subs.map(async (sub) => {
-      const lastLevel = sub.lastNotifiedMigraineRisk;
-      const lastOrder = lastLevel ? (RISK_ORDER[lastLevel] ?? -1) : -1;
-      if (RISK_ORDER[payload.riskLevel] <= lastOrder) {
-        await logDecision(sub.id, 'migraine', 'suppressed_dedup', title, body);
-        return;
-      }
-
-      const sent = await sendToSubscription(sub, { title, body, tag: 'migraine-risk', url: '/' });
-      await logDecision(sub.id, 'migraine', sent ? 'sent' : 'delivery_failed', title, body);
-      if (sent) {
-        await db
-          .update(pushSubscriptions)
-          .set({ lastNotifiedMigraineRisk: payload.riskLevel })
-          .where(eq(pushSubscriptions.id, sub.id));
-      }
-    })
-  );
+  await dispatchAlert({
+    type: 'migraine',
+    subsWhere: eq(pushSubscriptions.migraineAlertsEnabled, true),
+    title: 'Migraine risk elevated',
+    body,
+    tag: 'migraine-risk',
+    dedupKey: payload.riskLevel,
+    getLastNotified: sub => sub.lastNotifiedMigraineRisk,
+    isDuplicate: (last, key) => {
+      const lastOrder = last ? (RISK_ORDER[last] ?? -1) : -1;
+      return RISK_ORDER[key] <= lastOrder;
+    },
+    buildDedupUpdate: key => ({ lastNotifiedMigraineRisk: key }),
+  });
 }
 
 /**
@@ -265,15 +287,27 @@ function delay(ms: number): Promise<void> {
  * both a friendly "you're all set up" moment and a real end-to-end test of the exact
  * delivery path the AQI alert will later use, rather than the user's first real
  * confirmation being a silent no-op days later when AQI actually crosses a category.
+ *
+ * Called fire-and-forget (`void sendWelcomeNotification(...)`) from the subscribe
+ * route, so this function must never let an error escape as a rejected promise --
+ * with nothing awaiting it, an uncaught rejection here would become an unhandled
+ * rejection and, with no process-level handler registered, crash the whole server.
+ * `sendToSubscription` already contains its own failures; `logDecision` now does
+ * too (see above) -- this try/catch is the last line of defense for anything else.
  */
 export async function sendWelcomeNotification(sub: SubscriptionRow): Promise<boolean> {
   if (!vapidConfigured) return false;
-  await delay(WELCOME_PUSH_DELAY_MS);
-  const title = "You're all set up!";
-  const body = "Stormglass will alert you here when air quality is forecast to worsen.";
-  const sent = await sendToSubscription(sub, { title, body, tag: 'push-welcome', url: '/' });
-  await logDecision(sub.id, 'welcome', sent ? 'sent' : 'delivery_failed', title, body);
-  return sent;
+  try {
+    await delay(WELCOME_PUSH_DELAY_MS);
+    const title = "You're all set up!";
+    const body = "Stormglass will alert you here when air quality is forecast to worsen.";
+    const sent = await sendToSubscription(sub, { title, body, tag: 'push-welcome', url: '/' });
+    await logDecision(sub.id, 'welcome', sent ? 'sent' : 'delivery_failed', title, body);
+    return sent;
+  } catch (err) {
+    logger.error({ service: 'push', err, subscriptionId: sub.id }, 'Welcome push failed');
+    return false;
+  }
 }
 
 export interface NotificationLogEntry {

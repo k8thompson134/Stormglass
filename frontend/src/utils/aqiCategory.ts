@@ -64,22 +64,26 @@ export function aqiScoreBump(usAqi: number | null | undefined): 0 | 1 | 2 {
 export const AQI_CATEGORY_THEME: Record<AqiCategory, {
   shortLabel: string;
   text: string;
+  subText: string; // dimmer variant of `text`, for detail/subtitle lines under a headline
   bg: string;
   border: string;
   dot: string; // hex, for chart fills/reference lines
 }> = {
-  'Good': { shortLabel: 'Good', text: 'text-emerald-300', bg: 'bg-emerald-500/20', border: 'border-emerald-500/35', dot: '#34d399' },
-  'Moderate': { shortLabel: 'Moderate', text: 'text-yellow-300', bg: 'bg-yellow-500/20', border: 'border-yellow-500/35', dot: '#eab308' },
-  'Unhealthy for Sensitive Groups': { shortLabel: 'Sensitive', text: 'text-orange-300', bg: 'bg-orange-500/20', border: 'border-orange-500/35', dot: '#f97316' },
-  'Unhealthy': { shortLabel: 'Unhealthy', text: 'text-red-300', bg: 'bg-red-500/20', border: 'border-red-500/35', dot: '#ef4444' },
-  'Very Unhealthy': { shortLabel: 'V. Unhealthy', text: 'text-purple-300', bg: 'bg-purple-500/20', border: 'border-purple-500/35', dot: '#a855f7' },
-  'Hazardous': { shortLabel: 'Hazardous', text: 'text-rose-200', bg: 'bg-[#7e0023]/30', border: 'border-[#7e0023]/60', dot: '#7e0023' },
+  'Good': { shortLabel: 'Good', text: 'text-emerald-300', subText: 'text-emerald-300/70', bg: 'bg-emerald-500/20', border: 'border-emerald-500/35', dot: '#34d399' },
+  'Moderate': { shortLabel: 'Moderate', text: 'text-yellow-300', subText: 'text-yellow-300/70', bg: 'bg-yellow-500/20', border: 'border-yellow-500/35', dot: '#eab308' },
+  'Unhealthy for Sensitive Groups': { shortLabel: 'Sensitive', text: 'text-orange-300', subText: 'text-orange-300/70', bg: 'bg-orange-500/20', border: 'border-orange-500/35', dot: '#f97316' },
+  'Unhealthy': { shortLabel: 'Unhealthy', text: 'text-red-300', subText: 'text-red-300/70', bg: 'bg-red-500/20', border: 'border-red-500/35', dot: '#ef4444' },
+  'Very Unhealthy': { shortLabel: 'V. Unhealthy', text: 'text-purple-300', subText: 'text-purple-300/70', bg: 'bg-purple-500/20', border: 'border-purple-500/35', dot: '#a855f7' },
+  'Hazardous': { shortLabel: 'Hazardous', text: 'text-rose-200', subText: 'text-rose-200/70', bg: 'bg-[#7e0023]/30', border: 'border-[#7e0023]/60', dot: '#7e0023' },
 };
 
 // Short, category-specific action rather than a generic "close your windows" for
-// every severity. Mirrors backend/src/services/push.ts's CATEGORY_GUIDANCE exactly,
-// so the push notification and the in-app banner never say different things about
-// the same category.
+// every severity. Same underlying wording as backend/src/services/push.ts's
+// CATEGORY_GUIDANCE, capitalized and punctuated as a standalone sentence here since
+// this renders as its own paragraph (the backend's version stays lowercase/no-period
+// since it's embedded inline after "--" in a push notification body). The WORDING
+// must stay in sync even though the formatting intentionally doesn't --
+// backend/src/services/push.test.ts asserts this by normalizing both and comparing.
 export const CATEGORY_GUIDANCE: Partial<Record<AqiCategory, string>> = {
   'Unhealthy for Sensitive Groups': "If you're sensitive to air quality, limit prolonged outdoor exertion.",
   'Unhealthy': 'Limit prolonged outdoor exertion.',

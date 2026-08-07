@@ -51,11 +51,57 @@ async function runPoll(config: PollConfig): Promise<void> {
     logger.info({ service: 'geomagnetic-poll', inserted: geoInserted }, 'Fetched new Kp readings');
     logger.info({ service: 'pollen-poll', inserted: pollenInserted }, 'Fetched new pollen readings');
 
-    await checkAqiCategoryCrossing(location);
-    await checkMigraineRisk(userId, location);
+    // Fetched once and shared by both checks below (they both need "the current AQI
+    // reading"), then the checks themselves run in parallel -- they read independent
+    // tables (pushSubscriptions filtered by different flags, pressureDerivatives vs.
+    // airQualityData) and neither depends on the other's result.
+    const aqiWindow = await fetchAqiWindow(location);
+    await Promise.all([
+      checkAqiCategoryCrossing(location, aqiWindow),
+      checkMigraineRisk(userId, location, aqiWindow?.currentPoint.usAqi ?? null),
+    ]);
   } catch (error) {
     logger.error({ service: 'weather-poll', err: error }, 'Poll cycle failed');
   }
+}
+
+interface AqiPoint {
+  timestamp: Date;
+  usAqi: number;
+}
+
+interface AqiWindow {
+  now: Date;
+  currentPoint: AqiPoint;
+  futurePoints: AqiPoint[];
+}
+
+/**
+ * Fetches "the current AQI reading plus the forecast ahead of it" once per poll
+ * cycle -- both checkAqiCategoryCrossing (crossing detection) and checkMigraineRisk
+ * (feeds AQI into the risk calc) need the current reading, and used to each query
+ * airQualityData separately for it.
+ */
+async function fetchAqiWindow(location: string): Promise<AqiWindow | null> {
+  const now = new Date();
+  const since = new Date(now.getTime() - 60 * 60 * 1000); // 1h back, enough to find "current"
+  const until = new Date(now.getTime() + 72 * 60 * 60 * 1000);
+
+  const rows = await db
+    .select({ timestamp: airQualityData.timestamp, usAqi: airQualityData.usAqi })
+    .from(airQualityData)
+    .where(and(gte(airQualityData.timestamp, since), lte(airQualityData.timestamp, until), eq(airQualityData.location, location)))
+    .orderBy(airQualityData.timestamp)
+    .limit(200);
+
+  if (rows.length === 0) return null;
+
+  const points = rows.map(r => ({ timestamp: r.timestamp, usAqi: parseFloat(r.usAqi) }));
+  const pastPoints = points.filter(p => p.timestamp <= now);
+  const currentPoint = pastPoints[pastPoints.length - 1] ?? points[0];
+  const futurePoints = points.filter(p => p.timestamp > now);
+
+  return { now, currentPoint, futurePoints };
 }
 
 /**
@@ -63,7 +109,7 @@ async function runPoll(config: PollConfig): Promise<void> {
  * isn't open -- only alerts on high/severe (not moderate) since pressure risk
  * oscillates far more than AQI category and a lower threshold would cry wolf.
  */
-async function checkMigraineRisk(userId: string, location: string): Promise<void> {
+async function checkMigraineRisk(userId: string, location: string, currentAqi: number | null): Promise<void> {
   if (!isPushConfigured()) return;
 
   try {
@@ -80,15 +126,6 @@ async function checkMigraineRisk(userId: string, location: string): Promise<void
 
     if (!latestDerivative) return;
 
-    const now = new Date();
-    const [latestAqi] = await db
-      .select({ usAqi: airQualityData.usAqi })
-      .from(airQualityData)
-      .where(and(eq(airQualityData.location, location), lte(airQualityData.timestamp, now)))
-      .orderBy(desc(airQualityData.timestamp))
-      .limit(1);
-
-    const currentAqi = latestAqi ? parseFloat(latestAqi.usAqi) : null;
     const risk = getMigraineRisk(
       parseFloat(latestDerivative.delta1h),
       parseFloat(latestDerivative.delta3h),
@@ -123,28 +160,12 @@ const CURRENT_BAD_THRESHOLD_CATEGORY_IDX = CATEGORY_ORDER.indexOf('Unhealthy for
  * worsening AQI forecast reaches you even if the app isn't sitting open in a tab --
  * the whole point of push notifications over the in-app-only banner.
  */
-async function checkAqiCategoryCrossing(location: string): Promise<void> {
+async function checkAqiCategoryCrossing(location: string, aqiWindow: AqiWindow | null): Promise<void> {
   if (!isPushConfigured()) return;
+  if (!aqiWindow) return;
 
   try {
-    const now = new Date();
-    const since = new Date(now.getTime() - 60 * 60 * 1000); // 1h back, enough to find "current"
-    const until = new Date(now.getTime() + 72 * 60 * 60 * 1000);
-
-    const rows = await db
-      .select({ timestamp: airQualityData.timestamp, usAqi: airQualityData.usAqi })
-      .from(airQualityData)
-      .where(and(gte(airQualityData.timestamp, since), lte(airQualityData.timestamp, until), eq(airQualityData.location, location)))
-      .orderBy(airQualityData.timestamp)
-      .limit(200);
-
-    if (rows.length === 0) return;
-
-    const points = rows.map(r => ({ timestamp: r.timestamp, usAqi: parseFloat(r.usAqi) }));
-    const pastPoints = points.filter(p => p.timestamp <= now);
-    const currentPoint = pastPoints[pastPoints.length - 1] ?? points[0];
-    const futurePoints = points.filter(p => p.timestamp > now);
-
+    const { now, currentPoint, futurePoints } = aqiWindow;
     const crossing = findNextCategoryCrossing(currentPoint.usAqi, futurePoints, now);
 
     if (crossing && crossing.at.getTime() - now.getTime() <= AQI_ALERT_LOOKAHEAD_MS) {
@@ -153,7 +174,9 @@ async function checkAqiCategoryCrossing(location: string): Promise<void> {
       await clearAqiCrossingDedupState();
     }
     // else: crossing found but still outside the lookahead window -- leave dedup
-    // state alone, it'll be evaluated again next poll as it gets closer.
+    // state alone, it'll be evaluated again next poll as it gets closer. (Dedup
+    // itself is keyed on category+date, not category alone, so a later crossing
+    // into the same category on a different day still fires -- see push.ts.)
 
     // "Bad right now" is evaluated independently of the forecast crossing above --
     // it can fire even if the crossing alert already covered this same worsening,
