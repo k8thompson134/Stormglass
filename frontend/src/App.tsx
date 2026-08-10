@@ -21,6 +21,7 @@ import {
 } from './services/api';
 import type { HealthToggles } from './types/health';
 import { getStoredAqiSensitivity, setStoredAqiSensitivity, DEFAULT_AQI_SENSITIVITY, type AqiSensitivity } from './utils/aqiCategory';
+import { reconcilePushSubscription } from './utils/pushNotifications';
 
 function App() {
   const [current, setCurrent] = useState<CurrentWeather | null>(null);
@@ -122,6 +123,13 @@ function App() {
     const interval = setInterval(() => loadData(hours), 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [hours, loadData]);
+
+  // Repair a silently-dropped push subscription on every app load, so a user who
+  // opted into notifications keeps getting them without having to notice they
+  // stopped and re-enable manually in Settings.
+  useEffect(() => {
+    reconcilePushSubscription();
+  }, []);
 
   // Persist health toggles when they change
   useEffect(() => {

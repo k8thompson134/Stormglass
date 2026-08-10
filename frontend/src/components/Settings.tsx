@@ -11,6 +11,7 @@ import {
     getMigraineAlertsEnabled,
     toggleMigraineAlerts,
     getNotificationLog,
+    reconcilePushSubscription,
     type PushEnableResult,
 } from '../utils/pushNotifications';
 import type { PushNotificationLogEntry } from '../services/api';
@@ -56,9 +57,15 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
     // knowing, so check the real PushManager subscription each time the modal opens.
     useEffect(() => {
         if (!open) return;
-        isPushEnabled().then((enabled) => {
-            setPushEnabled(enabled);
-            if (enabled) getMigraineAlertsEnabled().then(setMigraineAlertsEnabledState);
+        // Try to repair a silently-dropped subscription before reading state, so
+        // opening Settings shows "on" (and actually restores the subscription)
+        // rather than surfacing a drop the user would otherwise have to notice and
+        // fix by hand.
+        reconcilePushSubscription().finally(() => {
+            isPushEnabled().then((enabled) => {
+                setPushEnabled(enabled);
+                if (enabled) getMigraineAlertsEnabled().then(setMigraineAlertsEnabledState);
+            });
         });
     }, [open]);
 

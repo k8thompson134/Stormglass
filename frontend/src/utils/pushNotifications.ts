@@ -12,6 +12,46 @@ export function isPushSupported(): boolean {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 }
 
+// The browser can silently drop a PushSubscription (Android background/battery
+// cleanup, Chrome update, site data reset) without telling the app -- the app then
+// finds itself with granted permission but no subscription, and previously that
+// meant push just stayed off until someone happened to open Settings and retoggle
+// it. These two flags record what the user actually asked for, independent of the
+// current (possibly-lost) subscription, so a startup reconcile can restore it
+// silently rather than requiring the user to notice and re-opt-in.
+const PUSH_INTENT_KEY = 'stormglass_push_intent';
+const MIGRAINE_INTENT_KEY = 'stormglass_migraine_intent';
+
+function setPushIntent(enabled: boolean): void {
+  try {
+    if (enabled) window.localStorage.setItem(PUSH_INTENT_KEY, '1');
+    else window.localStorage.removeItem(PUSH_INTENT_KEY);
+  } catch { /* ignore persistence errors */ }
+}
+
+function getPushIntent(): boolean {
+  try {
+    return window.localStorage.getItem(PUSH_INTENT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function setMigraineIntent(enabled: boolean): void {
+  try {
+    if (enabled) window.localStorage.setItem(MIGRAINE_INTENT_KEY, '1');
+    else window.localStorage.removeItem(MIGRAINE_INTENT_KEY);
+  } catch { /* ignore persistence errors */ }
+}
+
+function getMigraineIntent(): boolean {
+  try {
+    return window.localStorage.getItem(MIGRAINE_INTENT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 // The VAPID public key comes back from the server as URL-safe base64; PushManager
 // wants it as a raw Uint8Array.
 function urlBase64ToUint8Array(base64: string): Uint8Array {
@@ -55,6 +95,7 @@ export async function enablePushNotifications(): Promise<PushEnableResult> {
       });
     }
     await subscribeToPush(subscription.toJSON() as PushSubscriptionJSON);
+    setPushIntent(true);
     return { ok: true };
   } catch {
     return { ok: false, reason: 'error' };
@@ -62,6 +103,8 @@ export async function enablePushNotifications(): Promise<PushEnableResult> {
 }
 
 export async function disablePushNotifications(): Promise<void> {
+  setPushIntent(false);
+  setMigraineIntent(false);
   if (!isPushSupported()) return;
   const registration = await navigator.serviceWorker.ready;
   const subscription = await registration.pushManager.getSubscription();
@@ -101,7 +144,47 @@ export async function toggleMigraineAlerts(enabled: boolean): Promise<boolean> {
   const subscription = await registration.pushManager.getSubscription();
   if (!subscription) return false;
   await setMigraineAlertsEnabled(subscription.endpoint, enabled);
+  setMigraineIntent(enabled);
   return true;
+}
+
+/**
+ * Restores push notifications after the browser has silently dropped the
+ * subscription (permission still 'granted' but PushManager has nothing) -- run this
+ * on every app load. `subscribe()` itself doesn't need a user gesture (only
+ * `requestPermission()` does), so this can re-subscribe without prompting anyone.
+ * A fresh subscription gets a new endpoint, which server-side is a brand new row
+ * (`aqiAlertsEnabled` defaults true, `migraineAlertsEnabled` defaults false) -- the
+ * locally stored intent flags are what let this also restore the migraine opt-in
+ * instead of silently losing it.
+ *
+ * No-ops entirely if the user never opted in (no push intent stored) or permission
+ * isn't 'granted' -- this only repairs an existing opt-in, it never creates a new
+ * one, since that still requires the user-gesture-gated permission prompt.
+ */
+export async function reconcilePushSubscription(): Promise<void> {
+  if (!isPushSupported()) return;
+  if (!getPushIntent()) return;
+  if (Notification.permission !== 'granted') return;
+
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    let subscription = await registration.pushManager.getSubscription();
+    if (!subscription) {
+      const publicKey = await fetchPushPublicKey();
+      if (!publicKey) return;
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
+      });
+      await subscribeToPush(subscription.toJSON() as PushSubscriptionJSON);
+    }
+    if (getMigraineIntent()) {
+      await setMigraineAlertsEnabled(subscription.endpoint, true);
+    }
+  } catch {
+    // Best-effort -- next app load (or opening Settings) tries again.
+  }
 }
 
 export async function getNotificationLog(): Promise<PushNotificationLogEntry[]> {
