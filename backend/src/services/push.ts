@@ -48,11 +48,49 @@ export interface AqiAlertPayload {
   toCategory: string;
   usAqi: number;
   at: string;
+  clearAt: string | null;
 }
 
 export interface CurrentAqiBadPayload {
   category: string;
   usAqi: number;
+  clearAt: string | null;
+}
+
+function formatTime(d: Date): string {
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+// Category names read fine as headline nouns ("Unhealthy for Sensitive Groups") but
+// Title Case reads as shouting mid-sentence ("...for Sensitive Groups levels from
+// 4-9pm") -- none of EPA's category names contain proper nouns, so a full lowercase
+// is safe and reads as ordinary prose once embedded in a sentence.
+function lowerCategory(s: string): string {
+  return s.toLowerCase();
+}
+
+function isSameLocalDay(a: Date, b: Date): boolean {
+  return a.toDateString() === b.toDateString();
+}
+
+/**
+ * Builds the "from X to Y" / "starting X" clause shared by both AQI alert types --
+ * says a real window when the forecast shows the AQI dropping back down within the
+ * data already fetched, and falls back to an open-ended "at least into tomorrow's
+ * forecast" when it doesn't, rather than a start-only alert with no sense of how
+ * long the bad air is expected to last.
+ */
+function formatAqiWindow(start: Date, clearAt: string | null): string {
+  const startTime = formatTime(start);
+  if (!clearAt) {
+    return `starting ${startTime}, continuing at least into tomorrow's forecast`;
+  }
+  const end = new Date(clearAt);
+  const endTime = formatTime(end);
+  if (isSameLocalDay(start, end)) {
+    return `from ${startTime} to ${endTime}`;
+  }
+  return `from ${startTime} until ~${endTime} tomorrow`;
 }
 
 // Short, category-specific action rather than a generic "close your windows" for
@@ -178,7 +216,8 @@ async function dispatchAlert(config: DispatchAlertConfig): Promise<void> {
  */
 export async function sendAqiCrossingAlert(payload: AqiAlertPayload): Promise<void> {
   const guidance = CATEGORY_GUIDANCE[payload.toCategory];
-  const body = `Forecast crosses into ${payload.toCategory} around ${new Date(payload.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} (AQI ${payload.usAqi})${guidance ? ` -- ${guidance}` : ''}`;
+  const window = formatAqiWindow(new Date(payload.at), payload.clearAt);
+  const body = `${lowerCategory(payload.toCategory)} levels ${window} (AQI up to ${payload.usAqi})${guidance ? ` -- ${guidance}` : ''}`;
   const dedupKey = `${payload.toCategory}::${payload.at.slice(0, 10)}`;
 
   await dispatchAlert({
@@ -205,7 +244,11 @@ export async function sendAqiCrossingAlert(payload: AqiAlertPayload): Promise<vo
  */
 export async function sendCurrentAqiBadAlert(payload: CurrentAqiBadPayload): Promise<void> {
   const guidance = CATEGORY_GUIDANCE[payload.category];
-  const body = `Air quality is currently ${payload.category} (AQI ${payload.usAqi})${guidance ? ` -- ${guidance}` : ''}`;
+  // "Expected to ease by ~X" when the same-cycle forecast scan found a clear time;
+  // otherwise say nothing about duration rather than guess -- an unqualified "right
+  // now" reading is still accurate, just silent on how long it lasts.
+  const clearClause = payload.clearAt ? ` -- expected to ease by ~${formatTime(new Date(payload.clearAt))}` : '';
+  const body = `AQI ${payload.usAqi} right now (${lowerCategory(payload.category)})${clearClause}${guidance ? `. ${guidance.charAt(0).toUpperCase()}${guidance.slice(1)}.` : ''}`;
 
   await dispatchAlert({
     type: 'aqi_current',
@@ -239,14 +282,21 @@ export async function clearCurrentAqiBadDedupState(): Promise<void> {
  * (an improvement) from re-firing the day risk drifts back up to high again.
  */
 export async function sendMigraineRiskAlert(payload: MigraineRiskPayload): Promise<void> {
+  // Direction-aware -- both a fast drop and a fast rise are migraine triggers (see
+  // getMigraineRisk's Math.abs(delta)), so a fixed "dropping" would be wrong half
+  // the time. Matches the "falling"/"rising" wording healthLogic.ts already uses for
+  // this same signal elsewhere in the app.
+  const direction = payload.delta1h < 0 ? 'dropping' : 'rising';
+  const rate = Math.abs(payload.delta1h).toFixed(1);
+  const title = payload.riskLevel === 'severe' ? 'Migraine risk is severe right now' : 'Migraine risk is high right now';
   const body = payload.riskLevel === 'severe'
-    ? `Migraine risk is severe right now (pressure change ${payload.delta1h.toFixed(2)} hPa/hour) -- consider using rescue treatment early`
-    : `Migraine risk is high right now (pressure change ${payload.delta1h.toFixed(2)} hPa/hour)`;
+    ? `Pressure is ${direction} fast (${rate} hPa/hr) -- consider using rescue treatment early`
+    : `Pressure is ${direction} fast (${rate} hPa/hr) -- this pattern often triggers migraines, consider preventive care now`;
 
   await dispatchAlert({
     type: 'migraine',
     subsWhere: eq(pushSubscriptions.migraineAlertsEnabled, true),
-    title: 'Migraine risk elevated',
+    title,
     body,
     tag: 'migraine-risk',
     dedupKey: payload.riskLevel,

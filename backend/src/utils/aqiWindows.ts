@@ -172,6 +172,29 @@ export function aqiScoreBump(usAqi: number | null | undefined): 0 | 1 | 2 {
     return 0;
 }
 
+/**
+ * Finds the first future point where AQI drops back below `categoryIdxThreshold`
+ * (a CATEGORY_ORDER index) after `after` -- lets a "worsening" alert also say when
+ * it's expected to clear, not just when it starts. Returns null if nothing in the
+ * provided points ever drops back down (the alert then has to say "at least into
+ * tomorrow's forecast" rather than claim a specific end time it doesn't have).
+ */
+export function findCategoryClearTime(
+    points: AQIWindowPoint[],
+    after: Date,
+    categoryIdxThreshold: number
+): Date | null {
+    const sorted = [...points]
+        .filter(p => p.timestamp > after)
+        .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+    for (const point of sorted) {
+        const idx = CATEGORY_ORDER.indexOf(classifyAqiCategory(point.usAqi));
+        if (idx < categoryIdxThreshold) return point.timestamp;
+    }
+    return null;
+}
+
 export interface CategoryCrossing {
     fromCategory: AqiCategory;
     toCategory: AqiCategory;

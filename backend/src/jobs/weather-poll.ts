@@ -5,7 +5,7 @@ import { computePressureDerivatives } from '../services/pressure.js';
 import { fetchAirQualityData } from '../services/airquality.js';
 import { fetchGeomagneticData } from '../services/geomagnetic.js';
 import { fetchPollenData } from '../services/tomorrow.js';
-import { findNextCategoryCrossing, classifyAqiCategory, CATEGORY_ORDER } from '../utils/aqiWindows.js';
+import { findNextCategoryCrossing, findCategoryClearTime, classifyAqiCategory, CATEGORY_ORDER } from '../utils/aqiWindows.js';
 import {
   isPushConfigured,
   sendAqiCrossingAlert,
@@ -169,7 +169,18 @@ async function checkAqiCategoryCrossing(location: string, aqiWindow: AqiWindow |
     const crossing = findNextCategoryCrossing(currentPoint.usAqi, futurePoints, now);
 
     if (crossing && crossing.at.getTime() - now.getTime() <= AQI_ALERT_LOOKAHEAD_MS) {
-      await sendAqiCrossingAlert({ toCategory: crossing.toCategory, usAqi: crossing.usAqi, at: crossing.at.toISOString() });
+      // "When does it clear" -- scanned from the crossing point forward through the
+      // same futurePoints already fetched this cycle, so the alert can say "until
+      // ~9pm" instead of just "starting at 4pm" when the forecast actually shows an
+      // end to it within the lookahead window.
+      const toCategoryIdx = CATEGORY_ORDER.indexOf(crossing.toCategory);
+      const clearAt = findCategoryClearTime(futurePoints, crossing.at, toCategoryIdx);
+      await sendAqiCrossingAlert({
+        toCategory: crossing.toCategory,
+        usAqi: crossing.usAqi,
+        at: crossing.at.toISOString(),
+        clearAt: clearAt ? clearAt.toISOString() : null,
+      });
     } else if (!crossing) {
       await clearAqiCrossingDedupState();
     }
@@ -184,7 +195,12 @@ async function checkAqiCategoryCrossing(location: string, aqiWindow: AqiWindow |
     // fired hours ago" or "AQI worsened faster than the forecast predicted."
     const currentCategory = classifyAqiCategory(currentPoint.usAqi);
     if (CATEGORY_ORDER.indexOf(currentCategory) >= CURRENT_BAD_THRESHOLD_CATEGORY_IDX) {
-      await sendCurrentAqiBadAlert({ category: currentCategory, usAqi: currentPoint.usAqi });
+      const clearAt = findCategoryClearTime(futurePoints, now, CURRENT_BAD_THRESHOLD_CATEGORY_IDX);
+      await sendCurrentAqiBadAlert({
+        category: currentCategory,
+        usAqi: currentPoint.usAqi,
+        clearAt: clearAt ? clearAt.toISOString() : null,
+      });
     } else {
       await clearCurrentAqiBadDedupState();
     }
