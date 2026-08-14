@@ -15,9 +15,55 @@ interface UnsubscribeBody {
   endpoint: string;
 }
 
-interface MigraineAlertsBody {
+interface AlertToggleBody {
   endpoint: string;
   enabled: boolean;
+}
+
+type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
+
+/**
+ * Registers a GET (read opt-in state) + POST (toggle it) pair for one
+ * secondary/condition-specific alert type -- migraine, ME/CFS, POTS, and clean-air
+ * all follow this exact shape (separate opt-in from the main AQI toggle, cleared
+ * dedup state on enable so a currently-elevated condition can alert right away
+ * rather than waiting for the next level change). These four used to be
+ * hand-copied route pairs; a fix to the shape now only needs to happen once here.
+ */
+function registerAlertToggleRoutes(
+  app: FastifyInstance,
+  path: string,
+  readEnabled: (sub: PushSubscriptionRow) => boolean,
+  buildUpdate: (enabled: boolean) => Partial<typeof pushSubscriptions.$inferInsert>
+): void {
+  app.get<{ Querystring: { endpoint: string } }>(`/api/push/${path}`, async (request, reply) => {
+    const { endpoint } = request.query ?? {};
+    if (!endpoint) {
+      return reply.status(400).send({ error: 'endpoint is required' });
+    }
+
+    const [row] = await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint)).limit(1);
+    return { enabled: row ? readEnabled(row) : false };
+  });
+
+  app.post<{ Body: AlertToggleBody }>(`/api/push/${path}`, async (request, reply) => {
+    const { endpoint, enabled } = request.body ?? {};
+    if (!endpoint || typeof enabled !== 'boolean') {
+      return reply.status(400).send({ error: 'endpoint and enabled are required' });
+    }
+
+    const result = await db
+      .update(pushSubscriptions)
+      .set(buildUpdate(enabled))
+      .where(eq(pushSubscriptions.endpoint, endpoint))
+      .returning({ id: pushSubscriptions.id });
+
+    if (result.length === 0) {
+      return reply.status(404).send({ error: 'Subscription not found' });
+    }
+
+    return { ok: true };
+  });
 }
 
 export async function pushRoutes(app: FastifyInstance): Promise<void> {
@@ -94,44 +140,34 @@ export async function pushRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
 
-  // GET /api/push/migraine-alerts — read this device's current opt-in state, kept
-  // separate from the main AQI toggle since migraine alerts are a distinct opt-in.
-  app.get<{ Querystring: { endpoint: string } }>('/api/push/migraine-alerts', async (request, reply) => {
-    const { endpoint } = request.query ?? {};
-    if (!endpoint) {
-      return reply.status(400).send({ error: 'endpoint is required' });
-    }
-
-    const [row] = await db
-      .select({ enabled: pushSubscriptions.migraineAlertsEnabled })
-      .from(pushSubscriptions)
-      .where(eq(pushSubscriptions.endpoint, endpoint))
-      .limit(1);
-
-    return { enabled: row?.enabled ?? false };
-  });
-
-  // POST /api/push/migraine-alerts — toggle this device's opt-in for migraine-risk
-  // alerts. Clears dedup state on enable so a currently-elevated risk can alert
-  // right away rather than waiting for the next level change.
-  app.post<{ Body: MigraineAlertsBody }>('/api/push/migraine-alerts', async (request, reply) => {
-    const { endpoint, enabled } = request.body ?? {};
-    if (!endpoint || typeof enabled !== 'boolean') {
-      return reply.status(400).send({ error: 'endpoint and enabled are required' });
-    }
-
-    const result = await db
-      .update(pushSubscriptions)
-      .set({ migraineAlertsEnabled: enabled, lastNotifiedMigraineRisk: null })
-      .where(eq(pushSubscriptions.endpoint, endpoint))
-      .returning({ id: pushSubscriptions.id });
-
-    if (result.length === 0) {
-      return reply.status(404).send({ error: 'Subscription not found' });
-    }
-
-    return { ok: true };
-  });
+  // /api/push/migraine-alerts, /api/push/mecfs-alerts, /api/push/pots-alerts,
+  // /api/push/clear-air-alerts — each a distinct opt-in from the main AQI toggle
+  // and from each other, since these condition-specific alerts oscillate on their
+  // own schedules and bundling them would surprise someone who only wanted one.
+  registerAlertToggleRoutes(
+    app,
+    'migraine-alerts',
+    sub => sub.migraineAlertsEnabled,
+    enabled => ({ migraineAlertsEnabled: enabled, lastNotifiedMigraineRisk: null })
+  );
+  registerAlertToggleRoutes(
+    app,
+    'mecfs-alerts',
+    sub => sub.mecfsAlertsEnabled,
+    enabled => ({ mecfsAlertsEnabled: enabled, lastNotifiedMecfsRisk: null })
+  );
+  registerAlertToggleRoutes(
+    app,
+    'pots-alerts',
+    sub => sub.potsAlertsEnabled,
+    enabled => ({ potsAlertsEnabled: enabled, lastNotifiedPotsRisk: null })
+  );
+  registerAlertToggleRoutes(
+    app,
+    'clear-air-alerts',
+    sub => sub.clearAirAlertsEnabled,
+    enabled => ({ clearAirAlertsEnabled: enabled, lastNotifiedClearAirWindowStart: null })
+  );
 
   // GET /api/push/notification-log — recent alert-worthy decisions for this device
   // (sent, suppressed by dedup, or failed delivery), newest first.

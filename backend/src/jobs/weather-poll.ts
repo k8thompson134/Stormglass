@@ -5,7 +5,15 @@ import { computePressureDerivatives } from '../services/pressure.js';
 import { fetchAirQualityData } from '../services/airquality.js';
 import { fetchGeomagneticData } from '../services/geomagnetic.js';
 import { fetchPollenData } from '../services/tomorrow.js';
-import { findNextCategoryCrossing, findCategoryClearTime, classifyAqiCategory, CATEGORY_ORDER } from '../utils/aqiWindows.js';
+import {
+  findNextCategoryCrossing,
+  findCategoryClearTime,
+  findSafeWindows,
+  nextSafeWindow,
+  categoryCeiling,
+  classifyAqiCategory,
+  CATEGORY_ORDER,
+} from '../utils/aqiWindows.js';
 import {
   isPushConfigured,
   sendAqiCrossingAlert,
@@ -14,10 +22,16 @@ import {
   clearCurrentAqiBadDedupState,
   sendMigraineRiskAlert,
   clearMigraineRiskDedupState,
+  sendMecfsRiskAlert,
+  clearMecfsRiskDedupState,
+  sendPotsRiskAlert,
+  clearPotsRiskDedupState,
+  sendClearAirAlert,
+  clearClearAirDedupState,
 } from '../services/push.js';
-import { getMigraineRisk } from '../utils/healthLogic.js';
+import { getMigraineRisk, getMECFSRisk, getPOTSRisk } from '../utils/healthLogic.js';
 import { db } from '../db/index.js';
-import { airQualityData, pressureDerivatives } from '../db/schema.js';
+import { airQualityData, pressureDerivatives, weatherData } from '../db/schema.js';
 import { logger } from '../logger.js';
 
 export interface PollConfig {
@@ -51,14 +65,24 @@ async function runPoll(config: PollConfig): Promise<void> {
     logger.info({ service: 'geomagnetic-poll', inserted: geoInserted }, 'Fetched new Kp readings');
     logger.info({ service: 'pollen-poll', inserted: pollenInserted }, 'Fetched new pollen readings');
 
-    // Fetched once and shared by both checks below (they both need "the current AQI
-    // reading"), then the checks themselves run in parallel -- they read independent
-    // tables (pushSubscriptions filtered by different flags, pressureDerivatives vs.
-    // airQualityData) and neither depends on the other's result.
-    const aqiWindow = await fetchAqiWindow(location);
+    // Fetched once and shared across every check below (they all need either "the
+    // current AQI reading" or "the latest pressure derivative"), then the checks
+    // themselves run in parallel -- they read independent tables (pushSubscriptions
+    // filtered by different flags, pressureDerivatives vs. airQualityData vs.
+    // weatherData) and none depends on another's result.
+    const [aqiWindow, latestDerivative, latestWeather] = await Promise.all([
+      fetchAqiWindow(location),
+      fetchLatestDerivative(userId, location),
+      fetchLatestWeather(userId, location),
+    ]);
+    const currentAqi = aqiWindow?.currentPoint.usAqi ?? null;
+
     await Promise.all([
       checkAqiCategoryCrossing(location, aqiWindow),
-      checkMigraineRisk(userId, location, aqiWindow?.currentPoint.usAqi ?? null),
+      checkClearAirWindow(aqiWindow),
+      checkMigraineRisk(latestDerivative, currentAqi),
+      checkMecfsRisk(latestDerivative, currentAqi),
+      checkPotsRisk(latestDerivative, latestWeather, currentAqi),
     ]);
   } catch (error) {
     logger.error({ service: 'weather-poll', err: error }, 'Poll cycle failed');
@@ -104,42 +128,124 @@ async function fetchAqiWindow(location: string): Promise<AqiWindow | null> {
   return { now, currentPoint, futurePoints };
 }
 
+interface LatestDerivative {
+  delta1h: number;
+  delta3h: number;
+  delta6h: number;
+}
+
+/**
+ * Fetched once per poll cycle and shared by every pressure-derived risk check
+ * (migraine, ME/CFS, POTS) -- these used to each run their own identical query.
+ */
+async function fetchLatestDerivative(userId: string, location: string): Promise<LatestDerivative | null> {
+  const [row] = await db
+    .select({
+      delta1h: pressureDerivatives.delta1h,
+      delta3h: pressureDerivatives.delta3h,
+      delta6h: pressureDerivatives.delta6h,
+    })
+    .from(pressureDerivatives)
+    .where(and(eq(pressureDerivatives.userId, userId), eq(pressureDerivatives.location, location)))
+    .orderBy(desc(pressureDerivatives.timestamp))
+    .limit(1);
+
+  if (!row) return null;
+  return { delta1h: parseFloat(row.delta1h), delta3h: parseFloat(row.delta3h), delta6h: parseFloat(row.delta6h) };
+}
+
+interface LatestWeather {
+  humidity: number;
+  temperature: number;
+}
+
+/** Latest humidity/temperature reading -- POTS risk needs both alongside pressure. */
+async function fetchLatestWeather(userId: string, location: string): Promise<LatestWeather | null> {
+  const [row] = await db
+    .select({ humidity: weatherData.humidity, temperature: weatherData.temperature })
+    .from(weatherData)
+    .where(and(eq(weatherData.userId, userId), eq(weatherData.location, location)))
+    .orderBy(desc(weatherData.timestamp))
+    .limit(1);
+
+  if (!row) return null;
+  return { humidity: parseFloat(row.humidity), temperature: parseFloat(row.temperature) };
+}
+
 /**
  * Runs every poll cycle so a spike in migraine risk reaches you even if the app
  * isn't open -- only alerts on high/severe (not moderate) since pressure risk
  * oscillates far more than AQI category and a lower threshold would cry wolf.
  */
-async function checkMigraineRisk(userId: string, location: string, currentAqi: number | null): Promise<void> {
-  if (!isPushConfigured()) return;
+async function checkMigraineRisk(latestDerivative: LatestDerivative | null, currentAqi: number | null): Promise<void> {
+  if (!isPushConfigured() || !latestDerivative) return;
 
   try {
-    const [latestDerivative] = await db
-      .select({
-        delta1h: pressureDerivatives.delta1h,
-        delta3h: pressureDerivatives.delta3h,
-        delta6h: pressureDerivatives.delta6h,
-      })
-      .from(pressureDerivatives)
-      .where(and(eq(pressureDerivatives.userId, userId), eq(pressureDerivatives.location, location)))
-      .orderBy(desc(pressureDerivatives.timestamp))
-      .limit(1);
-
-    if (!latestDerivative) return;
-
-    const risk = getMigraineRisk(
-      parseFloat(latestDerivative.delta1h),
-      parseFloat(latestDerivative.delta3h),
-      parseFloat(latestDerivative.delta6h),
-      currentAqi
-    );
+    const risk = getMigraineRisk(latestDerivative.delta1h, latestDerivative.delta3h, latestDerivative.delta6h, currentAqi);
 
     if (risk.risk === 'high' || risk.risk === 'severe') {
-      await sendMigraineRiskAlert({ riskLevel: risk.risk, delta1h: parseFloat(latestDerivative.delta1h) });
+      await sendMigraineRiskAlert({ riskLevel: risk.risk, delta1h: latestDerivative.delta1h });
     } else {
       await clearMigraineRiskDedupState();
     }
   } catch (error) {
     logger.error({ service: 'push' }, `Migraine risk check failed: ${error}`);
+  }
+}
+
+/**
+ * Runs every poll cycle -- same high/severe-only threshold reasoning as migraine
+ * above, since ME/CFS pressure-volatility risk oscillates on a similar timescale.
+ */
+async function checkMecfsRisk(latestDerivative: LatestDerivative | null, currentAqi: number | null): Promise<void> {
+  if (!isPushConfigured() || !latestDerivative) return;
+
+  try {
+    const risk = getMECFSRisk(latestDerivative.delta1h, latestDerivative.delta3h, latestDerivative.delta6h, currentAqi);
+    const volatility = Math.abs(latestDerivative.delta1h) + Math.abs(latestDerivative.delta3h) + Math.abs(latestDerivative.delta6h);
+
+    if (risk.risk === 'high' || risk.risk === 'severe') {
+      await sendMecfsRiskAlert({ riskLevel: risk.risk, volatility });
+    } else {
+      await clearMecfsRiskDedupState();
+    }
+  } catch (error) {
+    logger.error({ service: 'push' }, `ME/CFS risk check failed: ${error}`);
+  }
+}
+
+/**
+ * Runs every poll cycle -- needs the latest weather reading (humidity/temperature)
+ * in addition to the pressure derivative every other risk check uses, since POTS
+ * risk is driven by heat/cold/humidity stacking with pressure swings, not pressure
+ * alone.
+ */
+async function checkPotsRisk(
+  latestDerivative: LatestDerivative | null,
+  latestWeather: LatestWeather | null,
+  currentAqi: number | null
+): Promise<void> {
+  if (!isPushConfigured() || !latestDerivative || !latestWeather) return;
+
+  try {
+    const risk = getPOTSRisk(latestDerivative.delta1h, latestWeather.humidity, latestWeather.temperature, currentAqi);
+
+    if (risk.risk === 'high' || risk.risk === 'severe') {
+      // getPOTSRisk computes its own primaryStressor internally (for its detailed
+      // explanation text) but doesn't return it as part of HealthRisk -- mirrors its
+      // isHot(>24)/isCold(<5) thresholds here rather than widen the shared HealthRisk
+      // type just for this one alert's phrasing. isVeryHot(>30)/isVeryCold(<-5) don't
+      // need separate checks: both are subsets already caught by isHot/isCold.
+      const tempF = Math.round((latestWeather.temperature * 9) / 5 + 32);
+      const isHot = latestWeather.temperature > 24;
+      const isCold = latestWeather.temperature < 5;
+      const primaryStressor = isHot ? 'heat' : isCold ? 'cold' : 'pressure';
+      await sendPotsRiskAlert({ riskLevel: risk.risk, primaryStressor, tempF });
+    } else {
+      await clearPotsRiskDedupState();
+    }
+  } catch (error) {
+    logger.error({ service: 'push' }, `POTS risk check failed: ${error}`);
   }
 }
 
@@ -206,6 +312,62 @@ async function checkAqiCategoryCrossing(location: string, aqiWindow: AqiWindow |
     }
   } catch (error) {
     logger.error({ service: 'push' }, `AQI category-crossing check failed: ${error}`);
+  }
+}
+
+// "Safe" ceiling for the clean-air alert -- matches CURRENT_BAD_THRESHOLD_CATEGORY_IDX
+// above (Moderate and below is "safe," USG and up is "bad"). There's no per-user
+// sensitivity threshold available here (that preference lives in frontend
+// localStorage only, never sent to the backend poll job), so this uses the same
+// fixed cutoff the other AQI alerts already use rather than guessing a threshold.
+const CLEAR_AIR_THRESHOLD = categoryCeiling('Moderate');
+
+// Ignore windows shorter than this -- a 20-minute gap between two bad stretches
+// isn't a real "good time to go outside," it's noise in the hourly forecast data.
+const MIN_CLEAR_AIR_WINDOW_HOURS = 2;
+
+/**
+ * Runs on every poll cycle -- the positive-framing complement to the "bad right
+ * now"/"worsening soon" alerts above: tells you when a genuinely clean stretch is
+ * coming up, for planning outdoor time, rather than only reacting to bad air.
+ * Reuses findSafeWindows/nextSafeWindow, already built for (and used by) the in-app
+ * AQI forecast chart -- this is the same computation, just also pushed.
+ */
+async function checkClearAirWindow(aqiWindow: AqiWindow | null): Promise<void> {
+  if (!isPushConfigured() || !aqiWindow) return;
+
+  try {
+    const { now, currentPoint, futurePoints } = aqiWindow;
+    const points = [currentPoint, ...futurePoints];
+    const windows = findSafeWindows(points, CLEAR_AIR_THRESHOLD, now);
+    const next = nextSafeWindow(windows, now);
+
+    // Only alert on an UPCOMING window (not one already underway -- "starting soon"
+    // wouldn't be true of right now) that's close enough to be actionable (same
+    // lookahead as the AQI crossing alert) and long enough to be worth planning
+    // around.
+    if (
+      next &&
+      !next.isCurrent &&
+      next.start.getTime() - now.getTime() <= AQI_ALERT_LOOKAHEAD_MS &&
+      next.durationHours >= MIN_CLEAR_AIR_WINDOW_HOURS
+    ) {
+      await sendClearAirAlert({
+        startAt: next.start.toISOString(),
+        endAt: next.end.toISOString(),
+        durationHours: next.durationHours,
+        avgAqi: next.avgAqi,
+      });
+    } else if (!next || next.isCurrent) {
+      // No upcoming window found, or the "safe" window is the one we're already in
+      // -- either way there's nothing left to announce, so clear dedup so a later
+      // genuinely new window isn't silently skipped.
+      await clearClearAirDedupState();
+    }
+    // else: window found but still outside the lookahead, or too short -- leave
+    // dedup alone, re-evaluated next poll as it either gets closer or resolves.
+  } catch (error) {
+    logger.error({ service: 'push' }, `Clear-air window check failed: ${error}`);
   }
 }
 

@@ -391,26 +391,39 @@ export async function unsubscribeFromPush(endpoint: string): Promise<void> {
   if (!res.ok) throw new Error(`Push unsubscribe failed: ${res.status}`);
 }
 
-export async function fetchMigraineAlertsEnabled(endpoint: string): Promise<boolean> {
-  const res = await fetch(`${API_BASE}/push/migraine-alerts?endpoint=${encodeURIComponent(endpoint)}`, {
+// migraine/mecfs/pots/clear-air alerts are each a distinct opt-in from the main
+// AQI toggle, but share the exact same read/toggle shape server-side
+// (registerAlertToggleRoutes in backend/src/api/push.ts) -- one parameterized pair
+// here instead of four hand-copied ones.
+export type SecondaryAlertKind = 'migraine' | 'mecfs' | 'pots' | 'clear-air';
+
+const SECONDARY_ALERT_PATH: Record<SecondaryAlertKind, string> = {
+  migraine: 'migraine-alerts',
+  mecfs: 'mecfs-alerts',
+  pots: 'pots-alerts',
+  'clear-air': 'clear-air-alerts',
+};
+
+export async function fetchSecondaryAlertEnabled(kind: SecondaryAlertKind, endpoint: string): Promise<boolean> {
+  const res = await fetch(`${API_BASE}/push/${SECONDARY_ALERT_PATH[kind]}?endpoint=${encodeURIComponent(endpoint)}`, {
     headers: getHeaders(),
   });
-  if (!res.ok) throw new Error(`Fetch migraine alert setting failed: ${res.status}`);
+  if (!res.ok) throw new Error(`Fetch ${kind} alert setting failed: ${res.status}`);
   const data = await res.json();
   return data.enabled;
 }
 
-export async function setMigraineAlertsEnabled(endpoint: string, enabled: boolean): Promise<void> {
-  const res = await fetch(`${API_BASE}/push/migraine-alerts`, {
+export async function setSecondaryAlertEnabled(kind: SecondaryAlertKind, endpoint: string, enabled: boolean): Promise<void> {
+  const res = await fetch(`${API_BASE}/push/${SECONDARY_ALERT_PATH[kind]}`, {
     method: 'POST',
     headers: getHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ endpoint, enabled }),
   });
-  if (!res.ok) throw new Error(`Set migraine alert setting failed: ${res.status}`);
+  if (!res.ok) throw new Error(`Set ${kind} alert setting failed: ${res.status}`);
 }
 
 export interface PushNotificationLogEntry {
-  type: 'aqi' | 'aqi_current' | 'migraine' | 'welcome';
+  type: 'aqi' | 'aqi_current' | 'migraine' | 'mecfs' | 'pots' | 'clear_air' | 'welcome';
   outcome: 'sent' | 'suppressed_dedup' | 'delivery_failed';
   title: string;
   body: string;

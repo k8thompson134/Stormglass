@@ -239,6 +239,18 @@ export const pushSubscriptions = pgTable('push_subscriptions', {
   // who only wanted AQI alerts with a much noisier notification stream.
   migraineAlertsEnabled: boolean('migraine_alerts_enabled').default(false).notNull(),
   lastNotifiedMigraineRisk: text('last_notified_migraine_risk'),
+  // Same separate-opt-in reasoning as migraine above -- each condition-specific
+  // alert oscillates on its own schedule, so bundling them would surprise someone
+  // who only wanted one.
+  mecfsAlertsEnabled: boolean('mecfs_alerts_enabled').default(false).notNull(),
+  lastNotifiedMecfsRisk: text('last_notified_mecfs_risk'),
+  potsAlertsEnabled: boolean('pots_alerts_enabled').default(false).notNull(),
+  lastNotifiedPotsRisk: text('last_notified_pots_risk'),
+  // Dedup by window start (not a risk level) -- a clean-air alert isn't "did risk
+  // get worse than last time," it's "is this a window we haven't already told this
+  // device about." Text (ISO timestamp truncated to the hour), not a risk ordinal.
+  clearAirAlertsEnabled: boolean('clear_air_alerts_enabled').default(false).notNull(),
+  lastNotifiedClearAirWindowStart: text('last_notified_clear_air_window_start'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

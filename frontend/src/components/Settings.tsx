@@ -8,13 +8,23 @@ import {
     isPushEnabled,
     enablePushNotifications,
     disablePushNotifications,
-    getMigraineAlertsEnabled,
-    toggleMigraineAlerts,
+    getSecondaryAlertEnabled,
+    toggleSecondaryAlert,
     getNotificationLog,
     reconcilePushSubscription,
+    SECONDARY_ALERT_KINDS,
     type PushEnableResult,
 } from '../utils/pushNotifications';
-import type { PushNotificationLogEntry } from '../services/api';
+import type { PushNotificationLogEntry, SecondaryAlertKind } from '../services/api';
+
+// Config-driven so adding a new condition-specific alert is one array entry, not a
+// new copy of the toggle JSX block below.
+const SECONDARY_ALERT_CONFIG: { kind: SecondaryAlertKind; label: string }[] = [
+    { kind: 'migraine', label: 'Migraine risk alerts (push notification when risk is high or severe)' },
+    { kind: 'mecfs', label: 'ME/CFS crash risk alerts (push notification when pressure volatility signals crash risk)' },
+    { kind: 'pots', label: 'POTS risk alerts (push notification when heat/cold/pressure conditions stack up)' },
+    { kind: 'clear-air', label: 'Clean air window alerts (push notification when a clear stretch is coming up)' },
+];
 
 interface SettingsProps {
     open: boolean;
@@ -41,8 +51,12 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
     const [pushBusy, setPushBusy] = useState(false);
     const [pushError, setPushError] = useState<string | null>(null);
     const [pushSuccess, setPushSuccess] = useState<string | null>(null);
-    const [migraineAlertsEnabled, setMigraineAlertsEnabledState] = useState(false);
-    const [migraineAlertsBusy, setMigraineAlertsBusy] = useState(false);
+    const [secondaryAlerts, setSecondaryAlerts] = useState<Record<SecondaryAlertKind, boolean>>({
+        migraine: false, mecfs: false, pots: false, 'clear-air': false,
+    });
+    const [secondaryAlertsBusy, setSecondaryAlertsBusy] = useState<Record<SecondaryAlertKind, boolean>>({
+        migraine: false, mecfs: false, pots: false, 'clear-air': false,
+    });
     const [logOpen, setLogOpen] = useState(false);
     const [logEntries, setLogEntries] = useState<PushNotificationLogEntry[] | null>(null);
     const [logLoading, setLogLoading] = useState(false);
@@ -64,19 +78,23 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
         reconcilePushSubscription().finally(() => {
             isPushEnabled().then((enabled) => {
                 setPushEnabled(enabled);
-                if (enabled) getMigraineAlertsEnabled().then(setMigraineAlertsEnabledState);
+                if (enabled) {
+                    SECONDARY_ALERT_KINDS.forEach(kind => {
+                        getSecondaryAlertEnabled(kind).then(value => setSecondaryAlerts(prev => ({ ...prev, [kind]: value })));
+                    });
+                }
             });
         });
     }, [open]);
 
-    const handleToggleMigraineAlerts = async () => {
-        setMigraineAlertsBusy(true);
+    const handleToggleSecondaryAlert = async (kind: SecondaryAlertKind) => {
+        setSecondaryAlertsBusy(prev => ({ ...prev, [kind]: true }));
         try {
-            const next = !migraineAlertsEnabled;
-            const ok = await toggleMigraineAlerts(next);
-            if (ok) setMigraineAlertsEnabledState(next);
+            const next = !secondaryAlerts[kind];
+            const ok = await toggleSecondaryAlert(kind, next);
+            if (ok) setSecondaryAlerts(prev => ({ ...prev, [kind]: next }));
         } finally {
-            setMigraineAlertsBusy(false);
+            setSecondaryAlertsBusy(prev => ({ ...prev, [kind]: false }));
         }
     };
 
@@ -120,6 +138,9 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
         aqi: 'Air quality (forecast)',
         aqi_current: 'Air quality (right now)',
         migraine: 'Migraine risk',
+        mecfs: 'ME/CFS crash risk',
+        pots: 'POTS risk',
+        clear_air: 'Clean air window',
         welcome: 'Setup confirmation',
     };
 
@@ -526,15 +547,15 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                                 {pushError && (
                                     <p className="text-[11px] text-amber-300 mt-2">{pushError}</p>
                                 )}
-                                {pushEnabled && (
-                                    <label className="flex items-center gap-3 cursor-pointer select-none mt-3">
+                                {pushEnabled && SECONDARY_ALERT_CONFIG.map(({ kind, label }) => (
+                                    <label key={kind} className="flex items-center gap-3 cursor-pointer select-none mt-3">
                                         <span
                                             className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors duration-200 ${
-                                                migraineAlertsEnabled ? 'border-blue-500/50 bg-blue-500/20 text-blue-300' : 'border-[#1e2d45] bg-[#131d2e]'
+                                                secondaryAlerts[kind] ? 'border-blue-500/50 bg-blue-500/20 text-blue-300' : 'border-[#1e2d45] bg-[#131d2e]'
                                             }`}
                                             aria-hidden
                                         >
-                                            {migraineAlertsEnabled && (
+                                            {secondaryAlerts[kind] && (
                                                 <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                                 </svg>
@@ -543,15 +564,15 @@ export default function Settings({ open, onClose, onLocationChanged, healthToggl
                                         <input
                                             type="checkbox"
                                             className="sr-only"
-                                            checked={migraineAlertsEnabled}
-                                            disabled={migraineAlertsBusy}
-                                            onChange={handleToggleMigraineAlerts}
+                                            checked={secondaryAlerts[kind]}
+                                            disabled={secondaryAlertsBusy[kind]}
+                                            onChange={() => handleToggleSecondaryAlert(kind)}
                                         />
                                         <span className="text-[11px] text-gray-300">
-                                            {migraineAlertsBusy ? 'Updating…' : 'Migraine risk alerts (push notification when risk is high or severe)'}
+                                            {secondaryAlertsBusy[kind] ? 'Updating…' : label}
                                         </span>
                                     </label>
-                                )}
+                                ))}
                                 {pushEnabled && (
                                     <div className="mt-3">
                                         <button

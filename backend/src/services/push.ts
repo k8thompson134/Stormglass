@@ -5,7 +5,7 @@ import { pushSubscriptions, pushNotificationLog } from '../db/schema.js';
 import { env } from '../env.js';
 import { logger } from '../logger.js';
 
-type NotificationType = 'aqi' | 'aqi_current' | 'migraine' | 'welcome';
+type NotificationType = 'aqi' | 'aqi_current' | 'migraine' | 'mecfs' | 'pots' | 'clear_air' | 'welcome';
 type NotificationOutcome = 'sent' | 'suppressed_dedup' | 'delivery_failed';
 
 // A failure to WRITE the log entry must never take down the send path that
@@ -107,13 +107,41 @@ const CATEGORY_GUIDANCE: Record<string, string> = {
 };
 
 // Ordinal so we can tell "risk went up" from "risk went down" -- unlike AQI category
-// crossings (which only fire on worsening), migraine pressure risk has no natural
-// forward-looking crossing helper, so dedup has to compare levels directly.
+// crossings (which only fire on worsening), the condition-specific risk alerts below
+// (migraine, ME/CFS, POTS) have no natural forward-looking crossing helper, so dedup
+// has to compare levels directly rather than a plain equality check -- otherwise a
+// device notified at "high" would get re-notified every poll cycle risk stays high,
+// and dropping to "moderate" then climbing back to "high" wouldn't re-fire at all.
 const RISK_ORDER: Record<string, number> = { low: 0, moderate: 1, high: 2, severe: 3 };
+
+// Shared by every risk-level alert type (migraine, ME/CFS, POTS) -- only fires again
+// once risk has gotten WORSE than what this device was last notified about.
+function riskIsDuplicate(lastNotified: string | null, key: string): boolean {
+  const lastOrder = lastNotified ? (RISK_ORDER[lastNotified] ?? -1) : -1;
+  return RISK_ORDER[key] <= lastOrder;
+}
 
 export interface MigraineRiskPayload {
   riskLevel: 'high' | 'severe';
   delta1h: number;
+}
+
+export interface MecfsRiskPayload {
+  riskLevel: 'high' | 'severe';
+  volatility: number;
+}
+
+export interface PotsRiskPayload {
+  riskLevel: 'high' | 'severe';
+  primaryStressor: 'heat' | 'cold' | 'pressure';
+  tempF: number;
+}
+
+export interface ClearAirWindowPayload {
+  startAt: string;
+  endAt: string;
+  durationHours: number;
+  avgAqi: number;
 }
 
 interface SubscriptionRow {
@@ -301,10 +329,7 @@ export async function sendMigraineRiskAlert(payload: MigraineRiskPayload): Promi
     tag: 'migraine-risk',
     dedupKey: payload.riskLevel,
     getLastNotified: sub => sub.lastNotifiedMigraineRisk,
-    isDuplicate: (last, key) => {
-      const lastOrder = last ? (RISK_ORDER[last] ?? -1) : -1;
-      return RISK_ORDER[key] <= lastOrder;
-    },
+    isDuplicate: riskIsDuplicate,
     buildDedupUpdate: key => ({ lastNotifiedMigraineRisk: key }),
   });
 }
@@ -319,6 +344,132 @@ export async function clearMigraineRiskDedupState(): Promise<void> {
     .update(pushSubscriptions)
     .set({ lastNotifiedMigraineRisk: null })
     .where(eq(pushSubscriptions.migraineAlertsEnabled, true));
+}
+
+/**
+ * Sends an ME/CFS crash-risk alert -- pressure volatility (not direction) is the
+ * trigger here (see getMECFSRisk), so unlike migraine there's no rising/dropping
+ * framing, just "conditions have been swinging a lot," which is what actually
+ * precedes a PEM crash.
+ */
+export async function sendMecfsRiskAlert(payload: MecfsRiskPayload): Promise<void> {
+  const volatility = payload.volatility.toFixed(1);
+  const title = payload.riskLevel === 'severe' ? 'ME/CFS crash risk is severe right now' : 'ME/CFS crash risk is high right now';
+  const body = payload.riskLevel === 'severe'
+    ? `Pressure has been swinging a lot over the last 6 hours (volatility ${volatility}) -- strong crash-risk pattern, scale back today's activity and rest proactively`
+    : `Pressure has been unusually volatile over the last 6 hours (volatility ${volatility}) -- this pattern often precedes a PEM crash, consider pacing back today`;
+
+  await dispatchAlert({
+    type: 'mecfs',
+    subsWhere: eq(pushSubscriptions.mecfsAlertsEnabled, true),
+    title,
+    body,
+    tag: 'mecfs-risk',
+    dedupKey: payload.riskLevel,
+    getLastNotified: sub => sub.lastNotifiedMecfsRisk,
+    isDuplicate: riskIsDuplicate,
+    buildDedupUpdate: key => ({ lastNotifiedMecfsRisk: key }),
+  });
+}
+
+/**
+ * Clears ME/CFS crash-risk dedup state once volatility drops back to moderate/low --
+ * same reasoning as clearMigraineRiskDedupState above.
+ */
+export async function clearMecfsRiskDedupState(): Promise<void> {
+  await db
+    .update(pushSubscriptions)
+    .set({ lastNotifiedMecfsRisk: null })
+    .where(eq(pushSubscriptions.mecfsAlertsEnabled, true));
+}
+
+/**
+ * Sends a POTS/dysautonomia risk alert -- framed around whichever stressor is
+ * actually driving the score (heat, cold, or pressure swings; see getPOTSRisk's
+ * primaryStressor logic) rather than a generic "conditions are bad," since the
+ * practical response (cooling down vs. warming up) differs by which one it is.
+ */
+export async function sendPotsRiskAlert(payload: PotsRiskPayload): Promise<void> {
+  const stressorClause = payload.primaryStressor === 'heat'
+    ? `it's hot (${payload.tempF}°F) and conditions are stacking`
+    : payload.primaryStressor === 'cold'
+      ? `it's cold (${payload.tempF}°F) and conditions are stacking`
+      : 'pressure is swinging fast alongside other stressors';
+  const careClause = payload.primaryStressor === 'heat'
+    ? 'stay cool and pace standing/upright time'
+    : payload.primaryStressor === 'cold'
+      ? 'stay warm and pace standing/upright time'
+      : 'pace standing/upright time';
+
+  const title = payload.riskLevel === 'severe' ? 'POTS risk is severe right now' : 'POTS risk is high right now';
+  const body = payload.riskLevel === 'severe'
+    ? `Today's ${stressorClause} -- expect more dizziness/tachycardia, ${careClause} and keep fluids/electrolytes on hand`
+    : `Today's ${stressorClause} -- ${careClause}`;
+
+  await dispatchAlert({
+    type: 'pots',
+    subsWhere: eq(pushSubscriptions.potsAlertsEnabled, true),
+    title,
+    body,
+    tag: 'pots-risk',
+    dedupKey: payload.riskLevel,
+    getLastNotified: sub => sub.lastNotifiedPotsRisk,
+    isDuplicate: riskIsDuplicate,
+    buildDedupUpdate: key => ({ lastNotifiedPotsRisk: key }),
+  });
+}
+
+/**
+ * Clears POTS-risk dedup state once conditions ease back to moderate/low -- same
+ * reasoning as clearMigraineRiskDedupState above.
+ */
+export async function clearPotsRiskDedupState(): Promise<void> {
+  await db
+    .update(pushSubscriptions)
+    .set({ lastNotifiedPotsRisk: null })
+    .where(eq(pushSubscriptions.potsAlertsEnabled, true));
+}
+
+/**
+ * Sends a "clean air window coming up" alert -- the positive inverse of the AQI
+ * bad-right-now alert, for planning outdoor time rather than reacting to bad air.
+ * Dedup key is the window's start time truncated to the hour (not a risk level --
+ * there's no ordinal "worse than last time" here, just "have we already told this
+ * device about this specific window").
+ */
+export async function sendClearAirAlert(payload: ClearAirWindowPayload): Promise<void> {
+  const start = new Date(payload.startAt);
+  const end = new Date(payload.endAt);
+  const startTime = formatTime(start);
+  const endTime = formatTime(end);
+  const window = isSameLocalDay(start, end) ? `from ${startTime} to ${endTime}` : `from ${startTime} until ~${endTime} tomorrow`;
+  const body = `Air quality looks good ${window} (~${payload.durationHours}h, avg AQI ${payload.avgAqi}) -- good window to be outside`;
+  const dedupKey = payload.startAt.slice(0, 13); // truncate to the hour
+
+  await dispatchAlert({
+    type: 'clear_air',
+    subsWhere: eq(pushSubscriptions.clearAirAlertsEnabled, true),
+    title: 'Clean air window coming up',
+    body,
+    tag: 'clear-air-window',
+    eventAt: start,
+    dedupKey,
+    getLastNotified: sub => sub.lastNotifiedClearAirWindowStart,
+    isDuplicate: (last, key) => last === key,
+    buildDedupUpdate: key => ({ lastNotifiedClearAirWindowStart: key }),
+  });
+}
+
+/**
+ * Clears clean-air-window dedup state once no upcoming window is found within the
+ * alert lookahead, so a later window (even one that resolves to the same truncated
+ * start hour some other day) isn't silently skipped as "already notified."
+ */
+export async function clearClearAirDedupState(): Promise<void> {
+  await db
+    .update(pushSubscriptions)
+    .set({ lastNotifiedClearAirWindowStart: null })
+    .where(eq(pushSubscriptions.clearAirAlertsEnabled, true));
 }
 
 // A push subscription needs a moment to fully settle with the push service (FCM)

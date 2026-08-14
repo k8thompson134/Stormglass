@@ -2,11 +2,14 @@ import {
   fetchPushPublicKey,
   subscribeToPush,
   unsubscribeFromPush,
-  fetchMigraineAlertsEnabled,
-  setMigraineAlertsEnabled,
+  fetchSecondaryAlertEnabled,
+  setSecondaryAlertEnabled,
   fetchNotificationLog,
+  type SecondaryAlertKind,
   type PushNotificationLogEntry,
 } from '../services/api';
+
+export const SECONDARY_ALERT_KINDS: SecondaryAlertKind[] = ['migraine', 'mecfs', 'pots', 'clear-air'];
 
 export function isPushSupported(): boolean {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
@@ -20,7 +23,12 @@ export function isPushSupported(): boolean {
 // current (possibly-lost) subscription, so a startup reconcile can restore it
 // silently rather than requiring the user to notice and re-opt-in.
 const PUSH_INTENT_KEY = 'stormglass_push_intent';
-const MIGRAINE_INTENT_KEY = 'stormglass_migraine_intent';
+const SECONDARY_INTENT_KEY: Record<SecondaryAlertKind, string> = {
+  migraine: 'stormglass_migraine_intent',
+  mecfs: 'stormglass_mecfs_intent',
+  pots: 'stormglass_pots_intent',
+  'clear-air': 'stormglass_clear_air_intent',
+};
 
 function setPushIntent(enabled: boolean): void {
   try {
@@ -37,16 +45,16 @@ function getPushIntent(): boolean {
   }
 }
 
-function setMigraineIntent(enabled: boolean): void {
+function setSecondaryIntent(kind: SecondaryAlertKind, enabled: boolean): void {
   try {
-    if (enabled) window.localStorage.setItem(MIGRAINE_INTENT_KEY, '1');
-    else window.localStorage.removeItem(MIGRAINE_INTENT_KEY);
+    if (enabled) window.localStorage.setItem(SECONDARY_INTENT_KEY[kind], '1');
+    else window.localStorage.removeItem(SECONDARY_INTENT_KEY[kind]);
   } catch { /* ignore persistence errors */ }
 }
 
-function getMigraineIntent(): boolean {
+function getSecondaryIntent(kind: SecondaryAlertKind): boolean {
   try {
-    return window.localStorage.getItem(MIGRAINE_INTENT_KEY) === '1';
+    return window.localStorage.getItem(SECONDARY_INTENT_KEY[kind]) === '1';
   } catch {
     return false;
   }
@@ -104,7 +112,7 @@ export async function enablePushNotifications(): Promise<PushEnableResult> {
 
 export async function disablePushNotifications(): Promise<void> {
   setPushIntent(false);
-  setMigraineIntent(false);
+  SECONDARY_ALERT_KINDS.forEach(kind => setSecondaryIntent(kind, false));
   if (!isPushSupported()) return;
   const registration = await navigator.serviceWorker.ready;
   const subscription = await registration.pushManager.getSubscription();
@@ -128,23 +136,24 @@ export async function isPushEnabled(): Promise<boolean> {
   return !!subscription;
 }
 
-// Migraine alerts are a separate opt-in, scoped to this device's subscription
-// endpoint, so they can only be read/changed while push itself is enabled.
-export async function getMigraineAlertsEnabled(): Promise<boolean> {
+// Each secondary alert (migraine, ME/CFS, POTS, clean-air) is a separate opt-in,
+// scoped to this device's subscription endpoint, so it can only be read/changed
+// while push itself is enabled.
+export async function getSecondaryAlertEnabled(kind: SecondaryAlertKind): Promise<boolean> {
   if (!isPushSupported()) return false;
   const registration = await navigator.serviceWorker.ready;
   const subscription = await registration.pushManager.getSubscription();
   if (!subscription) return false;
-  return fetchMigraineAlertsEnabled(subscription.endpoint);
+  return fetchSecondaryAlertEnabled(kind, subscription.endpoint);
 }
 
-export async function toggleMigraineAlerts(enabled: boolean): Promise<boolean> {
+export async function toggleSecondaryAlert(kind: SecondaryAlertKind, enabled: boolean): Promise<boolean> {
   if (!isPushSupported()) return false;
   const registration = await navigator.serviceWorker.ready;
   const subscription = await registration.pushManager.getSubscription();
   if (!subscription) return false;
-  await setMigraineAlertsEnabled(subscription.endpoint, enabled);
-  setMigraineIntent(enabled);
+  await setSecondaryAlertEnabled(kind, subscription.endpoint, enabled);
+  setSecondaryIntent(kind, enabled);
   return true;
 }
 
@@ -154,9 +163,10 @@ export async function toggleMigraineAlerts(enabled: boolean): Promise<boolean> {
  * on every app load. `subscribe()` itself doesn't need a user gesture (only
  * `requestPermission()` does), so this can re-subscribe without prompting anyone.
  * A fresh subscription gets a new endpoint, which server-side is a brand new row
- * (`aqiAlertsEnabled` defaults true, `migraineAlertsEnabled` defaults false) -- the
- * locally stored intent flags are what let this also restore the migraine opt-in
- * instead of silently losing it.
+ * (`aqiAlertsEnabled` defaults true, every secondary alert defaults false) -- the
+ * locally stored intent flags are what let this also restore whichever secondary
+ * alerts (migraine, ME/CFS, POTS, clean-air) were opted into, instead of silently
+ * losing them.
  *
  * No-ops entirely if the user never opted in (no push intent stored) or permission
  * isn't 'granted' -- this only repairs an existing opt-in, it never creates a new
@@ -179,8 +189,10 @@ export async function reconcilePushSubscription(): Promise<void> {
       });
       await subscribeToPush(subscription.toJSON() as PushSubscriptionJSON);
     }
-    if (getMigraineIntent()) {
-      await setMigraineAlertsEnabled(subscription.endpoint, true);
+    for (const kind of SECONDARY_ALERT_KINDS) {
+      if (getSecondaryIntent(kind)) {
+        await setSecondaryAlertEnabled(kind, subscription.endpoint, true);
+      }
     }
   } catch {
     // Best-effort -- next app load (or opening Settings) tries again.
