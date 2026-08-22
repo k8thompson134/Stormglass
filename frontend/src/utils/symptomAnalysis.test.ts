@@ -122,6 +122,32 @@ describe("computeTodayRisk", () => {
       expect(risk.riskLevel).toBe("severe");
     }
   });
+
+  // analyzeConditions' triggers are sorted by historical severity, and a condition
+  // can historically match all 4 trigger factors -- computeTodayRisk must still
+  // recognize the currently-active one even when it has the LOWEST historical
+  // severity of the bunch, not just the display-worthy top few.
+  it("still detects a currently-active trigger that ranks lowest of all 4 historically", () => {
+    const logs = [
+      makeLog(9, ["migraine"], { humidity: 90 } as never),
+      makeLog(9, ["migraine"], {
+        geomagnetic: { kpIndex: 5 },
+      } as never),
+      makeLog(8, ["migraine"], { pressure: 980 } as never),
+      // Lowest historical severity of the 4 matched factors -- would previously
+      // have been the one dropped by a top-3 slice.
+      makeLog(2, ["migraine"], { aqi: { usAqi: 50 } } as never),
+    ];
+    const [topCondition] = analyzeConditions(logs);
+    expect(topCondition.triggers.length).toBe(4);
+    // Only the AQI factor is active right now -- none of the other 3.
+    const current = makeCurrent({ humidity: 40, aqi: { usAqi: 60 } } as never);
+    const risk = computeTodayRisk(topCondition, current);
+    expect(risk?.status).toBe("active");
+    if (risk?.status === "active") {
+      expect(risk.primaryTrigger.key).toBe("aqi");
+    }
+  });
 });
 
 describe("computeProtectiveFactors", () => {

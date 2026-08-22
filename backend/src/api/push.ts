@@ -89,11 +89,9 @@ export async function pushRoutes(app: FastifyInstance): Promise<void> {
   // it into a build-time env var, so rotating the key doesn't require a rebuild.
   app.get("/api/push/vapid-public-key", async (request, reply) => {
     if (!isPushConfigured()) {
-      return reply
-        .status(503)
-        .send({
-          error: "Push notifications are not configured on this server",
-        });
+      return reply.status(503).send({
+        error: "Push notifications are not configured on this server",
+      });
     }
     return { publicKey: env.VAPID_PUBLIC_KEY };
   });
@@ -105,11 +103,9 @@ export async function pushRoutes(app: FastifyInstance): Promise<void> {
     "/api/push/subscribe",
     async (request, reply) => {
       if (!isPushConfigured()) {
-        return reply
-          .status(503)
-          .send({
-            error: "Push notifications are not configured on this server",
-          });
+        return reply.status(503).send({
+          error: "Push notifications are not configured on this server",
+        });
       }
 
       const { endpoint, keys } = request.body ?? {};
@@ -131,18 +127,26 @@ export async function pushRoutes(app: FastifyInstance): Promise<void> {
         .limit(1);
 
       let subscriptionId: string;
+      let isNewSubscription: boolean;
       if (existing.length > 0) {
         subscriptionId = existing[0].id;
+        isNewSubscription = false;
+        // Only refresh the keys here -- reconcilePushSubscription (frontend) now
+        // calls this route on every app load as a self-heal check, not just on a
+        // genuine new subscribe, so resetting aqiAlertsEnabled/lastNotifiedCategory
+        // or resending the welcome push here would fire on every single app open
+        // for anyone already subscribed: a spurious welcome push each time, and a
+        // wiped AQI dedup state that could re-send a same-day "worsening" alert the
+        // device was already notified about.
         await db
           .update(pushSubscriptions)
           .set({
             p256dh: keys.p256dh,
             auth: keys.auth,
-            aqiAlertsEnabled: true,
-            lastNotifiedCategory: null,
           })
           .where(eq(pushSubscriptions.endpoint, endpoint));
       } else {
+        isNewSubscription = true;
         const [inserted] = await db
           .insert(pushSubscriptions)
           .values({
@@ -155,21 +159,23 @@ export async function pushRoutes(app: FastifyInstance): Promise<void> {
         subscriptionId = inserted.id;
       }
 
-      // Deliberately NOT awaited -- sendWelcomeNotification has a built-in delay
-      // (subscriptions need a moment to settle with the push service), and blocking
-      // this response on that would make the Settings toggle look stuck for seconds.
-      // sendWelcomeNotification catches its own errors and never rejects; the .catch
-      // here is a second line of defense so a fire-and-forget call can never become
-      // an unhandled rejection (which would crash the whole process) even if that
-      // internal guarantee is ever weakened by a future edit.
-      void sendWelcomeNotification({
-        id: subscriptionId,
-        endpoint,
-        p256dh: keys.p256dh,
-        auth: keys.auth,
-      }).catch((err) =>
-        request.log.error({ err }, "Unexpected error sending welcome push"),
-      );
+      if (isNewSubscription) {
+        // Deliberately NOT awaited -- sendWelcomeNotification has a built-in delay
+        // (subscriptions need a moment to settle with the push service), and blocking
+        // this response on that would make the Settings toggle look stuck for seconds.
+        // sendWelcomeNotification catches its own errors and never rejects; the .catch
+        // here is a second line of defense so a fire-and-forget call can never become
+        // an unhandled rejection (which would crash the whole process) even if that
+        // internal guarantee is ever weakened by a future edit.
+        void sendWelcomeNotification({
+          id: subscriptionId,
+          endpoint,
+          p256dh: keys.p256dh,
+          auth: keys.auth,
+        }).catch((err) =>
+          request.log.error({ err }, "Unexpected error sending welcome push"),
+        );
+      }
 
       return reply.status(201).send({ ok: true });
     },

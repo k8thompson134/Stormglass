@@ -98,6 +98,11 @@ export function analyzeConditions(
       const avgSeverity =
         condLogs.reduce((sum, l) => sum + l.severity, 0) / condLogs.length;
 
+      // Not sliced to a top-N here -- computeTodayRisk needs the FULL set to check
+      // "is any historically-known trigger active right now," including whichever
+      // one has the lowest historical severity. Slicing for display happens at the
+      // render site instead, so a low-severity-on-average trigger that's the one
+      // actually firing today doesn't get silently dropped before that check runs.
       const triggers: ConditionTrigger[] = TRIGGER_FACTORS.map((factor) => {
         const matched = condLogs.filter(factor.matchesLog);
         if (matched.length === 0) return null;
@@ -110,8 +115,7 @@ export function analyzeConditions(
         };
       })
         .filter((t): t is ConditionTrigger => t !== null)
-        .sort((a, b) => b.severity - a.severity)
-        .slice(0, 3);
+        .sort((a, b) => b.severity - a.severity);
 
       const sortedLogs = [...condLogs].sort(
         (a, b) =>

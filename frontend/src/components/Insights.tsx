@@ -266,7 +266,7 @@ export default function Insights({
             {/* Top triggers */}
             {condition.triggers.length > 0 && (
               <div className="space-y-2">
-                {condition.triggers.map((trigger, idx) => (
+                {condition.triggers.slice(0, 3).map((trigger, idx) => (
                   <div
                     key={idx}
                     className="bg-gray-900/50 border border-gray-700/30 rounded-lg p-2.5"
