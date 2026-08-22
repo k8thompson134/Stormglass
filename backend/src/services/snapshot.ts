@@ -1,4 +1,4 @@
-import { eq, desc } from 'drizzle-orm';
+import { eq, and, lte, desc } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import {
   weatherData,
@@ -47,42 +47,66 @@ export interface EnvironmentalSnapshot {
 export async function assembleCurrentSnapshot(
   userId: string
 ): Promise<EnvironmentalSnapshot | null> {
-  const [latestRows, derivativeRows, aqiRows, geoRows, pollenRows] =
-    await Promise.all([
-      db
-        .select()
-        .from(weatherData)
-        .where(eq(weatherData.userId, userId))
-        .orderBy(desc(weatherData.timestamp))
-        .limit(1),
-      db
-        .select()
-        .from(pressureDerivatives)
-        .where(eq(pressureDerivatives.userId, userId))
-        .orderBy(desc(pressureDerivatives.timestamp))
-        .limit(1),
-      db
-        .select()
-        .from(airQualityData)
-        .where(eq(airQualityData.userId, userId))
-        .orderBy(desc(airQualityData.timestamp))
-        .limit(1),
-      db
-        .select()
-        .from(geomagneticData)
-        .where(eq(geomagneticData.userId, userId))
-        .orderBy(desc(geomagneticData.timestamp))
-        .limit(1),
-      db
-        .select()
-        .from(pollenData)
-        .where(eq(pollenData.userId, userId))
-        .orderBy(desc(pollenData.timestamp))
-        .limit(1),
-    ]);
+  const now = new Date();
+
+  // weatherData (and airQualityData/pollenData) also store forecast rows up to
+  // several days out, so "ORDER BY timestamp DESC" alone would return the
+  // far-future forecast tail instead of the actual latest reading -- every
+  // "latest" lookup below is bounded to timestamp <= now, matching the guard
+  // documented in api/weather.ts.
+  const latestRows = await db
+    .select()
+    .from(weatherData)
+    .where(and(eq(weatherData.userId, userId), lte(weatherData.timestamp, now)))
+    .orderBy(desc(weatherData.timestamp))
+    .limit(1);
 
   const latest = latestRows[0];
   if (!latest) return null;
+
+  // Filter every sub-query by the SAME location as the winning weatherData row
+  // (not just userId) -- see api/weather.ts for why userId-only filtering can
+  // silently pick up a stale location's reading.
+  const rowLocation = latest.location;
+
+  const [derivativeRows, aqiRows, geoRows, pollenRows] = await Promise.all([
+    db
+      .select()
+      .from(pressureDerivatives)
+      .where(and(
+        eq(pressureDerivatives.userId, userId),
+        eq(pressureDerivatives.location, rowLocation),
+        lte(pressureDerivatives.timestamp, now)
+      ))
+      .orderBy(desc(pressureDerivatives.timestamp))
+      .limit(1),
+    db
+      .select()
+      .from(airQualityData)
+      .where(and(
+        eq(airQualityData.userId, userId),
+        eq(airQualityData.location, rowLocation),
+        lte(airQualityData.timestamp, now)
+      ))
+      .orderBy(desc(airQualityData.timestamp))
+      .limit(1),
+    db
+      .select()
+      .from(geomagneticData)
+      .where(and(eq(geomagneticData.userId, userId), lte(geomagneticData.timestamp, now)))
+      .orderBy(desc(geomagneticData.timestamp))
+      .limit(1),
+    db
+      .select()
+      .from(pollenData)
+      .where(and(
+        eq(pollenData.userId, userId),
+        eq(pollenData.location, rowLocation),
+        lte(pollenData.timestamp, now)
+      ))
+      .orderBy(desc(pollenData.timestamp))
+      .limit(1),
+  ]);
 
   const derivative = derivativeRows[0];
   const aqi = aqiRows[0];
