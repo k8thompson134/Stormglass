@@ -106,6 +106,14 @@ export default function Settings({
     pots: false,
     "clear-air": false,
   });
+  const [secondaryAlertError, setSecondaryAlertError] = useState<
+    Record<SecondaryAlertKind, string | null>
+  >({
+    migraine: null,
+    mecfs: null,
+    pots: null,
+    "clear-air": null,
+  });
   const [logOpen, setLogOpen] = useState(false);
   const [logEntries, setLogEntries] = useState<
     PushNotificationLogEntry[] | null
@@ -131,9 +139,21 @@ export default function Settings({
         setPushEnabled(enabled);
         if (enabled) {
           SECONDARY_ALERT_KINDS.forEach((kind) => {
-            getSecondaryAlertEnabled(kind).then((value) =>
-              setSecondaryAlerts((prev) => ({ ...prev, [kind]: value })),
-            );
+            // Without this .catch, a failed fetch (e.g. the backend subscription
+            // row was deleted independently of the browser's) becomes an unhandled
+            // promise rejection and leaves secondaryAlerts[kind] stuck at its prior
+            // value -- silently wrong rather than visibly failed.
+            getSecondaryAlertEnabled(kind)
+              .then((value) =>
+                setSecondaryAlerts((prev) => ({ ...prev, [kind]: value })),
+              )
+              .catch(() =>
+                setSecondaryAlertError((prev) => ({
+                  ...prev,
+                  [kind]:
+                    "Couldn't load current setting — try reopening Settings",
+                })),
+              );
           });
         }
       });
@@ -142,10 +162,27 @@ export default function Settings({
 
   const handleToggleSecondaryAlert = async (kind: SecondaryAlertKind) => {
     setSecondaryAlertsBusy((prev) => ({ ...prev, [kind]: true }));
+    setSecondaryAlertError((prev) => ({ ...prev, [kind]: null }));
     try {
       const next = !secondaryAlerts[kind];
       const ok = await toggleSecondaryAlert(kind, next);
-      if (ok) setSecondaryAlerts((prev) => ({ ...prev, [kind]: next }));
+      if (ok) {
+        setSecondaryAlerts((prev) => ({ ...prev, [kind]: next }));
+      } else {
+        setSecondaryAlertError((prev) => ({
+          ...prev,
+          [kind]: "Push isn't active on this device — try re-enabling it above",
+        }));
+      }
+    } catch {
+      // toggleSecondaryAlert throws if the backend call fails (e.g. the
+      // subscription row was deleted server-side) -- without catching this, the
+      // checkbox silently stays at its old value with zero indication the toggle
+      // didn't take effect.
+      setSecondaryAlertError((prev) => ({
+        ...prev,
+        [kind]: "Couldn't update this setting — try again",
+      }));
     } finally {
       setSecondaryAlertsBusy((prev) => ({ ...prev, [kind]: false }));
     }
@@ -211,10 +248,37 @@ export default function Settings({
       if (pushEnabled) {
         await disablePushNotifications();
         setPushEnabled(false);
+        // Disabling tears down the browser subscription entirely, so a later
+        // re-enable always creates a brand new one (fresh backend row, every
+        // secondary alert defaulting off) -- reset here so stale "on" checkboxes
+        // from before disabling can't linger and desync from that backend truth.
+        setSecondaryAlerts({
+          migraine: false,
+          mecfs: false,
+          pots: false,
+          "clear-air": false,
+        });
+        setSecondaryAlertError({
+          migraine: null,
+          mecfs: null,
+          pots: null,
+          "clear-air": null,
+        });
       } else {
         const result: PushEnableResult = await enablePushNotifications();
         if (result.ok) {
           setPushEnabled(true);
+          // Mirror the fresh subscription's actual backend defaults (every
+          // secondary alert off) rather than leaving whatever secondaryAlerts held
+          // from a previous enable/disable cycle earlier in this same modal
+          // session -- without this, a checkbox can show "on" when the newly
+          // created subscription is actually not opted into that alert at all.
+          setSecondaryAlerts({
+            migraine: false,
+            mecfs: false,
+            pots: false,
+            "clear-air": false,
+          });
           // In-app confirmation shows immediately regardless of OS-level delivery
           // (Do Not Disturb, notification-style settings, etc. are outside our
           // control) -- the confirmation push itself is sent a few seconds later
@@ -685,45 +749,49 @@ export default function Settings({
                 )}
                 {pushEnabled &&
                   SECONDARY_ALERT_CONFIG.map(({ kind, label }) => (
-                    <label
-                      key={kind}
-                      className="flex items-center gap-3 cursor-pointer select-none mt-3"
-                    >
-                      <span
-                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors duration-200 ${
-                          secondaryAlerts[kind]
-                            ? "border-blue-500/50 bg-blue-500/20 text-blue-300"
-                            : "border-[#1e2d45] bg-[#131d2e]"
-                        }`}
-                        aria-hidden
-                      >
-                        {secondaryAlerts[kind] && (
-                          <svg
-                            className="h-2.5 w-2.5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            strokeWidth={2.5}
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
-                        )}
-                      </span>
-                      <input
-                        type="checkbox"
-                        className="sr-only"
-                        checked={secondaryAlerts[kind]}
-                        disabled={secondaryAlertsBusy[kind]}
-                        onChange={() => handleToggleSecondaryAlert(kind)}
-                      />
-                      <span className="text-[11px] text-gray-300">
-                        {secondaryAlertsBusy[kind] ? "Updating…" : label}
-                      </span>
-                    </label>
+                    <div key={kind} className="mt-3">
+                      <label className="flex items-center gap-3 cursor-pointer select-none">
+                        <span
+                          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors duration-200 ${
+                            secondaryAlerts[kind]
+                              ? "border-blue-500/50 bg-blue-500/20 text-blue-300"
+                              : "border-[#1e2d45] bg-[#131d2e]"
+                          }`}
+                          aria-hidden
+                        >
+                          {secondaryAlerts[kind] && (
+                            <svg
+                              className="h-2.5 w-2.5"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2.5}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M5 13l4 4L19 7"
+                              />
+                            </svg>
+                          )}
+                        </span>
+                        <input
+                          type="checkbox"
+                          className="sr-only"
+                          checked={secondaryAlerts[kind]}
+                          disabled={secondaryAlertsBusy[kind]}
+                          onChange={() => handleToggleSecondaryAlert(kind)}
+                        />
+                        <span className="text-[11px] text-gray-300">
+                          {secondaryAlertsBusy[kind] ? "Updating…" : label}
+                        </span>
+                      </label>
+                      {secondaryAlertError[kind] && (
+                        <p className="text-[11px] text-amber-300 mt-1 ml-7">
+                          {secondaryAlertError[kind]}
+                        </p>
+                      )}
+                    </div>
                   ))}
                 {pushEnabled && (
                   <div className="mt-3">

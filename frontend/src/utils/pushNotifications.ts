@@ -180,11 +180,17 @@ export async function toggleSecondaryAlert(
 }
 
 /**
- * Restores push notifications after the browser has silently dropped the
- * subscription (permission still 'granted' but PushManager has nothing) -- run this
- * on every app load. `subscribe()` itself doesn't need a user gesture (only
- * `requestPermission()` does), so this can re-subscribe without prompting anyone.
- * A fresh subscription gets a new endpoint, which server-side is a brand new row
+ * Restores push notifications after either the browser or the backend has dropped
+ * its half of the subscription -- run this on every app load. Two distinct failure
+ * modes land here: (1) the browser silently drops the subscription (permission
+ * still 'granted' but PushManager has nothing), which needs a fresh
+ * `pushManager.subscribe()` -- that itself doesn't need a user gesture (only
+ * `requestPermission()` does), so this can re-subscribe without prompting anyone;
+ * (2) the backend row gets deleted independently (e.g. a 404/410 cleanup from a
+ * failed send) while the browser subscription is still perfectly valid, which
+ * this function would never notice or repair unless it re-upserts with the
+ * backend unconditionally, not just when a new browser-side subscription had to
+ * be created. A fresh or re-upserted subscription is a brand new server-side row
  * (`aqiAlertsEnabled` defaults true, every secondary alert defaults false) -- the
  * locally stored intent flags are what let this also restore whichever secondary
  * alerts (migraine, ME/CFS, POTS, clean-air) were opted into, instead of silently
@@ -209,8 +215,15 @@ export async function reconcilePushSubscription(): Promise<void> {
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
       });
-      await subscribeToPush(subscription.toJSON() as PushSubscriptionJSON);
     }
+    // Always upsert with the backend, even when the browser already had a live
+    // subscription -- the backend row can be deleted independently of the browser
+    // subscription (e.g. sendToSubscription's 404/410 cleanup after ANY alert type
+    // fails to deliver), and without this, a device in that state would silently
+    // stop receiving every push notification forever: the browser subscription
+    // still looks fine, so this function would never get past the `if (!subscription)`
+    // branch to recreate the missing backend row.
+    await subscribeToPush(subscription.toJSON() as PushSubscriptionJSON);
     for (const kind of SECONDARY_ALERT_KINDS) {
       if (getSecondaryIntent(kind)) {
         await setSecondaryAlertEnabled(kind, subscription.endpoint, true);
