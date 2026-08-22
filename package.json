@@ -16,8 +16,7 @@
   },
   "workspaces": [
     "frontend",
-    "backend",
-    "shared"
+    "backend"
   ],
   "keywords": [
     "chronic-illness",

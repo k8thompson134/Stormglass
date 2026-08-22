@@ -1,20 +1,34 @@
 // NOTE: These risk functions are duplicated from frontend/src/utils/healthLogic.ts.
 // If you update thresholds or logic here, update the frontend copy too (and vice versa).
-// Long-term home for this logic is the shared/ package once its build is wired up.
-import type { HealthRisk, RiskLevel } from './healthTypes.js';
-import { MIGRAINE_CONFIG, MECFS_CONFIG, GEOMAGNETIC_CONFIG, AQI_CONFIG, type RiskConfig } from './healthRisks.js';
-import { toF } from './conversions.js';
-import { classifyAqiCategory, effectiveAqi as computeEffectiveAqi, aqiSeverityFactor, aqiScoreBump } from './aqiWindows.js';
+import type { HealthRisk, RiskLevel } from "./healthTypes.js";
+import {
+  MIGRAINE_CONFIG,
+  MECFS_CONFIG,
+  GEOMAGNETIC_CONFIG,
+  AQI_CONFIG,
+  type RiskConfig,
+} from "./healthRisks.js";
+import { toF } from "./conversions.js";
+import {
+  classifyAqiCategory,
+  effectiveAqi as computeEffectiveAqi,
+  aqiSeverityFactor,
+  aqiScoreBump,
+} from "./aqiWindows.js";
 
 function evaluateRisk(value: number, config: RiskConfig): HealthRisk {
-  const match = config.thresholds.find(t => value >= (t.min ?? -Infinity) && value <= (t.max ?? Infinity))
-    || config.thresholds[config.thresholds.length - 1];
+  const match =
+    config.thresholds.find(
+      (t) => value >= (t.min ?? -Infinity) && value <= (t.max ?? Infinity),
+    ) || config.thresholds[config.thresholds.length - 1];
 
   const currentFactors = [...(match.factors || [])];
 
-  if (config.condition === 'Migraine') {
-    currentFactors.unshift(`Pressure change: ${value.toFixed(2)} hPa/hour (${match.level})`);
-  } else if (config.condition === 'ME/CFS / PEM') {
+  if (config.condition === "Migraine") {
+    currentFactors.unshift(
+      `Pressure change: ${value.toFixed(2)} hPa/hour (${match.level})`,
+    );
+  } else if (config.condition === "ME/CFS / PEM") {
     currentFactors.unshift(`Volatility index: ${value.toFixed(2)}`);
   }
 
@@ -26,10 +40,9 @@ function evaluateRisk(value: number, config: RiskConfig): HealthRisk {
     icon: config.icon,
     detailedExplanation: match.detailedExplanation,
     currentFactors,
-    recommendations: [...(match.recommendations || [])]
+    recommendations: [...(match.recommendations || [])],
   };
 }
-
 
 // Short-term PM2.5/ozone exposure is linked in several studies to increased migraine
 // frequency via systemic inflammation and oxidative stress -- treated here as a mild
@@ -39,7 +52,12 @@ function aqiMigraineMultiplier(usAqi: number | null): number {
   return 1 + aqiSeverityFactor(usAqi) * 0.5;
 }
 
-export function getMigraineRisk(delta: number, delta3h = 0, delta6h = 0, usAqi: number | null = null): HealthRisk {
+export function getMigraineRisk(
+  delta: number,
+  delta3h = 0,
+  delta6h = 0,
+  usAqi: number | null = null,
+): HealthRisk {
   const abs1h = Math.abs(delta);
 
   // Sustained drop/rise in the same direction across all three windows amplifies risk
@@ -47,26 +65,34 @@ export function getMigraineRisk(delta: number, delta3h = 0, delta6h = 0, usAqi: 
     delta !== 0 &&
     Math.sign(delta) === Math.sign(delta3h) &&
     Math.sign(delta3h) === Math.sign(delta6h);
-  const effective = (sustained ? abs1h * 1.25 : abs1h) * aqiMigraineMultiplier(usAqi);
+  const effective =
+    (sustained ? abs1h * 1.25 : abs1h) * aqiMigraineMultiplier(usAqi);
 
   const risk = evaluateRisk(effective, MIGRAINE_CONFIG);
 
   if (sustained && abs1h >= 0.3) {
     risk.currentFactors.unshift(
-      `Sustained ${delta < 0 ? 'falling' : 'rising'} pressure over 6+ hours — cumulative stress elevated`
+      `Sustained ${delta < 0 ? "falling" : "rising"} pressure over 6+ hours — cumulative stress elevated`,
     );
   }
   if (usAqi !== null && usAqi > 50) {
     risk.currentFactors.push(`AQI: ${usAqi}`);
     // Tailored to migraine specifically (not the generic "close windows" advice
     // that belongs on the Air Quality card).
-    risk.recommendations.push('Keep your usual abortive medication within easy reach — air quality is adding to today\'s trigger load');
+    risk.recommendations.push(
+      "Keep your usual abortive medication within easy reach — air quality is adding to today's trigger load",
+    );
   }
 
   return risk;
 }
 
-export function getMECFSRisk(delta1h: number, delta3h: number, delta6h: number, usAqi: number | null = null): HealthRisk {
+export function getMECFSRisk(
+  delta1h: number,
+  delta3h: number,
+  delta6h: number,
+  usAqi: number | null = null,
+): HealthRisk {
   const volatility = Math.abs(delta1h) + Math.abs(delta3h) + Math.abs(delta6h);
   // ME/CFS/PEM is driven by cumulative environmental/immune burden -- elevated air
   // quality is a plausible added burden on top of pressure volatility, not a separate
@@ -80,37 +106,60 @@ export function getMECFSRisk(delta1h: number, delta3h: number, delta6h: number, 
     `6-hour change: ${delta6h.toFixed(2)} hPa/hour`,
     `Total volatility: ${volatility.toFixed(2)} (${risk.risk})`,
     ...(usAqi !== null && usAqi > 50 ? [`AQI: ${usAqi}`] : []),
-    ...(risk.currentFactors || [])
+    ...(risk.currentFactors || []),
   ];
   if (usAqi !== null && usAqi > 50) {
     // Tailored to ME/CFS's pacing model, not generic AQI mitigation.
-    risk.recommendations.push('Factor today\'s air quality into your pacing alongside the pressure volatility');
+    risk.recommendations.push(
+      "Factor today's air quality into your pacing alongside the pressure volatility",
+    );
   }
 
   return risk;
 }
 
-export function getGeomagneticRisk(geo: { kpIndex: number; solarWindSpeed: number; solarWindDensity: number } | null): HealthRisk {
-  if (!geo) return {
-    condition: 'Geomagnetic Storm',
-    risk: 'low',
-    trigger: 'Solar Activity',
-    description: 'Geomagnetic data is currently unavailable.',
-    icon: '🧲',
-    detailedExplanation: 'The app could not retrieve current geomagnetic information. Conditions may still be quiet, but the system cannot rate this risk level right now.',
-    currentFactors: ['No recent geomagnetic readings available'],
-    recommendations: ['If you know you are sensitive to geomagnetic changes, you can check a trusted space‑weather source directly']
-  };
+export function getGeomagneticRisk(
+  geo: {
+    kpIndex: number;
+    solarWindSpeed: number;
+    solarWindDensity: number;
+  } | null,
+): HealthRisk {
+  if (!geo)
+    return {
+      condition: "Geomagnetic Storm",
+      risk: "low",
+      trigger: "Solar Activity",
+      description: "Geomagnetic data is currently unavailable.",
+      icon: "🧲",
+      detailedExplanation:
+        "The app could not retrieve current geomagnetic information. Conditions may still be quiet, but the system cannot rate this risk level right now.",
+      currentFactors: ["No recent geomagnetic readings available"],
+      recommendations: [
+        "If you know you are sensitive to geomagnetic changes, you can check a trusted space‑weather source directly",
+      ],
+    };
 
   const risk = evaluateRisk(geo.kpIndex, GEOMAGNETIC_CONFIG);
 
   const specificFactors = [`Kp Index: ${geo.kpIndex.toFixed(2)}`];
-  if (geo.solarWindSpeed > 0) specificFactors.push(`Solar Wind Speed: ${geo.solarWindSpeed.toFixed(0)} km/s`);
-  if (geo.solarWindDensity > 0) specificFactors.push(`Solar Wind Density: ${geo.solarWindDensity.toFixed(1)} p/cm³`);
+  if (geo.solarWindSpeed > 0)
+    specificFactors.push(
+      `Solar Wind Speed: ${geo.solarWindSpeed.toFixed(0)} km/s`,
+    );
+  if (geo.solarWindDensity > 0)
+    specificFactors.push(
+      `Solar Wind Density: ${geo.solarWindDensity.toFixed(1)} p/cm³`,
+    );
 
   risk.currentFactors = [...specificFactors, ...risk.currentFactors];
 
-  const kpCategory = geo.kpIndex >= 7 ? 'Severe Storm' : geo.kpIndex >= 4 ? 'Unsettled' : 'Quiet';
+  const kpCategory =
+    geo.kpIndex >= 7
+      ? "Severe Storm"
+      : geo.kpIndex >= 4
+        ? "Unsettled"
+        : "Quiet";
   risk.trigger = `Kp Index ${geo.kpIndex.toFixed(2)} — ${kpCategory}`;
   risk.description = `Kp Index is ${geo.kpIndex.toFixed(2)} (${kpCategory}). ${risk.description}`;
 
@@ -125,7 +174,7 @@ export interface AQIHyperlocal {
 }
 
 export interface AQISmokeTrend {
-  direction: 'worsening' | 'improving' | 'stable';
+  direction: "worsening" | "improving" | "stable";
   currentPm25: number;
   next24hPeakPm25: number;
   next24hPeakUsAqi: number;
@@ -146,16 +195,20 @@ export interface AQIData {
 }
 
 export function getAQIRisk(aqiData: AQIData | null): HealthRisk {
-  if (!aqiData) return {
-    condition: 'Air Quality',
-    risk: 'low',
-    trigger: 'Particulate Matter',
-    description: 'Air quality data is currently unavailable.',
-    icon: '🌫️',
-    detailedExplanation: 'The app could not retrieve current air quality information, so this risk estimate is based only on other factors.',
-    currentFactors: ['No recent AQI readings from the data source'],
-    recommendations: ['If air quality is a key trigger for you, check a local AQI or pollution report']
-  };
+  if (!aqiData)
+    return {
+      condition: "Air Quality",
+      risk: "low",
+      trigger: "Particulate Matter",
+      description: "Air quality data is currently unavailable.",
+      icon: "🌫️",
+      detailedExplanation:
+        "The app could not retrieve current air quality information, so this risk estimate is based only on other factors.",
+      currentFactors: ["No recent AQI readings from the data source"],
+      recommendations: [
+        "If air quality is a key trigger for you, check a local AQI or pollution report",
+      ],
+    };
 
   const hyperlocal = aqiData.hyperlocal ?? null;
   const smokeTrend = aqiData.smokeTrend ?? null;
@@ -167,46 +220,66 @@ export function getAQIRisk(aqiData: AQIData | null): HealthRisk {
   const pollutants = [
     `US AQI (regional model): ${aqiData.usAqi}`,
     `PM2.5: ${aqiData.pm25.toFixed(1)} μg/m³`,
-    `PM10: ${aqiData.pm10.toFixed(1)} μg/m³`
+    `PM10: ${aqiData.pm10.toFixed(1)} μg/m³`,
   ];
   if (hyperlocal) {
-    pollutants.push(`US AQI (${hyperlocal.sensorCount} nearby sensors, ${hyperlocal.nearestMiles.toFixed(1)} mi): ${hyperlocal.usAqi} — PM2.5 ${hyperlocal.pm25.toFixed(1)} μg/m³`);
+    pollutants.push(
+      `US AQI (${hyperlocal.sensorCount} nearby sensors, ${hyperlocal.nearestMiles.toFixed(1)} mi): ${hyperlocal.usAqi} — PM2.5 ${hyperlocal.pm25.toFixed(1)} μg/m³`,
+    );
     // Normally the 3 nearest sensors are averaged together; fewer than that (a rural
     // or low-density area) means a single miscalibrated or obstructed sensor has much
     // more influence on the reading, so flag it rather than presenting it with the
     // same confidence as a 3-sensor average.
     if (hyperlocal.sensorCount < 3) {
-      pollutants.push(`Only ${hyperlocal.sensorCount} nearby sensor${hyperlocal.sensorCount === 1 ? '' : 's'} available — hyperlocal reading is lower-confidence than usual`);
+      pollutants.push(
+        `Only ${hyperlocal.sensorCount} nearby sensor${hyperlocal.sensorCount === 1 ? "" : "s"} available — hyperlocal reading is lower-confidence than usual`,
+      );
     }
   }
-  if (aqiData.ozone > 0) pollutants.push(`Ozone (O₃): ${aqiData.ozone.toFixed(1)} μg/m³`);
+  if (aqiData.ozone > 0)
+    pollutants.push(`Ozone (O₃): ${aqiData.ozone.toFixed(1)} μg/m³`);
   if (aqiData.no2 > 0) pollutants.push(`NO₂: ${aqiData.no2.toFixed(1)} μg/m³`);
 
   risk.currentFactors = [...pollutants, ...risk.currentFactors];
 
   if (smokeTrend?.likelyWildfireSmoke) {
-    risk.currentFactors.unshift('Pollutant mix looks like wildfire smoke, not general pollution');
+    risk.currentFactors.unshift(
+      "Pollutant mix looks like wildfire smoke, not general pollution",
+    );
   }
 
-  if (smokeTrend?.direction === 'worsening') {
-    risk.recommendations.unshift(`Smoke is trending worse, headed toward ~AQI ${smokeTrend.next24hPeakUsAqi} within 24h — close up windows and set up filtration now rather than waiting`);
-  } else if (smokeTrend?.direction === 'improving') {
-    risk.recommendations.push('Air quality is trending better — conditions are likely past their worst point for now.');
+  if (smokeTrend?.direction === "worsening") {
+    risk.recommendations.unshift(
+      `Smoke is trending worse, headed toward ~AQI ${smokeTrend.next24hPeakUsAqi} within 24h — close up windows and set up filtration now rather than waiting`,
+    );
+  } else if (smokeTrend?.direction === "improving") {
+    risk.recommendations.push(
+      "Air quality is trending better — conditions are likely past their worst point for now.",
+    );
   }
 
-  const effectivePm25 = hyperlocal ? Math.max(aqiData.pm25, hyperlocal.pm25) : aqiData.pm25;
+  const effectivePm25 = hyperlocal
+    ? Math.max(aqiData.pm25, hyperlocal.pm25)
+    : aqiData.pm25;
   if (effectivePm25 > 35) {
-    risk.recommendations.push(`PM2.5 is elevated (${effectivePm25.toFixed(1)} μg/m³) — consider wearing a well-fitting N95 outdoors`);
+    risk.recommendations.push(
+      `PM2.5 is elevated (${effectivePm25.toFixed(1)} μg/m³) — consider wearing a well-fitting N95 outdoors`,
+    );
   }
 
   const aqiCategory = classifyAqiCategory(effectiveAqi);
   risk.trigger = `US AQI ${effectiveAqi} — ${aqiCategory}`;
-  risk.description = `Current US AQI is ${effectiveAqi} (${aqiCategory})${hyperlocal ? ', from nearby ground sensors' : ''}. ${risk.description}`;
+  risk.description = `Current US AQI is ${effectiveAqi} (${aqiCategory})${hyperlocal ? ", from nearby ground sensors" : ""}. ${risk.description}`;
 
   return risk;
 }
 
-export function getPOTSRisk(delta: number, humidity: number, temp: number, usAqi: number | null = null): HealthRisk {
+export function getPOTSRisk(
+  delta: number,
+  humidity: number,
+  temp: number,
+  usAqi: number | null = null,
+): HealthRisk {
   const tempF = toF(temp);
   const isFalling = delta < -0.3;
   const isHot = temp > 24;
@@ -229,27 +302,40 @@ export function getPOTSRisk(delta: number, humidity: number, temp: number, usAqi
   if (Math.abs(delta) > 0.8) score += 1;
   score += aqiBump;
 
-  const primaryStressor = isVeryHot || isHot ? 'heat' : (isVeryCold || isCold ? 'cold' : 'pressure');
+  const primaryStressor =
+    isVeryHot || isHot ? "heat" : isVeryCold || isCold ? "cold" : "pressure";
 
-  let risk: RiskLevel = 'low';
-  let description = 'Environmental factors for dysautonomia look relatively stable.';
-  let detailedExplanation = 'Right now, temperature, humidity, and pressure changes are not adding much extra load on your autonomic nervous system.';
+  let risk: RiskLevel = "low";
+  let description =
+    "Environmental factors for dysautonomia look relatively stable.";
+  let detailedExplanation =
+    "Right now, temperature, humidity, and pressure changes are not adding much extra load on your autonomic nervous system.";
   const currentFactors: string[] = [];
   const recommendations: string[] = [];
 
   if (score >= 5) {
-    risk = 'severe';
-    description = 'Strong combination of heat/cold, humidity, and pressure swings. High risk of POTS symptom flare.';
-    detailedExplanation = 'Several stressors are stacking at once (temperature extremes, humidity, and rapid pressure changes). Together they can make it harder for your body to regulate heart rate and blood pressure, increasing chances of dizziness, tachycardia, and fatigue.';
-    recommendations.push(primaryStressor === 'heat' ? 'Stay in the coolest comfortable environment you can' : 'Stay in a warm, draft‑free space');
+    risk = "severe";
+    description =
+      "Strong combination of heat/cold, humidity, and pressure swings. High risk of POTS symptom flare.";
+    detailedExplanation =
+      "Several stressors are stacking at once (temperature extremes, humidity, and rapid pressure changes). Together they can make it harder for your body to regulate heart rate and blood pressure, increasing chances of dizziness, tachycardia, and fatigue.";
+    recommendations.push(
+      primaryStressor === "heat"
+        ? "Stay in the coolest comfortable environment you can"
+        : "Stay in a warm, draft‑free space",
+    );
   } else if (score >= 3) {
-    risk = 'high';
-    description = 'Weather conditions may noticeably worsen orthostatic intolerance.';
-    detailedExplanation = 'Heat, cold, humidity, and pressure shifts are adding clear extra load for your autonomic nervous system. This can make standing or being upright more draining, and you may notice more dizziness, brain fog, or heart‑rate spikes than usual.';
+    risk = "high";
+    description =
+      "Weather conditions may noticeably worsen orthostatic intolerance.";
+    detailedExplanation =
+      "Heat, cold, humidity, and pressure shifts are adding clear extra load for your autonomic nervous system. This can make standing or being upright more draining, and you may notice more dizziness, brain fog, or heart‑rate spikes than usual.";
   } else if (score >= 1) {
-    risk = 'moderate';
-    description = 'Mild weather stressors are present and could nudge symptoms upward.';
-    detailedExplanation = 'There are some mild temperature, humidity, or pressure changes today. On their own they are not extreme, but they can slightly increase orthostatic stress, especially if you are already pushing your limits.';
+    risk = "moderate";
+    description =
+      "Mild weather stressors are present and could nudge symptoms upward.";
+    detailedExplanation =
+      "There are some mild temperature, humidity, or pressure changes today. On their own they are not extreme, but they can slightly increase orthostatic stress, especially if you are already pushing your limits.";
   }
 
   currentFactors.push(`Temperature: ${tempF}°F`);
@@ -258,51 +344,60 @@ export function getPOTSRisk(delta: number, humidity: number, temp: number, usAqi
   if (usAqi !== null && usAqi > 50) currentFactors.push(`AQI: ${usAqi}`);
   // Tailored to POTS's autonomic/cardiovascular angle, not generic AQI mitigation.
   if (usAqi !== null && usAqi > 50) {
-    recommendations.push('Pace standing/upright time a bit more conservatively today — air quality is adding extra autonomic load');
+    recommendations.push(
+      "Pace standing/upright time a bit more conservatively today — air quality is adding extra autonomic load",
+    );
   }
 
   return {
-    condition: 'POTS / Dysautonomia',
+    condition: "POTS / Dysautonomia",
     risk,
-    trigger: 'Combined Factors',
+    trigger: "Combined Factors",
     description,
-    icon: '🫀',
+    icon: "🫀",
     detailedExplanation: detailedExplanation || description,
     currentFactors,
     // Severity-specific and AQI-tailored tips lead; the two generic fillers trail --
     // otherwise a UI reading recommendations[0] as "the most actionable tip" would
     // always surface "Stay hydrated" instead of anything severity-specific.
-    recommendations: [...recommendations, 'Stay hydrated', 'Monitor symptoms']
+    recommendations: [...recommendations, "Stay hydrated", "Monitor symptoms"],
   };
 }
 
-export function getJointPainRisk(delta: number, humidity: number, temp: number, usAqi: number | null = null): HealthRisk {
+export function getJointPainRisk(
+  delta: number,
+  humidity: number,
+  temp: number,
+  usAqi: number | null = null,
+): HealthRisk {
   const tempF = toF(temp);
   // Air pollution's systemic inflammatory effect is linked to increased inflammatory
   // arthritis symptoms in several studies -- graduated so a Hazardous day contributes
   // more than a bare Unhealthy-for-Sensitive-Groups one.
   const aqiBump = aqiScoreBump(usAqi);
 
-  let risk: RiskLevel = 'low';
+  let risk: RiskLevel = "low";
   let score = 0;
   if (Math.abs(delta) > 0.5) score += 2;
   if (temp < 10) score += 1;
   if (humidity > 60) score += 1;
   score += aqiBump;
 
-  if (score >= 4) risk = 'severe';
-  else if (score >= 3) risk = 'high';
-  else if (score >= 1) risk = 'moderate';
+  if (score >= 4) risk = "severe";
+  else if (score >= 3) risk = "high";
+  else if (score >= 1) risk = "moderate";
 
   return {
-    condition: 'Joint Pain (Arthritis)',
+    condition: "Joint Pain (Arthritis)",
     risk,
-    trigger: 'Pressure/Cold/Humidity',
-    description: risk === 'low'
-      ? 'Conditions look friendly for joint comfort.'
-      : 'Today\'s pressure, temperature, and humidity may aggravate joint pain.',
-    icon: '🦴',
-    detailedExplanation: 'Rapid pressure shifts, cold air, and damp conditions can change how joints and surrounding tissues feel. In people with arthritis or similar conditions, this may show up as stiffness, aching, or swelling.',
+    trigger: "Pressure/Cold/Humidity",
+    description:
+      risk === "low"
+        ? "Conditions look friendly for joint comfort."
+        : "Today's pressure, temperature, and humidity may aggravate joint pain.",
+    icon: "🦴",
+    detailedExplanation:
+      "Rapid pressure shifts, cold air, and damp conditions can change how joints and surrounding tissues feel. In people with arthritis or similar conditions, this may show up as stiffness, aching, or swelling.",
     currentFactors: [
       `Temperature: ${tempF}°F`,
       `Humidity: ${humidity.toFixed(0)}%`,
@@ -310,33 +405,60 @@ export function getJointPainRisk(delta: number, humidity: number, temp: number, 
       ...(usAqi !== null && usAqi > 50 ? [`AQI: ${usAqi}`] : []),
     ],
     recommendations: [
-      'Keep joints warm and protected',
-      'Use gentle movement or stretching within your comfort range',
+      "Keep joints warm and protected",
+      "Use gentle movement or stretching within your comfort range",
       // Tailored to joint pain's inflammatory angle, not generic AQI mitigation.
-      ...(usAqi !== null && usAqi > 50 ? ['Time any anti-inflammatory routines you use around today — air quality may be compounding joint stress'] : []),
-    ]
+      ...(usAqi !== null && usAqi > 50
+        ? [
+            "Time any anti-inflammatory routines you use around today — air quality may be compounding joint stress",
+          ]
+        : []),
+    ],
   };
 }
 
-export function getPollenRisk(pollen: { treeIndex: number; grassIndex: number; weedIndex: number; moldIndex: number } | null): HealthRisk {
-  if (!pollen) return {
-    condition: 'Pollen & Mold', risk: 'low', trigger: 'Allergen Index', description: 'No data.', icon: '🌿', detailedExplanation: '', currentFactors: [], recommendations: []
-  };
+export function getPollenRisk(
+  pollen: {
+    treeIndex: number;
+    grassIndex: number;
+    weedIndex: number;
+    moldIndex: number;
+  } | null,
+): HealthRisk {
+  if (!pollen)
+    return {
+      condition: "Pollen & Mold",
+      risk: "low",
+      trigger: "Allergen Index",
+      description: "No data.",
+      icon: "🌿",
+      detailedExplanation: "",
+      currentFactors: [],
+      recommendations: [],
+    };
 
-  const maxIndex = Math.max(pollen.treeIndex, pollen.grassIndex, pollen.weedIndex, pollen.moldIndex);
-  let risk: RiskLevel = 'low';
-  if (maxIndex >= 5) risk = 'severe';
-  else if (maxIndex >= 4) risk = 'high';
-  else if (maxIndex >= 3) risk = 'moderate';
+  const maxIndex = Math.max(
+    pollen.treeIndex,
+    pollen.grassIndex,
+    pollen.weedIndex,
+    pollen.moldIndex,
+  );
+  let risk: RiskLevel = "low";
+  if (maxIndex >= 5) risk = "severe";
+  else if (maxIndex >= 4) risk = "high";
+  else if (maxIndex >= 3) risk = "moderate";
 
   return {
-    condition: 'Pollen & Mold',
+    condition: "Pollen & Mold",
     risk,
-    trigger: 'Allergen Index',
-    description: `Airborne allergen levels are ${['none', 'very low', 'low', 'medium', 'high', 'very high'][maxIndex] || 'unknown'}.`,
-    icon: '🌿',
-    detailedExplanation: 'Tree, grass, weed pollen and mold spores can irritate the nose, sinuses, lungs, and eyes. For people with allergies, this may increase congestion, sneezing, cough, or asthma symptoms.',
+    trigger: "Allergen Index",
+    description: `Airborne allergen levels are ${["none", "very low", "low", "medium", "high", "very high"][maxIndex] || "unknown"}.`,
+    icon: "🌿",
+    detailedExplanation:
+      "Tree, grass, weed pollen and mold spores can irritate the nose, sinuses, lungs, and eyes. For people with allergies, this may increase congestion, sneezing, cough, or asthma symptoms.",
     currentFactors: [`Highest allergen index today: ${maxIndex}`],
-    recommendations: ['Monitor local pollen reports if allergies are a major trigger for you']
+    recommendations: [
+      "Monitor local pollen reports if allergies are a major trigger for you",
+    ],
   };
 }

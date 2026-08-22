@@ -1,10 +1,10 @@
-const API_BASE = '/api';
+const API_BASE = "/api";
 const API_TOKEN = import.meta.env.VITE_API_TOKEN;
 
 const getHeaders = (headers: Record<string, string> = {}) => {
   const h: Record<string, string> = { ...headers };
   if (API_TOKEN) {
-    h['Authorization'] = `Bearer ${API_TOKEN}`;
+    h["Authorization"] = `Bearer ${API_TOKEN}`;
   }
   return h;
 };
@@ -24,7 +24,7 @@ export interface CurrentWeather {
     delta1h: number;
     delta3h: number;
     delta6h: number;
-    trend: 'rising' | 'falling' | 'stable';
+    trend: "rising" | "falling" | "stable";
   } | null;
   aqi: {
     usAqi: number;
@@ -42,7 +42,7 @@ export interface CurrentWeather {
       nearestMiles: number;
     } | null;
     smokeTrend: {
-      direction: 'worsening' | 'improving' | 'stable';
+      direction: "worsening" | "improving" | "stable";
       currentPm25: number;
       next24hPeakPm25: number;
       next24hPeakUsAqi: number;
@@ -69,7 +69,7 @@ export interface WeatherPoint {
   temperature: number;
   humidity: number;
   delta1h: number | null;
-  trend: 'rising' | 'falling' | 'stable' | null;
+  trend: "rising" | "falling" | "stable" | null;
   symptomSeverity: number | null;
   usAqi: number | null;
   pm25: number | null;
@@ -82,17 +82,21 @@ export interface WeatherHistory {
 
 export async function fetchCurrentWeather(): Promise<CurrentWeather> {
   const res = await fetch(`${API_BASE}/weather/current`, {
-    headers: getHeaders()
+    headers: getHeaders(),
   });
-  if (!res.ok) throw new Error(`Failed to fetch current weather: ${res.status}`);
+  if (!res.ok)
+    throw new Error(`Failed to fetch current weather: ${res.status}`);
   return res.json();
 }
 
-export async function fetchWeatherHistory(hours: number = 24): Promise<WeatherHistory> {
+export async function fetchWeatherHistory(
+  hours: number = 24,
+): Promise<WeatherHistory> {
   const res = await fetch(`${API_BASE}/weather/history?hours=${hours}`, {
-    headers: getHeaders()
+    headers: getHeaders(),
   });
-  if (!res.ok) throw new Error(`Failed to fetch weather history: ${res.status}`);
+  if (!res.ok)
+    throw new Error(`Failed to fetch weather history: ${res.status}`);
   return res.json();
 }
 
@@ -112,7 +116,13 @@ export interface AQISafeWindow {
   isCurrent: boolean;
 }
 
-export type AqiCategory = 'Good' | 'Moderate' | 'Unhealthy for Sensitive Groups' | 'Unhealthy' | 'Very Unhealthy' | 'Hazardous';
+export type AqiCategory =
+  | "Good"
+  | "Moderate"
+  | "Unhealthy for Sensitive Groups"
+  | "Unhealthy"
+  | "Very Unhealthy"
+  | "Hazardous";
 
 export interface AQICategoryCrossing {
   fromCategory: AqiCategory;
@@ -130,13 +140,16 @@ export interface AQIForecast {
   categoryCrossing: AQICategoryCrossing | null;
 }
 
-export async function fetchAQIForecast(hours?: number, threshold?: number): Promise<AQIForecast | null> {
+export async function fetchAQIForecast(
+  hours?: number,
+  threshold?: number,
+): Promise<AQIForecast | null> {
   const params = new URLSearchParams();
-  if (hours !== undefined) params.set('hours', String(hours));
-  if (threshold !== undefined) params.set('threshold', String(threshold));
-  const query = params.toString() ? `?${params.toString()}` : '';
+  if (hours !== undefined) params.set("hours", String(hours));
+  if (threshold !== undefined) params.set("threshold", String(threshold));
+  const query = params.toString() ? `?${params.toString()}` : "";
   const res = await fetch(`${API_BASE}/weather/aqi-forecast${query}`, {
-    headers: getHeaders()
+    headers: getHeaders(),
   });
   if (res.status === 404) return null; // no AQI data yet -- not an error state
   if (!res.ok) throw new Error(`Failed to fetch AQI forecast: ${res.status}`);
@@ -152,21 +165,25 @@ export interface AQIBurdenSummary {
   dailyMax: { date: string; maxAqi: number }[];
 }
 
-export async function fetchAQIBurden(days?: number, threshold?: number): Promise<AQIBurdenSummary | null> {
+export async function fetchAQIBurden(
+  days?: number,
+  threshold?: number,
+): Promise<AQIBurdenSummary | null> {
   const params = new URLSearchParams();
-  if (days !== undefined) params.set('days', String(days));
-  if (threshold !== undefined) params.set('threshold', String(threshold));
-  const query = params.toString() ? `?${params.toString()}` : '';
+  if (days !== undefined) params.set("days", String(days));
+  if (threshold !== undefined) params.set("threshold", String(threshold));
+  const query = params.toString() ? `?${params.toString()}` : "";
   const res = await fetch(`${API_BASE}/weather/aqi-burden${query}`, {
-    headers: getHeaders()
+    headers: getHeaders(),
   });
   if (res.status === 404) return null; // no history yet -- not an error state
-  if (!res.ok) throw new Error(`Failed to fetch AQI burden summary: ${res.status}`);
+  if (!res.ok)
+    throw new Error(`Failed to fetch AQI burden summary: ${res.status}`);
   return res.json();
 }
 
 // Settings
-export interface Settings {
+export interface LocationSettings {
   latitude: string;
   longitude: string;
   name: string | null;
@@ -181,18 +198,23 @@ export interface GeoResult {
   timezone: string | null;
 }
 
-export async function fetchSettings(): Promise<Settings> {
+export async function fetchSettings(): Promise<LocationSettings> {
   const res = await fetch(`${API_BASE}/settings`, {
-    headers: getHeaders()
+    headers: getHeaders(),
   });
   if (!res.ok) throw new Error(`Failed to fetch settings: ${res.status}`);
   return res.json();
 }
 
-export async function updateLocation(latitude: string, longitude: string, name?: string, timezone?: string): Promise<{ success: boolean }> {
+export async function updateLocation(
+  latitude: string,
+  longitude: string,
+  name?: string,
+  timezone?: string,
+): Promise<{ success: boolean }> {
   const res = await fetch(`${API_BASE}/settings/location`, {
-    method: 'POST',
-    headers: getHeaders({ 'Content-Type': 'application/json' }),
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ latitude, longitude, name, timezone }),
   });
   if (!res.ok) throw new Error(`Failed to update location: ${res.status}`);
@@ -213,7 +235,7 @@ export interface EnvironmentalSnapshot {
     delta1h: number;
     delta3h: number;
     delta6h: number;
-    trend: 'rising' | 'falling' | 'stable';
+    trend: "rising" | "falling" | "stable";
   } | null;
   aqi: {
     usAqi: number;
@@ -253,15 +275,17 @@ export async function createSymptomLog(data: {
   notes?: string;
 }): Promise<SymptomLogEntry> {
   const res = await fetch(`${API_BASE}/symptoms`, {
-    method: 'POST',
-    headers: getHeaders({ 'Content-Type': 'application/json' }),
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(data),
   });
   if (!res.ok) throw new Error(`Failed to create symptom log: ${res.status}`);
   return res.json();
 }
 
-export async function fetchSymptomLogs(days: number = 30): Promise<SymptomLogEntry[]> {
+export async function fetchSymptomLogs(
+  days: number = 30,
+): Promise<SymptomLogEntry[]> {
   const res = await fetch(`${API_BASE}/symptoms?days=${days}`, {
     headers: getHeaders(),
   });
@@ -272,20 +296,25 @@ export async function fetchSymptomLogs(days: number = 30): Promise<SymptomLogEnt
 
 export async function deleteSymptomLog(id: string): Promise<void> {
   const res = await fetch(`${API_BASE}/symptoms/${id}`, {
-    method: 'DELETE',
+    method: "DELETE",
     headers: getHeaders(),
   });
   if (!res.ok) throw new Error(`Failed to delete symptom log: ${res.status}`);
 }
 
-export async function exportSymptomLogs(days: number = 365): Promise<SymptomLogEntry[]> {
+export async function exportSymptomLogs(
+  days: number = 365,
+): Promise<SymptomLogEntry[]> {
   return fetchSymptomLogs(days);
 }
 
 export async function geocodeSearch(query: string): Promise<GeoResult[]> {
-  const res = await fetch(`${API_BASE}/geocode?q=${encodeURIComponent(query)}`, {
-    headers: getHeaders()
-  });
+  const res = await fetch(
+    `${API_BASE}/geocode?q=${encodeURIComponent(query)}`,
+    {
+      headers: getHeaders(),
+    },
+  );
   if (!res.ok) throw new Error(`Geocode failed: ${res.status}`);
   const data = await res.json();
   return data.results;
@@ -296,17 +325,21 @@ export async function geocodeSearch(query: string): Promise<GeoResult[]> {
 // null (not thrown) when the server has no VAPID keys configured -- that's a
 // legitimate "feature not available here" state, not a fetch error.
 export async function fetchPushPublicKey(): Promise<string | null> {
-  const res = await fetch(`${API_BASE}/push/vapid-public-key`, { headers: getHeaders() });
+  const res = await fetch(`${API_BASE}/push/vapid-public-key`, {
+    headers: getHeaders(),
+  });
   if (res.status === 503) return null;
   if (!res.ok) throw new Error(`Fetch push public key failed: ${res.status}`);
   const data = await res.json();
   return data.publicKey;
 }
 
-export async function subscribeToPush(subscription: PushSubscriptionJSON): Promise<void> {
+export async function subscribeToPush(
+  subscription: PushSubscriptionJSON,
+): Promise<void> {
   const res = await fetch(`${API_BASE}/push/subscribe`, {
-    method: 'POST',
-    headers: getHeaders({ 'Content-Type': 'application/json' }),
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(subscription),
   });
   if (!res.ok) throw new Error(`Push subscribe failed: ${res.status}`);
@@ -314,8 +347,8 @@ export async function subscribeToPush(subscription: PushSubscriptionJSON): Promi
 
 export async function unsubscribeFromPush(endpoint: string): Promise<void> {
   const res = await fetch(`${API_BASE}/push/unsubscribe`, {
-    method: 'POST',
-    headers: getHeaders({ 'Content-Type': 'application/json' }),
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ endpoint }),
   });
   if (!res.ok) throw new Error(`Push unsubscribe failed: ${res.status}`);
@@ -325,46 +358,70 @@ export async function unsubscribeFromPush(endpoint: string): Promise<void> {
 // AQI toggle, but share the exact same read/toggle shape server-side
 // (registerAlertToggleRoutes in backend/src/api/push.ts) -- one parameterized pair
 // here instead of four hand-copied ones.
-export type SecondaryAlertKind = 'migraine' | 'mecfs' | 'pots' | 'clear-air';
+export type SecondaryAlertKind = "migraine" | "mecfs" | "pots" | "clear-air";
 
 const SECONDARY_ALERT_PATH: Record<SecondaryAlertKind, string> = {
-  migraine: 'migraine-alerts',
-  mecfs: 'mecfs-alerts',
-  pots: 'pots-alerts',
-  'clear-air': 'clear-air-alerts',
+  migraine: "migraine-alerts",
+  mecfs: "mecfs-alerts",
+  pots: "pots-alerts",
+  "clear-air": "clear-air-alerts",
 };
 
-export async function fetchSecondaryAlertEnabled(kind: SecondaryAlertKind, endpoint: string): Promise<boolean> {
-  const res = await fetch(`${API_BASE}/push/${SECONDARY_ALERT_PATH[kind]}?endpoint=${encodeURIComponent(endpoint)}`, {
-    headers: getHeaders(),
-  });
-  if (!res.ok) throw new Error(`Fetch ${kind} alert setting failed: ${res.status}`);
+export async function fetchSecondaryAlertEnabled(
+  kind: SecondaryAlertKind,
+  endpoint: string,
+): Promise<boolean> {
+  const res = await fetch(
+    `${API_BASE}/push/${SECONDARY_ALERT_PATH[kind]}?endpoint=${encodeURIComponent(endpoint)}`,
+    {
+      headers: getHeaders(),
+    },
+  );
+  if (!res.ok)
+    throw new Error(`Fetch ${kind} alert setting failed: ${res.status}`);
   const data = await res.json();
   return data.enabled;
 }
 
-export async function setSecondaryAlertEnabled(kind: SecondaryAlertKind, endpoint: string, enabled: boolean): Promise<void> {
+export async function setSecondaryAlertEnabled(
+  kind: SecondaryAlertKind,
+  endpoint: string,
+  enabled: boolean,
+): Promise<void> {
   const res = await fetch(`${API_BASE}/push/${SECONDARY_ALERT_PATH[kind]}`, {
-    method: 'POST',
-    headers: getHeaders({ 'Content-Type': 'application/json' }),
+    method: "POST",
+    headers: getHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ endpoint, enabled }),
   });
-  if (!res.ok) throw new Error(`Set ${kind} alert setting failed: ${res.status}`);
+  if (!res.ok)
+    throw new Error(`Set ${kind} alert setting failed: ${res.status}`);
 }
 
 export interface PushNotificationLogEntry {
-  type: 'aqi' | 'aqi_current' | 'migraine' | 'mecfs' | 'pots' | 'clear_air' | 'welcome';
-  outcome: 'sent' | 'suppressed_dedup' | 'delivery_failed';
+  type:
+    | "aqi"
+    | "aqi_current"
+    | "migraine"
+    | "mecfs"
+    | "pots"
+    | "clear_air"
+    | "welcome";
+  outcome: "sent" | "suppressed_dedup" | "delivery_failed";
   title: string;
   body: string;
   eventAt: string | null;
   createdAt: string;
 }
 
-export async function fetchNotificationLog(endpoint: string): Promise<PushNotificationLogEntry[]> {
-  const res = await fetch(`${API_BASE}/push/notification-log?endpoint=${encodeURIComponent(endpoint)}`, {
-    headers: getHeaders(),
-  });
+export async function fetchNotificationLog(
+  endpoint: string,
+): Promise<PushNotificationLogEntry[]> {
+  const res = await fetch(
+    `${API_BASE}/push/notification-log?endpoint=${encodeURIComponent(endpoint)}`,
+    {
+      headers: getHeaders(),
+    },
+  );
   if (!res.ok) throw new Error(`Fetch notification log failed: ${res.status}`);
   const data = await res.json();
   return data.entries;

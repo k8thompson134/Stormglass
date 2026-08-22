@@ -104,7 +104,7 @@ stormglass/
 │       │   ├── Insights.tsx          # Condition-specific trigger analysis and trends
 │       │   ├── Info.tsx              # About / data sources / privacy modal
 │       │   └── Settings.tsx          # Location + health condition preferences
-│       ├── services/   # API client (fetchSymptomLogs, fetchWeather, fetchAQIForecast, etc)
+│       ├── services/   # API client (fetchSymptomLogs, fetchCurrentWeather, fetchAQIForecast, etc)
 │       ├── utils/       # Health risk evaluation logic
 │       └── App.tsx     # Main layout and data orchestration
 │

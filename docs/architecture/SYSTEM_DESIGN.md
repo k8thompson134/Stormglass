@@ -72,8 +72,6 @@ GET  /api/settings                 - Current location config
 POST /api/settings/location        - Update location and restart polling
 GET  /api/geocode?q=city           - Geocode search (proxy to Open-Meteo)
 GET  /health                       - Liveness check
-
-WebSocket: /ws                     - Real-time updates
 ```
 
 ## Key Algorithms

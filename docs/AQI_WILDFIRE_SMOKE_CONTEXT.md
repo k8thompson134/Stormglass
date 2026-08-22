@@ -110,7 +110,6 @@ schema changes, no new tables, no migration.
   verification so it isn't double-polling alongside the real deployed instance.
 
 ## Possible next steps (not started)
-- Wire up `/api/briefing` in `server.ts` if it's meant to be live.
 - Dedicated AQI/smoke UI (trend sparkline, "N sensors X mi away" badge) — was
   explicitly out of scope this round.
 - Persist `hyperlocal` readings for historical charting (would need a schema
