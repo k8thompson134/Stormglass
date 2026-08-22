@@ -13,7 +13,6 @@ import { ensureDefaultUser } from './db/seed.js';
 import { weatherRoutes } from './api/weather.js';
 import { settingsRoutes } from './api/settings.js';
 import { symptomRoutes } from './api/symptoms.js';
-import { correlationRoutes } from './api/correlations.js';
 import { briefingRoutes } from './api/briefing.js';
 import { pushRoutes } from './api/push.js';
 import { startWeatherPolling, stopPolling } from './jobs/weather-poll.js';
@@ -99,7 +98,6 @@ app.addHook('onRequest', async (request, reply) => {
 await app.register(weatherRoutes);
 await app.register(settingsRoutes);
 await app.register(symptomRoutes);
-await app.register(correlationRoutes);
 await app.register(briefingRoutes);
 await app.register(pushRoutes);
 
