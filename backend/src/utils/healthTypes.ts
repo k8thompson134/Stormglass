@@ -1,4 +1,4 @@
-export type RiskLevel = 'low' | 'moderate' | 'high' | 'severe';
+export type RiskLevel = "low" | "moderate" | "high" | "severe";
 
 export interface HealthRisk {
   condition: string;

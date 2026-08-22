@@ -1,9 +1,9 @@
-import { eq } from 'drizzle-orm';
-import { db } from './index.js';
-import { users } from './schema.js';
-import { logger } from '../logger.js';
+import { eq } from "drizzle-orm";
+import { db } from "./index.js";
+import { users } from "./schema.js";
+import { logger } from "../logger.js";
 
-const DEFAULT_EMAIL = 'default@stormglass.local';
+const DEFAULT_EMAIL = "default@stormglass.local";
 
 export interface DefaultUser {
   id: string;
@@ -25,13 +25,13 @@ export async function ensureDefaultUser(): Promise<DefaultUser> {
     .limit(1);
 
   if (existing.length > 0) {
-    const [latitude, longitude] = existing[0].location.split(',');
+    const [latitude, longitude] = existing[0].location.split(",");
     return { id: existing[0].id, latitude, longitude, name: existing[0].name };
   }
 
-  const latitude = process.env.DEFAULT_LATITUDE || '40.7128';
-  const longitude = process.env.DEFAULT_LONGITUDE || '-74.0060';
-  const timezone = process.env.DEFAULT_TIMEZONE || 'America/New_York';
+  const latitude = process.env.DEFAULT_LATITUDE || "40.7128";
+  const longitude = process.env.DEFAULT_LONGITUDE || "-74.0060";
+  const timezone = process.env.DEFAULT_TIMEZONE || "America/New_York";
   const location = `${latitude},${longitude}`;
 
   const [newUser] = await db
@@ -43,6 +43,6 @@ export async function ensureDefaultUser(): Promise<DefaultUser> {
     })
     .returning({ id: users.id });
 
-  logger.info({ userId: newUser.id }, 'Created default user');
+  logger.info({ userId: newUser.id }, "Created default user");
   return { id: newUser.id, latitude, longitude, name: null };
 }

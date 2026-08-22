@@ -1,12 +1,12 @@
-import { eq, and, lte, desc } from 'drizzle-orm';
-import { db } from '../db/index.js';
+import { eq, and, lte, desc } from "drizzle-orm";
+import { db } from "../db/index.js";
 import {
   weatherData,
   pressureDerivatives,
   airQualityData,
   geomagneticData,
   pollenData,
-} from '../db/schema.js';
+} from "../db/schema.js";
 export interface EnvironmentalSnapshot {
   pressure: number;
   temperature: number;
@@ -20,7 +20,7 @@ export interface EnvironmentalSnapshot {
     delta1h: number;
     delta3h: number;
     delta6h: number;
-    trend: 'rising' | 'falling' | 'stable';
+    trend: "rising" | "falling" | "stable";
   } | null;
   aqi: {
     usAqi: number;
@@ -45,7 +45,7 @@ export interface EnvironmentalSnapshot {
 }
 
 export async function assembleCurrentSnapshot(
-  userId: string
+  userId: string,
 ): Promise<EnvironmentalSnapshot | null> {
   const now = new Date();
 
@@ -73,37 +73,48 @@ export async function assembleCurrentSnapshot(
     db
       .select()
       .from(pressureDerivatives)
-      .where(and(
-        eq(pressureDerivatives.userId, userId),
-        eq(pressureDerivatives.location, rowLocation),
-        lte(pressureDerivatives.timestamp, now)
-      ))
+      .where(
+        and(
+          eq(pressureDerivatives.userId, userId),
+          eq(pressureDerivatives.location, rowLocation),
+          lte(pressureDerivatives.timestamp, now),
+        ),
+      )
       .orderBy(desc(pressureDerivatives.timestamp))
       .limit(1),
     db
       .select()
       .from(airQualityData)
-      .where(and(
-        eq(airQualityData.userId, userId),
-        eq(airQualityData.location, rowLocation),
-        lte(airQualityData.timestamp, now)
-      ))
+      .where(
+        and(
+          eq(airQualityData.userId, userId),
+          eq(airQualityData.location, rowLocation),
+          lte(airQualityData.timestamp, now),
+        ),
+      )
       .orderBy(desc(airQualityData.timestamp))
       .limit(1),
     db
       .select()
       .from(geomagneticData)
-      .where(and(eq(geomagneticData.userId, userId), lte(geomagneticData.timestamp, now)))
+      .where(
+        and(
+          eq(geomagneticData.userId, userId),
+          lte(geomagneticData.timestamp, now),
+        ),
+      )
       .orderBy(desc(geomagneticData.timestamp))
       .limit(1),
     db
       .select()
       .from(pollenData)
-      .where(and(
-        eq(pollenData.userId, userId),
-        eq(pollenData.location, rowLocation),
-        lte(pollenData.timestamp, now)
-      ))
+      .where(
+        and(
+          eq(pollenData.userId, userId),
+          eq(pollenData.location, rowLocation),
+          lte(pollenData.timestamp, now),
+        ),
+      )
       .orderBy(desc(pollenData.timestamp))
       .limit(1),
   ]);

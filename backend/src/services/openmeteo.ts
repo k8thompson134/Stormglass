@@ -1,20 +1,20 @@
-import { eq, and, gte, lte, gt } from 'drizzle-orm';
-import { db } from '../db/index.js';
-import { weatherData } from '../db/schema.js';
+import { eq, and, gte, lte, gt } from "drizzle-orm";
+import { db } from "../db/index.js";
+import { weatherData } from "../db/schema.js";
 
-const BASE_URL = 'https://api.open-meteo.com/v1/forecast';
+const BASE_URL = "https://api.open-meteo.com/v1/forecast";
 
 const HOURLY_VARS = [
-  'surface_pressure',
-  'temperature_2m',
-  'relative_humidity_2m',
-  'dew_point_2m',
-  'wind_speed_10m',
-  'wind_direction_10m',
-  'uv_index',
-  'cloud_cover',
-  'precipitation',
-].join(',');
+  "surface_pressure",
+  "temperature_2m",
+  "relative_humidity_2m",
+  "dew_point_2m",
+  "wind_speed_10m",
+  "wind_direction_10m",
+  "uv_index",
+  "cloud_cover",
+  "precipitation",
+].join(",");
 
 interface OpenMeteoHourly {
   time: string[];
@@ -39,19 +39,21 @@ interface OpenMeteoResponse {
 export async function fetchWeatherData(
   userId: string,
   latitude: string,
-  longitude: string
+  longitude: string,
 ): Promise<number> {
   const url = new URL(BASE_URL);
-  url.searchParams.set('latitude', latitude);
-  url.searchParams.set('longitude', longitude);
-  url.searchParams.set('hourly', HOURLY_VARS);
-  url.searchParams.set('timezone', 'auto');
-  url.searchParams.set('past_days', '2');
-  url.searchParams.set('forecast_days', '7');
+  url.searchParams.set("latitude", latitude);
+  url.searchParams.set("longitude", longitude);
+  url.searchParams.set("hourly", HOURLY_VARS);
+  url.searchParams.set("timezone", "auto");
+  url.searchParams.set("past_days", "2");
+  url.searchParams.set("forecast_days", "7");
 
   const response = await fetch(url.toString());
   if (!response.ok) {
-    throw new Error(`Open-Meteo API error: ${response.status} ${response.statusText}`);
+    throw new Error(
+      `Open-Meteo API error: ${response.status} ${response.statusText}`,
+    );
   }
 
   const data: OpenMeteoResponse = await response.json();
@@ -88,16 +90,16 @@ export async function fetchWeatherData(
   // pressure.ts computing the migraine signal from a stale forecast once the real
   // observation arrives at that same timestamp, so we replace them wholesale each
   // poll instead of dedup-by-timestamp (mirrors airquality.ts).
-  const pastRows = rows.filter(r => r.timestamp <= now);
-  const futureRows = rows.filter(r => r.timestamp > now);
+  const pastRows = rows.filter((r) => r.timestamp <= now);
+  const futureRows = rows.filter((r) => r.timestamp > now);
 
   let inserted = 0;
 
   if (pastRows.length > 0) {
     // Batch-fetch existing timestamps to avoid N+1 queries
-    const timestamps = pastRows.map(r => r.timestamp);
-    const minTs = new Date(Math.min(...timestamps.map(t => t.getTime())));
-    const maxTs = new Date(Math.max(...timestamps.map(t => t.getTime())));
+    const timestamps = pastRows.map((r) => r.timestamp);
+    const minTs = new Date(Math.min(...timestamps.map((t) => t.getTime())));
+    const maxTs = new Date(Math.max(...timestamps.map((t) => t.getTime())));
 
     const existingRows = await db
       .select({ timestamp: weatherData.timestamp })
@@ -107,12 +109,14 @@ export async function fetchWeatherData(
           eq(weatherData.userId, userId),
           eq(weatherData.location, location),
           gte(weatherData.timestamp, minTs),
-          lte(weatherData.timestamp, maxTs)
-        )
+          lte(weatherData.timestamp, maxTs),
+        ),
       );
 
-    const existingSet = new Set(existingRows.map(r => r.timestamp.getTime()));
-    const newPastRows = pastRows.filter(r => !existingSet.has(r.timestamp.getTime()));
+    const existingSet = new Set(existingRows.map((r) => r.timestamp.getTime()));
+    const newPastRows = pastRows.filter(
+      (r) => !existingSet.has(r.timestamp.getTime()),
+    );
 
     if (newPastRows.length > 0) {
       await db.insert(weatherData).values(newPastRows);
@@ -126,13 +130,15 @@ export async function fetchWeatherData(
     // default read-committed isolation means other transactions won't see the delete
     // until this one commits.
     await db.transaction(async (tx) => {
-      await tx.delete(weatherData).where(
-        and(
-          eq(weatherData.userId, userId),
-          eq(weatherData.location, location),
-          gt(weatherData.timestamp, now)
-        )
-      );
+      await tx
+        .delete(weatherData)
+        .where(
+          and(
+            eq(weatherData.userId, userId),
+            eq(weatherData.location, location),
+            gt(weatherData.timestamp, now),
+          ),
+        );
       await tx.insert(weatherData).values(futureRows);
     });
     inserted += futureRows.length;

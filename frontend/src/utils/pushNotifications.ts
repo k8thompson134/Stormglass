@@ -7,12 +7,21 @@ import {
   fetchNotificationLog,
   type SecondaryAlertKind,
   type PushNotificationLogEntry,
-} from '../services/api';
+} from "../services/api";
 
-export const SECONDARY_ALERT_KINDS: SecondaryAlertKind[] = ['migraine', 'mecfs', 'pots', 'clear-air'];
+export const SECONDARY_ALERT_KINDS: SecondaryAlertKind[] = [
+  "migraine",
+  "mecfs",
+  "pots",
+  "clear-air",
+];
 
 export function isPushSupported(): boolean {
-  return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  return (
+    "serviceWorker" in navigator &&
+    "PushManager" in window &&
+    "Notification" in window
+  );
 }
 
 // The browser can silently drop a PushSubscription (Android background/battery
@@ -22,24 +31,26 @@ export function isPushSupported(): boolean {
 // it. These two flags record what the user actually asked for, independent of the
 // current (possibly-lost) subscription, so a startup reconcile can restore it
 // silently rather than requiring the user to notice and re-opt-in.
-const PUSH_INTENT_KEY = 'stormglass_push_intent';
+const PUSH_INTENT_KEY = "stormglass_push_intent";
 const SECONDARY_INTENT_KEY: Record<SecondaryAlertKind, string> = {
-  migraine: 'stormglass_migraine_intent',
-  mecfs: 'stormglass_mecfs_intent',
-  pots: 'stormglass_pots_intent',
-  'clear-air': 'stormglass_clear_air_intent',
+  migraine: "stormglass_migraine_intent",
+  mecfs: "stormglass_mecfs_intent",
+  pots: "stormglass_pots_intent",
+  "clear-air": "stormglass_clear_air_intent",
 };
 
 function setPushIntent(enabled: boolean): void {
   try {
-    if (enabled) window.localStorage.setItem(PUSH_INTENT_KEY, '1');
+    if (enabled) window.localStorage.setItem(PUSH_INTENT_KEY, "1");
     else window.localStorage.removeItem(PUSH_INTENT_KEY);
-  } catch { /* ignore persistence errors */ }
+  } catch {
+    /* ignore persistence errors */
+  }
 }
 
 function getPushIntent(): boolean {
   try {
-    return window.localStorage.getItem(PUSH_INTENT_KEY) === '1';
+    return window.localStorage.getItem(PUSH_INTENT_KEY) === "1";
   } catch {
     return false;
   }
@@ -47,14 +58,16 @@ function getPushIntent(): boolean {
 
 function setSecondaryIntent(kind: SecondaryAlertKind, enabled: boolean): void {
   try {
-    if (enabled) window.localStorage.setItem(SECONDARY_INTENT_KEY[kind], '1');
+    if (enabled) window.localStorage.setItem(SECONDARY_INTENT_KEY[kind], "1");
     else window.localStorage.removeItem(SECONDARY_INTENT_KEY[kind]);
-  } catch { /* ignore persistence errors */ }
+  } catch {
+    /* ignore persistence errors */
+  }
 }
 
 function getSecondaryIntent(kind: SecondaryAlertKind): boolean {
   try {
-    return window.localStorage.getItem(SECONDARY_INTENT_KEY[kind]) === '1';
+    return window.localStorage.getItem(SECONDARY_INTENT_KEY[kind]) === "1";
   } catch {
     return false;
   }
@@ -63,15 +76,18 @@ function getSecondaryIntent(kind: SecondaryAlertKind): boolean {
 // The VAPID public key comes back from the server as URL-safe base64; PushManager
 // wants it as a raw Uint8Array.
 function urlBase64ToUint8Array(base64: string): Uint8Array {
-  const padding = '='.repeat((4 - (base64.length % 4)) % 4);
-  const base64Safe = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const padding = "=".repeat((4 - (base64.length % 4)) % 4);
+  const base64Safe = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/");
   const raw = atob(base64Safe);
-  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
 }
 
 export type PushEnableResult =
   | { ok: true }
-  | { ok: false; reason: 'unsupported' | 'not-configured' | 'permission-denied' | 'error' };
+  | {
+      ok: false;
+      reason: "unsupported" | "not-configured" | "permission-denied" | "error";
+    };
 
 /**
  * Requests Notification permission (must be called from a direct user gesture --
@@ -85,13 +101,14 @@ export type PushEnableResult =
  * instead of erroring, which is a much more confusing failure mode than it sounds.
  */
 export async function enablePushNotifications(): Promise<PushEnableResult> {
-  if (!isPushSupported()) return { ok: false, reason: 'unsupported' };
+  if (!isPushSupported()) return { ok: false, reason: "unsupported" };
 
   const permission = await Notification.requestPermission();
-  if (permission !== 'granted') return { ok: false, reason: 'permission-denied' };
+  if (permission !== "granted")
+    return { ok: false, reason: "permission-denied" };
 
   const publicKey = await fetchPushPublicKey();
-  if (!publicKey) return { ok: false, reason: 'not-configured' };
+  if (!publicKey) return { ok: false, reason: "not-configured" };
 
   try {
     const registration = await navigator.serviceWorker.ready;
@@ -106,13 +123,13 @@ export async function enablePushNotifications(): Promise<PushEnableResult> {
     setPushIntent(true);
     return { ok: true };
   } catch {
-    return { ok: false, reason: 'error' };
+    return { ok: false, reason: "error" };
   }
 }
 
 export async function disablePushNotifications(): Promise<void> {
   setPushIntent(false);
-  SECONDARY_ALERT_KINDS.forEach(kind => setSecondaryIntent(kind, false));
+  SECONDARY_ALERT_KINDS.forEach((kind) => setSecondaryIntent(kind, false));
   if (!isPushSupported()) return;
   const registration = await navigator.serviceWorker.ready;
   const subscription = await registration.pushManager.getSubscription();
@@ -130,7 +147,7 @@ export async function disablePushNotifications(): Promise<void> {
 
 export async function isPushEnabled(): Promise<boolean> {
   if (!isPushSupported()) return false;
-  if (Notification.permission !== 'granted') return false;
+  if (Notification.permission !== "granted") return false;
   const registration = await navigator.serviceWorker.ready;
   const subscription = await registration.pushManager.getSubscription();
   return !!subscription;
@@ -139,7 +156,9 @@ export async function isPushEnabled(): Promise<boolean> {
 // Each secondary alert (migraine, ME/CFS, POTS, clean-air) is a separate opt-in,
 // scoped to this device's subscription endpoint, so it can only be read/changed
 // while push itself is enabled.
-export async function getSecondaryAlertEnabled(kind: SecondaryAlertKind): Promise<boolean> {
+export async function getSecondaryAlertEnabled(
+  kind: SecondaryAlertKind,
+): Promise<boolean> {
   if (!isPushSupported()) return false;
   const registration = await navigator.serviceWorker.ready;
   const subscription = await registration.pushManager.getSubscription();
@@ -147,7 +166,10 @@ export async function getSecondaryAlertEnabled(kind: SecondaryAlertKind): Promis
   return fetchSecondaryAlertEnabled(kind, subscription.endpoint);
 }
 
-export async function toggleSecondaryAlert(kind: SecondaryAlertKind, enabled: boolean): Promise<boolean> {
+export async function toggleSecondaryAlert(
+  kind: SecondaryAlertKind,
+  enabled: boolean,
+): Promise<boolean> {
   if (!isPushSupported()) return false;
   const registration = await navigator.serviceWorker.ready;
   const subscription = await registration.pushManager.getSubscription();
@@ -175,7 +197,7 @@ export async function toggleSecondaryAlert(kind: SecondaryAlertKind, enabled: bo
 export async function reconcilePushSubscription(): Promise<void> {
   if (!isPushSupported()) return;
   if (!getPushIntent()) return;
-  if (Notification.permission !== 'granted') return;
+  if (Notification.permission !== "granted") return;
 
   try {
     const registration = await navigator.serviceWorker.ready;
@@ -199,7 +221,9 @@ export async function reconcilePushSubscription(): Promise<void> {
   }
 }
 
-export async function getNotificationLog(): Promise<PushNotificationLogEntry[]> {
+export async function getNotificationLog(): Promise<
+  PushNotificationLogEntry[]
+> {
   if (!isPushSupported()) return [];
   const registration = await navigator.serviceWorker.ready;
   const subscription = await registration.pushManager.getSubscription();

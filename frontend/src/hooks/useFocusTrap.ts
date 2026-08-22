@@ -1,4 +1,4 @@
-import { useEffect, useRef, type RefObject } from 'react';
+import { useEffect, useRef, type RefObject } from "react";
 
 const FOCUSABLE_SELECTOR =
   'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
@@ -11,7 +11,7 @@ const FOCUSABLE_SELECTOR =
 export function useFocusTrap(
   isActive: boolean,
   containerRef: RefObject<HTMLElement | null>,
-  options?: { onEscape?: () => void }
+  options?: { onEscape?: () => void },
 ): void {
   const onEscapeRef = useRef(options?.onEscape);
   onEscapeRef.current = options?.onEscape;
@@ -25,13 +25,14 @@ export function useFocusTrap(
     const timer = setTimeout(() => container?.focus(), 0);
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === "Escape") {
         onEscapeRef.current?.();
         return;
       }
-      if (e.key !== 'Tab' || !container) return;
+      if (e.key !== "Tab" || !container) return;
 
-      const focusable = container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
+      const focusable =
+        container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
       if (focusable.length === 0) return;
 
       const first = focusable[0];
@@ -46,10 +47,10 @@ export function useFocusTrap(
       }
     };
 
-    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
       clearTimeout(timer);
-      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown);
       previouslyFocused?.focus();
     };
   }, [isActive, containerRef]);

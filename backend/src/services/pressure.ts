@@ -1,18 +1,18 @@
-import { eq, and, gte, desc } from 'drizzle-orm';
-import { db } from '../db/index.js';
-import { weatherData, pressureDerivatives } from '../db/schema.js';
+import { eq, and, gte, desc } from "drizzle-orm";
+import { db } from "../db/index.js";
+import { weatherData, pressureDerivatives } from "../db/schema.js";
 
-type Trend = 'rising' | 'falling' | 'stable';
+type Trend = "rising" | "falling" | "stable";
 
 function determineTrend(delta1h: number): Trend {
-  if (delta1h > 0.1) return 'rising';
-  if (delta1h < -0.1) return 'falling';
-  return 'stable';
+  if (delta1h > 0.1) return "rising";
+  if (delta1h < -0.1) return "falling";
+  return "stable";
 }
 
 export async function computePressureDerivatives(
   userId: string,
-  location: string
+  location: string,
 ): Promise<number> {
   // Get all pressure readings for this user/location in the last 7 days
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -27,8 +27,8 @@ export async function computePressureDerivatives(
       and(
         eq(weatherData.userId, userId),
         eq(weatherData.location, location),
-        gte(weatherData.timestamp, sevenDaysAgo)
-      )
+        gte(weatherData.timestamp, sevenDaysAgo),
+      ),
     )
     .orderBy(weatherData.timestamp); // Ascending for easier processing
 
@@ -42,11 +42,13 @@ export async function computePressureDerivatives(
       and(
         eq(pressureDerivatives.userId, userId),
         eq(pressureDerivatives.location, location),
-        gte(pressureDerivatives.timestamp, sevenDaysAgo)
-      )
+        gte(pressureDerivatives.timestamp, sevenDaysAgo),
+      ),
     );
 
-  const existingSet = new Set(existingDerivatives.map(d => d.timestamp.getTime()));
+  const existingSet = new Set(
+    existingDerivatives.map((d) => d.timestamp.getTime()),
+  );
 
   const tolerance = 30 * 60 * 1000;
   let computedCount = 0;
@@ -111,4 +113,3 @@ export async function computePressureDerivatives(
 
   return computedCount;
 }
-

@@ -1,5 +1,5 @@
-import { Component } from 'react';
-import type { ReactNode, ErrorInfo } from 'react';
+import { Component } from "react";
+import type { ReactNode, ErrorInfo } from "react";
 
 interface Props {
   children: ReactNode;
@@ -20,17 +20,24 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('[ErrorBoundary]', error, info.componentStack);
+    console.error("[ErrorBoundary]", error, info.componentStack);
   }
 
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen bg-gray-900 flex items-center justify-center p-8" role="alert" aria-live="assertive">
+        <div
+          className="min-h-screen bg-gray-900 flex items-center justify-center p-8"
+          role="alert"
+          aria-live="assertive"
+        >
           <div className="text-center max-w-md">
-            <h1 className="text-white text-xl font-bold mb-3">Something went wrong</h1>
+            <h1 className="text-white text-xl font-bold mb-3">
+              Something went wrong
+            </h1>
             <p className="text-gray-400 text-sm mb-6">
-              The application encountered an unexpected error. Please reload the page to try again.
+              The application encountered an unexpected error. Please reload the
+              page to try again.
             </p>
             <button
               onClick={() => window.location.reload()}

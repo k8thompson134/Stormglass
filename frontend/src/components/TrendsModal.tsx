@@ -1,7 +1,7 @@
-import { useRef } from 'react';
-import { useFocusTrap } from '../hooks/useFocusTrap';
-import { createPortal } from 'react-dom';
-import Insights from './Insights';
+import { useRef } from "react";
+import { useFocusTrap } from "../hooks/useFocusTrap";
+import { createPortal } from "react-dom";
+import Insights from "./Insights";
 
 interface Props {
   open: boolean;
@@ -9,7 +9,11 @@ interface Props {
   onOpenSymptomLogger: () => void;
 }
 
-export default function TrendsModal({ open, onClose, onOpenSymptomLogger }: Props) {
+export default function TrendsModal({
+  open,
+  onClose,
+  onOpenSymptomLogger,
+}: Props) {
   const modalRef = useRef<HTMLDivElement>(null);
   useFocusTrap(open, modalRef, { onEscape: onClose });
 
@@ -32,8 +36,12 @@ export default function TrendsModal({ open, onClose, onOpenSymptomLogger }: Prop
         {/* Header */}
         <div className="border-b border-gray-700/50 p-6 flex items-center justify-between">
           <div>
-            <h2 className="text-white text-sm font-bold uppercase tracking-wider">Symptom Trends</h2>
-            <p className="text-[11px] text-gray-400 mt-2">Correlations between environmental factors and your symptoms</p>
+            <h2 className="text-white text-sm font-bold uppercase tracking-wider">
+              Symptom Trends
+            </h2>
+            <p className="text-[11px] text-gray-400 mt-2">
+              Correlations between environmental factors and your symptoms
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -50,6 +58,6 @@ export default function TrendsModal({ open, onClose, onOpenSymptomLogger }: Prop
         </div>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }
