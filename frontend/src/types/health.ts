@@ -13,21 +13,26 @@ export interface HealthRisk {
   recommendations: string[];
 }
 
+/** Ordered list of all health conditions. Used throughout the app to ensure consistent
+ * UI ordering and avoid silent bugs from drifting copies. */
+export const HEALTH_CONDITIONS = [
+  "migraine",
+  "cluster",
+  "pots",
+  "mecfs",
+  "joints",
+  "fibromyalgia",
+  "eds",
+  "raynauds",
+  "sinus",
+  "sleep",
+  "aqi",
+  "geomagnetic",
+  "pollen",
+] as const;
+
 /** Keys used to control which health factors are shown in the dashboard. */
-export type HealthConditionKey =
-  | "migraine"
-  | "cluster"
-  | "pots"
-  | "mecfs"
-  | "joints"
-  | "fibromyalgia"
-  | "eds"
-  | "raynauds"
-  | "sinus"
-  | "sleep"
-  | "aqi"
-  | "geomagnetic"
-  | "pollen";
+export type HealthConditionKey = (typeof HEALTH_CONDITIONS)[number];
 
 /** Map of each health condition to whether it is enabled in the UI (persisted in localStorage). */
 export type HealthToggles = Record<HealthConditionKey, boolean>;

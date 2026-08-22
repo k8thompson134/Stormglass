@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { createSymptomLog } from "../services/api";
 import { useFocusTrap } from "../hooks/useFocusTrap";
-import type { HealthToggles } from "../types/health";
+import { HEALTH_CONDITIONS, type HealthToggles } from "../types/health";
 
 interface SymptomLoggerProps {
   open: boolean;
@@ -10,13 +10,14 @@ interface SymptomLoggerProps {
   selectedConditions: HealthToggles;
 }
 
-const CONDITION_LABELS: Record<keyof HealthToggles, string> = {
+// Labels for each health condition in the canonical HEALTH_CONDITIONS order.
+const CONDITION_LABELS: Record<string, string> = {
   migraine: "Migraines",
   cluster: "Cluster Headache",
   pots: "POTS / Dysautonomia",
   mecfs: "ME/CFS",
-  fibromyalgia: "Fibromyalgia",
   joints: "Joint Pain",
+  fibromyalgia: "Fibromyalgia",
   eds: "EDS",
   raynauds: "Raynaud's",
   sinus: "Sinus",
@@ -55,9 +56,9 @@ export default function SymptomLogger({
   const modalRef = useRef<HTMLDivElement>(null);
   useFocusTrap(open, modalRef, { onEscape: onClose });
 
-  const presetTags = Object.entries(selectedConditions)
-    .filter(([, isSelected]) => isSelected)
-    .map(([key]) => CONDITION_LABELS[key as keyof HealthToggles]);
+  const presetTags = HEALTH_CONDITIONS.filter(
+    (key) => selectedConditions[key],
+  ).map((key) => CONDITION_LABELS[key]);
 
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) =>

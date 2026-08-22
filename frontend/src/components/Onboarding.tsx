@@ -1,5 +1,9 @@
 import { useState, useRef } from "react";
-import type { HealthToggles, HealthConditionKey } from "../types/health";
+import {
+  HEALTH_CONDITIONS,
+  type HealthToggles,
+  type HealthConditionKey,
+} from "../types/health";
 import { geocodeSearch, updateLocation, type GeoResult } from "../services/api";
 import {
   AQI_SENSITIVITY_OPTIONS,
@@ -22,16 +26,13 @@ interface Group {
   conditions: Condition[];
 }
 
+// Groups for UI display during onboarding, organized by related conditions.
+// Order matches HEALTH_CONDITIONS to keep toggles consistent across the app.
 const GROUPS: Group[] = [
   {
     conditions: [
       { key: "migraine", label: "Migraines", hint: "Pressure" },
       { key: "cluster", label: "Cluster Headache", hint: "Pressure, Light" },
-      {
-        key: "sinus",
-        label: "Sinus / Sinusitis",
-        hint: "Pressure, Humidity, Pollen",
-      },
     ],
   },
   {
@@ -47,14 +48,14 @@ const GROUPS: Group[] = [
   {
     conditions: [
       {
-        key: "fibromyalgia",
-        label: "Fibromyalgia",
-        hint: "Pressure, Humidity, Cold",
-      },
-      {
         key: "joints",
         label: "Joint Pain (Arthritis)",
         hint: "Pressure, Humidity",
+      },
+      {
+        key: "fibromyalgia",
+        label: "Fibromyalgia",
+        hint: "Pressure, Humidity, Cold",
       },
       { key: "eds", label: "EDS / Hypermobility", hint: "Temperature" },
     ],
@@ -64,23 +65,34 @@ const GROUPS: Group[] = [
   },
   {
     conditions: [
-      { key: "aqi", label: "Air Quality", hint: "Pollution, Ozone" },
-      { key: "pollen", label: "Pollen & Mold", hint: "Allergen Levels" },
+      {
+        key: "sinus",
+        label: "Sinus / Sinusitis",
+        hint: "Pressure, Humidity, Pollen",
+      },
     ],
   },
   {
     conditions: [
       { key: "sleep", label: "Sleep Quality", hint: "Pressure, Temperature" },
+    ],
+  },
+  {
+    conditions: [
+      { key: "aqi", label: "Air Quality", hint: "Pollution, Ozone" },
       {
         key: "geomagnetic",
         label: "Geomagnetic Storms",
         hint: "Solar Activity",
       },
+      { key: "pollen", label: "Pollen & Mold", hint: "Allergen Levels" },
     ],
   },
 ];
 
-const ALL_KEYS = GROUPS.flatMap((g) => g.conditions.map((c) => c.key));
+// Use the canonical HEALTH_CONDITIONS order rather than deriving from GROUPS,
+// so onboarding always creates toggles in the same order as everywhere else.
+const ALL_KEYS = HEALTH_CONDITIONS;
 
 export default function Onboarding({ onComplete }: Props) {
   const [step, setStep] = useState<0 | 1 | 2 | 3>(0);

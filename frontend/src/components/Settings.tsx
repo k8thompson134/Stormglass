@@ -5,7 +5,11 @@ import {
   geocodeSearch,
   type GeoResult,
 } from "../services/api";
-import type { HealthToggles, HealthConditionKey } from "../types/health";
+import {
+  HEALTH_CONDITIONS,
+  type HealthToggles,
+  type HealthConditionKey,
+} from "../types/health";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import {
   AQI_SENSITIVITY_OPTIONS,
@@ -479,26 +483,27 @@ export default function Settings({
               Choose which conditions to show in the Health Impact Forecast.
             </p>
             <div className="bg-[#0f172a] rounded-xl border border-[#1e2d45] overflow-hidden">
-              {[
-                ["migraine", "Migraines"],
-                ["cluster", "Cluster Headache"],
-                ["sinus", "Sinus / Sinusitis"],
-                ["pots", "POTS / Dysautonomia"],
-                ["mecfs", "ME/CFS / PEM"],
-                ["joints", "Joint Pain (Arthritis)"],
-                ["fibromyalgia", "Fibromyalgia"],
-                ["eds", "EDS / Hypermobility"],
-                ["raynauds", "Raynaud's"],
-                ["sleep", "Sleep Quality"],
-                ["aqi", "Air Quality"],
-                ["geomagnetic", "Geomagnetic Storms"],
-                ["pollen", "Pollen & Mold"],
-              ].map(([key, label]) => {
-                const k = key as HealthConditionKey;
-                const isOn = healthToggles[k];
+              {HEALTH_CONDITIONS.map((key) => {
+                const labels: Record<HealthConditionKey, string> = {
+                  migraine: "Migraines",
+                  cluster: "Cluster Headache",
+                  sinus: "Sinus / Sinusitis",
+                  pots: "POTS / Dysautonomia",
+                  mecfs: "ME/CFS / PEM",
+                  joints: "Joint Pain (Arthritis)",
+                  fibromyalgia: "Fibromyalgia",
+                  eds: "EDS / Hypermobility",
+                  raynauds: "Raynaud's",
+                  sleep: "Sleep Quality",
+                  aqi: "Air Quality",
+                  geomagnetic: "Geomagnetic Storms",
+                  pollen: "Pollen & Mold",
+                };
+                const label = labels[key];
+                const isOn = healthToggles[key];
                 return (
                   <label
-                    key={k}
+                    key={key}
                     className={`
                                             flex items-center gap-3 cursor-pointer select-none
                                             px-4 py-3 border-b border-[#1e2d45] last:border-b-0
@@ -542,7 +547,7 @@ export default function Settings({
                       onChange={(e) =>
                         onHealthTogglesChange({
                           ...healthToggles,
-                          [k]: e.target.checked,
+                          [key]: e.target.checked,
                         })
                       }
                     />
