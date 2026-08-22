@@ -1,5 +1,14 @@
 import { useState, useEffect, useMemo } from "react";
-import { fetchSymptomLogs, type SymptomLogEntry } from "../services/api";
+import {
+  fetchSymptomLogs,
+  type SymptomLogEntry,
+  type CurrentWeather,
+} from "../services/api";
+import {
+  analyzeConditions,
+  computeTodayRisk,
+  computeProtectiveFactors,
+} from "../utils/symptomAnalysis";
 import {
   LineChart,
   Line,
@@ -12,20 +21,7 @@ import {
 
 interface InsightsProps {
   onOpenSymptomLogger: () => void;
-}
-
-interface ConditionTrigger {
-  name: string;
-  severity: number;
-  pattern: string;
-}
-
-interface ConditionAnalysis {
-  name: string;
-  count: number;
-  avgSeverity: number;
-  triggers: ConditionTrigger[];
-  trendData: Array<{ date: string; severity: number }>;
+  current: CurrentWeather | null;
 }
 
 const RISK_THEME = {
@@ -59,7 +55,10 @@ const RISK_THEME = {
   },
 };
 
-export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
+export default function Insights({
+  onOpenSymptomLogger,
+  current,
+}: InsightsProps) {
   const [symptomLogs, setSymptomLogs] = useState<SymptomLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [days, setDays] = useState(90);
@@ -85,133 +84,20 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
     };
   }, [days]);
 
-  // Analyze condition-specific triggers
-  const conditionAnalysis = useMemo(() => {
-    const conditions: Record<string, SymptomLogEntry[]> = {};
+  const conditionAnalysis = useMemo(
+    () => analyzeConditions(symptomLogs),
+    [symptomLogs],
+  );
 
-    symptomLogs.forEach((log) => {
-      log.tags.forEach((condition) => {
-        if (!conditions[condition]) conditions[condition] = [];
-        conditions[condition].push(log);
-      });
-    });
+  const todayRisk = useMemo(
+    () => computeTodayRisk(conditionAnalysis[0], current),
+    [conditionAnalysis, current],
+  );
 
-    const analysis: ConditionAnalysis[] = Object.entries(conditions)
-      .map(([name, logs]) => {
-        const avgSeverity =
-          logs.reduce((sum, l) => sum + l.severity, 0) / logs.length;
-
-        // Analyze triggers
-        const humidityLogs = logs.filter(
-          (l) => l.environmentalSnapshot?.humidity ?? 0 > 85,
-        );
-        const lowPressureLogs = logs.filter(
-          (l) => (l.environmentalSnapshot?.pressure ?? 0) < 990,
-        );
-        const highKpLogs = logs.filter(
-          (l) => (l.environmentalSnapshot?.geomagnetic?.kpIndex ?? 0) > 4,
-        );
-        const poorAqiLogs = logs.filter(
-          (l) => (l.environmentalSnapshot?.aqi?.usAqi ?? 0) > 45,
-        );
-
-        const triggers: ConditionTrigger[] = [];
-
-        if (humidityLogs.length > 0) {
-          triggers.push({
-            name: "High Humidity (> 85%)",
-            severity:
-              humidityLogs.reduce((sum, l) => sum + l.severity, 0) /
-              humidityLogs.length,
-            pattern: `${humidityLogs.length} of ${logs.length} entries with high humidity`,
-          });
-        }
-
-        if (highKpLogs.length > 0) {
-          triggers.push({
-            name: "Geomagnetic Activity (Kp > 4)",
-            severity:
-              highKpLogs.reduce((sum, l) => sum + l.severity, 0) /
-              highKpLogs.length,
-            pattern: `Occurs when Kp index elevated`,
-          });
-        }
-
-        if (lowPressureLogs.length > 0) {
-          triggers.push({
-            name: "Low Pressure (< 990 hPa)",
-            severity:
-              lowPressureLogs.reduce((sum, l) => sum + l.severity, 0) /
-              lowPressureLogs.length,
-            pattern: `${lowPressureLogs.length} entries with low pressure`,
-          });
-        }
-
-        if (poorAqiLogs.length > 0) {
-          triggers.push({
-            name: "Poor Air Quality (AQI > 45)",
-            severity:
-              poorAqiLogs.reduce((sum, l) => sum + l.severity, 0) /
-              poorAqiLogs.length,
-            pattern: `Correlates with air quality spikes`,
-          });
-        }
-
-        // Sort by severity impact
-        triggers.sort((a, b) => b.severity - a.severity);
-
-        // Create trend data
-        const sortedLogs = [...logs].sort(
-          (a, b) =>
-            new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
-        );
-        const trendData = sortedLogs.map((log) => ({
-          date: new Date(log.timestamp).toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-          }),
-          severity: log.severity,
-        }));
-
-        return {
-          name,
-          count: logs.length,
-          avgSeverity,
-          triggers: triggers.slice(0, 3),
-          trendData,
-        };
-      })
-      .sort((a, b) => b.count - a.count);
-
-    return analysis;
-  }, [symptomLogs]);
-
-  // Calculate today's risk (mock current conditions for demo)
-  const todayRisk = useMemo(() => {
-    const topCondition = conditionAnalysis[0];
-    if (!topCondition) return null;
-
-    const primaryTrigger = topCondition.triggers[0];
-    const secondaryTrigger = topCondition.triggers[1] || null;
-
-    let riskLevel: "low" | "moderate" | "high" | "severe" = "low";
-    if (primaryTrigger) {
-      const severity = primaryTrigger.severity;
-      if (severity >= 7) {
-        riskLevel = "severe";
-      } else if (severity >= 5) {
-        riskLevel = "high";
-      } else if (severity > 3.5) {
-        riskLevel = "moderate";
-      }
-    }
-
-    return {
-      primaryTrigger,
-      secondaryTrigger,
-      riskLevel,
-    };
-  }, [conditionAnalysis]);
+  const protectiveFactors = useMemo(
+    () => computeProtectiveFactors(symptomLogs),
+    [symptomLogs],
+  );
 
   if (loading) {
     return (
@@ -271,7 +157,34 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
       </div>
 
       {/* Today's Risk */}
-      {todayRisk && (
+      {todayRisk?.status === "no-current-data" && (
+        <div className="bg-gray-500/10 border border-gray-500/30 rounded-2xl p-4">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+            Today's Symptom Risk
+          </p>
+          <p className="text-[11px] text-gray-400">
+            Current conditions unavailable — can't assess today's risk right
+            now.
+          </p>
+        </div>
+      )}
+
+      {todayRisk?.status === "clear" && (
+        <div
+          className={`${RISK_THEME.low.bg} border ${RISK_THEME.low.border} rounded-2xl p-4`}
+        >
+          <p
+            className={`text-[10px] font-bold ${RISK_THEME.low.title} uppercase tracking-widest mb-1`}
+          >
+            Today's Symptom Risk
+          </p>
+          <p className="text-[11px] text-gray-300">
+            None of your known trigger conditions are present right now.
+          </p>
+        </div>
+      )}
+
+      {todayRisk?.status === "active" && (
         <div
           className={`${RISK_THEME[todayRisk.riskLevel].bg} border ${RISK_THEME[todayRisk.riskLevel].border} rounded-2xl p-4 space-y-3`}
         >
@@ -285,7 +198,7 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
             <div>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[11px] text-gray-300">
-                  Primary Trigger: {todayRisk.primaryTrigger?.name}
+                  Primary Trigger: {todayRisk.primaryTrigger.name}
                 </span>
                 <span
                   className={`text-[10px] font-bold ${RISK_THEME[todayRisk.riskLevel].badge} uppercase`}
@@ -297,7 +210,7 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
                 <div
                   className={`${RISK_THEME[todayRisk.riskLevel].bar} h-2 rounded-full`}
                   style={{
-                    width: `${Math.min((todayRisk.primaryTrigger?.severity ?? 0) * 20, 100)}%`,
+                    width: `${Math.min(todayRisk.primaryTrigger.severity * 20, 100)}%`,
                   }}
                 />
               </div>
@@ -375,7 +288,7 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
                       stroke="#6b7280"
                     />
                     <YAxis
-                      domain={[0, 5]}
+                      domain={[0, 10]}
                       tick={{ fontSize: 9 }}
                       stroke="#6b7280"
                       width={30}
@@ -405,30 +318,24 @@ export default function Insights({ onOpenSymptomLogger }: InsightsProps) {
       </div>
 
       {/* Recovery Factors */}
-      <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 space-y-2">
-        <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
-          What Helps Your Symptoms
-        </p>
-        <ul className="space-y-1.5 text-[11px] sm:text-[10px] text-gray-300">
-          <li className="flex items-start gap-2">
-            <span className="text-emerald-400 font-bold shrink-0">+</span>
-            <span>
-              Rising pressure conditions correlate with milder symptoms
-            </span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-emerald-400 font-bold shrink-0">+</span>
-            <span>
-              Moderate geomagnetic activity (Kp 2-3) tends to mean lower
-              severity
-            </span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="text-emerald-400 font-bold shrink-0">+</span>
-            <span>Stable to warm temperatures show better symptom control</span>
-          </li>
-        </ul>
-      </div>
+      {protectiveFactors.length > 0 && (
+        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4 space-y-2">
+          <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">
+            What Helps Your Symptoms
+          </p>
+          <ul className="space-y-1.5 text-[11px] sm:text-[10px] text-gray-300">
+            {protectiveFactors.map((factor) => (
+              <li key={factor.label} className="flex items-start gap-2">
+                <span className="text-emerald-400 font-bold shrink-0">+</span>
+                <span>
+                  {factor.label} ({factor.count} of your logs, avg{" "}
+                  {factor.matchedAvgSeverity.toFixed(1)}/10)
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Dangerous Combinations */}
       {symptomLogs.some(

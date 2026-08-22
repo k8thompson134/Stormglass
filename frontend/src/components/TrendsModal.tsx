@@ -2,17 +2,20 @@ import { useRef } from "react";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import { createPortal } from "react-dom";
 import Insights from "./Insights";
+import type { CurrentWeather } from "../services/api";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   onOpenSymptomLogger: () => void;
+  current: CurrentWeather | null;
 }
 
 export default function TrendsModal({
   open,
   onClose,
   onOpenSymptomLogger,
+  current,
 }: Props) {
   const modalRef = useRef<HTMLDivElement>(null);
   useFocusTrap(open, modalRef, { onEscape: onClose });
@@ -54,7 +57,10 @@ export default function TrendsModal({
 
         {/* Content */}
         <div className="p-6 overflow-y-auto flex-1">
-          <Insights onOpenSymptomLogger={onOpenSymptomLogger} />
+          <Insights
+            onOpenSymptomLogger={onOpenSymptomLogger}
+            current={current}
+          />
         </div>
       </div>
     </div>,

@@ -575,6 +575,7 @@ function App() {
           open={trendsOpen}
           onClose={() => setTrendsOpen(false)}
           onOpenSymptomLogger={() => setSymptomLoggerOpen(true)}
+          current={current}
         />
       </main>
     </div>
