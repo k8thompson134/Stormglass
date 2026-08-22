@@ -14,6 +14,7 @@ import {
 interface Props {
   data: CurrentWeather | null;
   loading: boolean;
+  error: string | null;
   history?: WeatherPoint[];
 }
 function severityLabel(severity: EnvSeverity, trend: string): string {
@@ -36,7 +37,12 @@ function trendIcon(trend: string) {
   return "→";
 }
 
-export default function CurrentConditions({ data, loading, history }: Props) {
+export default function CurrentConditions({
+  data,
+  loading,
+  error,
+  history,
+}: Props) {
   if (loading) {
     return (
       <div className="bg-gray-800/40 backdrop-blur-md rounded-2xl p-5 border border-gray-700/30 animate-pulse">
@@ -55,7 +61,9 @@ export default function CurrentConditions({ data, loading, history }: Props) {
   if (!data) {
     return (
       <div className="bg-gray-800/40 backdrop-blur-md rounded-2xl p-5 border border-gray-700/30 flex items-center justify-center h-24">
-        <p className="text-gray-400 text-sm">Waiting for data...</p>
+        <p className="text-gray-400 text-sm">
+          {error ? "Couldn't load current conditions" : "Waiting for data..."}
+        </p>
       </div>
     );
   }

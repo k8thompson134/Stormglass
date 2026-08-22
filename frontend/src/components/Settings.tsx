@@ -79,11 +79,14 @@ export default function Settings({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GeoResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState(false);
   const [currentLat, setCurrentLat] = useState("");
   const [currentLon, setCurrentLon] = useState("");
   const [currentName, setCurrentName] = useState("");
+  const [settingsLoadError, setSettingsLoadError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const [tokenCopied, setTokenCopied] = useState(false);
   const [tokenRevealed, setTokenRevealed] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -320,6 +323,7 @@ export default function Settings({
   // Load current settings
   useEffect(() => {
     if (open) {
+      setSettingsLoadError(false);
       fetchSettings()
         .then((s) => {
           setCurrentLat(s.latitude);
@@ -328,6 +332,7 @@ export default function Settings({
         })
         .catch((err) => {
           console.error("Failed to load settings:", err);
+          setSettingsLoadError(true);
         });
     }
   }, [open]);
@@ -338,12 +343,14 @@ export default function Settings({
 
     if (query.length < 2) {
       setResults([]);
+      setSearchError(false);
       return;
     }
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
       setSearching(true);
+      setSearchError(false);
       try {
         const res = await geocodeSearch(query);
         // A slower, now-superseded request can resolve after a newer
@@ -351,7 +358,12 @@ export default function Settings({
         if (latestQueryRef.current !== query) return;
         setResults(res);
       } catch {
-        if (latestQueryRef.current === query) setResults([]);
+        if (latestQueryRef.current === query) {
+          setResults([]);
+          // Distinct from "no matching city" -- a failed request must not look
+          // identical to a legitimate empty search result.
+          setSearchError(true);
+        }
       }
       if (latestQueryRef.current === query) setSearching(false);
     }, 300);
@@ -383,6 +395,7 @@ export default function Settings({
   const selectLocation = async (result: GeoResult) => {
     setSaving(true);
     setSaved(false);
+    setSaveError(false);
     try {
       const formattedName = `${result.name}${result.state ? `, ${result.state}` : ""}`;
       await updateLocation(
@@ -401,6 +414,9 @@ export default function Settings({
       onLocationChanged();
     } catch (err) {
       console.error("Failed to update location:", err);
+      // A failed save must say so -- leaving nothing here would look identical
+      // to the save succeeding but the UI just not bothering to confirm it.
+      setSaveError(true);
     }
     setSaving(false);
   };
@@ -442,7 +458,12 @@ export default function Settings({
               Current Location
             </label>
             <div className="bg-[#0f172a] rounded-xl p-4 border border-[#1e2d45] space-y-1.5">
-              {currentName ? (
+              {settingsLoadError ? (
+                <p className="text-[11px] text-amber-300">
+                  Couldn't load your current location — check your connection
+                  and try reopening Settings.
+                </p>
+              ) : currentName ? (
                 <div className="text-white text-sm font-semibold">
                   {currentName}
                 </div>
@@ -458,9 +479,11 @@ export default function Settings({
                   </p>
                 </>
               )}
-              <div className="text-[10px] text-gray-500 font-mono">
-                {currentLat}°N, {currentLon}°W
-              </div>
+              {!settingsLoadError && (
+                <div className="text-[10px] text-gray-500 font-mono">
+                  {currentLat}°N, {currentLon}°W
+                </div>
+              )}
             </div>
           </div>
 
@@ -513,11 +536,18 @@ export default function Settings({
               </div>
             )}
 
-            {query.length >= 2 && !searching && results.length === 0 && (
-              <div className="mt-2 text-gray-500 text-xs px-1">
-                No results found
-              </div>
-            )}
+            {query.length >= 2 &&
+              !searching &&
+              results.length === 0 &&
+              (searchError ? (
+                <div className="mt-2 text-amber-300 text-xs px-1">
+                  Search failed — check your connection and try again
+                </div>
+              ) : (
+                <div className="mt-2 text-gray-500 text-xs px-1">
+                  No results found
+                </div>
+              ))}
 
             {/* Location save status -- shown right where the action happened,
                             not below the long health-factors list further down the modal. */}
@@ -533,6 +563,13 @@ export default function Settings({
                 <div className="flex items-center gap-2 text-blue-400 text-xs bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2">
                   <div className="w-3 h-3 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
                   <span>Updating location...</span>
+                </div>
+              )}
+
+              {saveError && (
+                <div className="flex items-center gap-2 text-amber-300 text-xs bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                  <span>⚠</span>
+                  <span>Couldn't save location — try again</span>
                 </div>
               )}
             </div>

@@ -488,6 +488,7 @@ function App() {
             <CurrentConditions
               data={current}
               loading={loading}
+              error={error}
               history={history}
             />
           </div>
@@ -538,6 +539,7 @@ function App() {
           <HealthImpact
             data={current}
             loading={loading}
+            error={error}
             healthToggles={healthToggles}
           />
         </div>

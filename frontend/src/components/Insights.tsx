@@ -61,11 +61,13 @@ export default function Insights({
 }: InsightsProps) {
   const [symptomLogs, setSymptomLogs] = useState<SymptomLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [days, setDays] = useState(90);
 
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
+    setLoadError(false);
     fetchSymptomLogs(days)
       .then((logs) => {
         if (isMounted) {
@@ -76,6 +78,7 @@ export default function Insights({
       .catch((err) => {
         if (isMounted) {
           console.error("Failed to fetch symptom logs:", err);
+          setLoadError(true);
           setLoading(false);
         }
       });
@@ -103,6 +106,19 @@ export default function Insights({
     return (
       <div className="bg-[#131d2e] border border-[#1e2d45] rounded-2xl p-6 text-center text-gray-400">
         Loading your symptom analysis...
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="bg-[#131d2e] border border-[#1e2d45] rounded-2xl p-6 text-center">
+        <p className="text-gray-300 text-sm font-medium">
+          Couldn't load your symptom history
+        </p>
+        <p className="text-gray-500 text-[11px] mt-1">
+          Check your connection and try reopening this panel.
+        </p>
       </div>
     );
   }

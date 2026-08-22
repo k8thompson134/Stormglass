@@ -24,6 +24,7 @@ import {
 interface Props {
   data: CurrentWeather | null;
   loading: boolean;
+  error: string | null;
   healthToggles: HealthToggles;
 }
 
@@ -433,9 +434,18 @@ function getPersonalizedRiskInfo(
   };
 }
 
-export default function HealthImpact({ data, loading, healthToggles }: Props) {
+export default function HealthImpact({
+  data,
+  loading,
+  error,
+  healthToggles,
+}: Props) {
   const [selectedRisk, setSelectedRisk] = useState<HealthRisk | null>(null);
   const [symptomLogs, setSymptomLogs] = useState<SymptomLogEntry[]>([]);
+  // Distinct from "user hasn't logged anything yet" (symptomLogs === []) -- without
+  // this, a failed fetch silently drops each RiskCard's "Your pattern" section as if
+  // there were no history, rather than surfacing that the fetch didn't succeed.
+  const [symptomLogsError, setSymptomLogsError] = useState(false);
 
   // Fetch symptom logs on mount
   useEffect(() => {
@@ -443,8 +453,10 @@ export default function HealthImpact({ data, loading, healthToggles }: Props) {
       try {
         const logs = await fetchSymptomLogs(90); // Last 90 days for good baseline
         setSymptomLogs(logs);
-      } catch (error) {
-        console.error("Failed to fetch symptom logs:", error);
+        setSymptomLogsError(false);
+      } catch (err) {
+        console.error("Failed to fetch symptom logs:", err);
+        setSymptomLogsError(true);
       }
     };
     loadLogs();
@@ -469,7 +481,20 @@ export default function HealthImpact({ data, loading, healthToggles }: Props) {
     );
   }
 
-  if (!data) return null;
+  if (!data) {
+    return (
+      <div className="bg-[#131d2e] rounded-2xl p-4 sm:p-6 border border-[#1e2d45] shadow-xl">
+        <h2 className="text-gray-400 text-xs font-medium tracking-wider uppercase mb-2">
+          Health Impact Forecast
+        </h2>
+        <p className="text-[12px] text-gray-400">
+          {error
+            ? "Couldn't load current conditions, so today's health impact can't be calculated right now."
+            : "Waiting for current conditions to calculate today's health impact."}
+        </p>
+      </div>
+    );
+  }
 
   const d = data.derivative;
   const delta1h = d?.delta1h ?? 0;
@@ -725,11 +750,14 @@ export default function HealthImpact({ data, loading, healthToggles }: Props) {
             key={i}
             risk={risk}
             onClick={() => setSelectedRisk(risk)}
-            personalizedInfo={getPersonalizedRiskInfo(
-              risk.condition,
-              data,
-              conditionStats,
-            )}
+            personalizedInfo={
+              // Omit rather than pass a zeroed-out object when the fetch failed --
+              // showing "0x logged" would misrepresent a fetch failure as "you have
+              // no history with this condition."
+              symptomLogsError
+                ? undefined
+                : getPersonalizedRiskInfo(risk.condition, data, conditionStats)
+            }
           />
         ))}
       </div>

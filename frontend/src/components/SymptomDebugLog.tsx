@@ -340,6 +340,7 @@ function LogEntry({
 export default function SymptomDebugLog({ open, onClose }: Props) {
   const [logs, setLogs] = useState<SymptomLogEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [days, setDays] = useState(30);
   const modalRef = useRef<HTMLDivElement>(null);
   useFocusTrap(open, modalRef, { onEscape: onClose });
@@ -347,9 +348,13 @@ export default function SymptomDebugLog({ open, onClose }: Props) {
   useEffect(() => {
     if (!open) return;
     setLoading(true);
+    setLoadError(false);
     fetchSymptomLogs(days)
       .then(setLogs)
-      .catch((err) => console.error("Failed to fetch symptom logs:", err))
+      .catch((err) => {
+        console.error("Failed to fetch symptom logs:", err);
+        setLoadError(true);
+      })
       .finally(() => setLoading(false));
   }, [open, days]);
 
@@ -508,7 +513,18 @@ export default function SymptomDebugLog({ open, onClose }: Props) {
             </div>
           )}
 
-          {!loading && logs.length === 0 && (
+          {!loading && loadError && (
+            <div className="text-center py-12">
+              <p className="text-sm text-gray-400">
+                Couldn't load symptom logs
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Check your connection and try again.
+              </p>
+            </div>
+          )}
+
+          {!loading && !loadError && logs.length === 0 && (
             <div className="text-center py-12">
               <p className="text-sm text-gray-400">
                 No symptom logs in the last {days} days.
@@ -521,6 +537,7 @@ export default function SymptomDebugLog({ open, onClose }: Props) {
           )}
 
           {!loading &&
+            !loadError &&
             logs.map((entry) => (
               <LogEntry key={entry.id} entry={entry} onDelete={handleDelete} />
             ))}

@@ -100,6 +100,7 @@ export default function Onboarding({ onComplete }: Props) {
   const [locationQuery, setLocationQuery] = useState("");
   const [locationResults, setLocationResults] = useState<GeoResult[]>([]);
   const [locationSearching, setLocationSearching] = useState(false);
+  const [locationSearchError, setLocationSearchError] = useState(false);
   const [pendingLocation, setPendingLocation] = useState<GeoResult | null>(
     null,
   );
@@ -107,6 +108,7 @@ export default function Onboarding({ onComplete }: Props) {
     DEFAULT_AQI_SENSITIVITY,
   );
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestQueryRef = useRef("");
 
@@ -135,10 +137,12 @@ export default function Onboarding({ onComplete }: Props) {
 
     if (query.length < 2) {
       setLocationResults([]);
+      setLocationSearchError(false);
       return;
     }
 
     setLocationSearching(true);
+    setLocationSearchError(false);
     debounceRef.current = setTimeout(async () => {
       try {
         const results = await geocodeSearch(query);
@@ -147,7 +151,12 @@ export default function Onboarding({ onComplete }: Props) {
         if (latestQueryRef.current !== query) return;
         setLocationResults(results);
       } catch {
-        if (latestQueryRef.current === query) setLocationResults([]);
+        if (latestQueryRef.current === query) {
+          setLocationResults([]);
+          // Distinct from "no matching city" -- a failed request must not look
+          // identical to a legitimate empty search result.
+          setLocationSearchError(true);
+        }
       } finally {
         if (latestQueryRef.current === query) setLocationSearching(false);
       }
@@ -162,6 +171,7 @@ export default function Onboarding({ onComplete }: Props) {
 
   const handleComplete = async () => {
     setSaving(true);
+    setSaveError(false);
     try {
       if (pendingLocation) {
         const name = `${pendingLocation.name}${pendingLocation.state ? `, ${pendingLocation.state}` : ""}`;
@@ -176,6 +186,12 @@ export default function Onboarding({ onComplete }: Props) {
         ALL_KEYS.map((k) => [k, selected.has(k)]),
       ) as HealthToggles;
       onComplete(toggles, aqiSensitivity);
+    } catch (err) {
+      // Without this, a failed location save silently drops the user back onto
+      // the same screen with the button re-enabled and zero explanation why
+      // "Complete Setup" appeared to do nothing.
+      console.error("Failed to save location during onboarding:", err);
+      setSaveError(true);
     } finally {
       setSaving(false);
     }
@@ -384,11 +400,16 @@ export default function Onboarding({ onComplete }: Props) {
                     )}
                     {locationQuery.length >= 2 &&
                       !locationSearching &&
-                      locationResults.length === 0 && (
+                      locationResults.length === 0 &&
+                      (locationSearchError ? (
+                        <div className="text-xs text-amber-300 px-2 py-1">
+                          Search failed — check your connection and try again
+                        </div>
+                      ) : (
                         <div className="text-xs text-gray-400 px-2 py-1">
                           No results found
                         </div>
-                      )}
+                      ))}
                     {locationResults.length > 0 && (
                       <div className="bg-gray-800/50 border border-gray-700/40 rounded-lg overflow-hidden">
                         {locationResults.slice(0, 5).map((result, idx) => (
@@ -451,6 +472,11 @@ export default function Onboarding({ onComplete }: Props) {
 
         {/* Footer buttons (sticky) */}
         <div className="border-t border-gray-800/60 p-6 flex flex-col gap-2">
+          {saveError && (
+            <p className="text-xs text-amber-300 text-center -mt-1 mb-1">
+              Couldn't save your settings — check your connection and try again.
+            </p>
+          )}
           {step === 0 ? (
             <button
               onClick={() => setStep(1)}
