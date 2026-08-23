@@ -8,6 +8,7 @@ import {
   analyzeConditions,
   computeTodayRisk,
   computeProtectiveFactors,
+  TRIGGER_FACTORS,
 } from "../utils/symptomAnalysis";
 import {
   LineChart,
@@ -353,13 +354,21 @@ export default function Insights({
         </div>
       )}
 
-      {/* Dangerous Combinations */}
-      {symptomLogs.some(
-        (log) =>
-          (log.environmentalSnapshot?.humidity ?? 0) > 85 &&
-          ((log.environmentalSnapshot?.aqi?.usAqi ?? 0) > 45 ||
-            (log.environmentalSnapshot?.geomagnetic?.kpIndex ?? 0) > 4),
-      ) && (
+      {/* Dangerous Combinations -- reuses the same humidity/aqi/geomagnetic
+          predicates TRIGGER_FACTORS defines above, rather than re-hardcoding
+          the thresholds here, so this can't silently drift from them. */}
+      {symptomLogs.some((log) => {
+        const humidity = TRIGGER_FACTORS.find(
+          (f) => f.key === "humidity",
+        )!.matchesLog(log);
+        const aqi = TRIGGER_FACTORS.find((f) => f.key === "aqi")!.matchesLog(
+          log,
+        );
+        const geomagnetic = TRIGGER_FACTORS.find(
+          (f) => f.key === "geomagnetic",
+        )!.matchesLog(log);
+        return humidity && (aqi || geomagnetic);
+      }) && (
         <div className="bg-orange-500/15 border border-orange-500/50 rounded-2xl p-6 space-y-3">
           <div className="flex items-start gap-3">
             <div className="flex-shrink-0 mt-0.5">

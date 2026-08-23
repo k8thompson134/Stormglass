@@ -11,6 +11,11 @@ import type {
 } from "../types/health";
 import { SEVERITY_THEME } from "../utils/severity";
 import {
+  HIGH_HUMIDITY_THRESHOLD,
+  HIGH_KP_THRESHOLD,
+  POOR_AQI_THRESHOLD,
+} from "../utils/environmentalThresholds";
+import {
   getMigraineRisk,
   getClusterHeadacheRisk,
   getPOTSRisk,
@@ -425,21 +430,31 @@ function getPersonalizedRiskInfo(
   // Determine active triggers based on current conditions
   const activeTriggers: string[] = [];
 
-  if (kpIndex > 4) activeTriggers.push("Space Weather");
-  if (humidity > 90) activeTriggers.push("High Humidity");
+  if (kpIndex > HIGH_KP_THRESHOLD) activeTriggers.push("Space Weather");
+  if (humidity > HIGH_HUMIDITY_THRESHOLD) activeTriggers.push("High Humidity");
+  // Rate of change (hPa/hour), not an absolute reading -- a different physical
+  // quantity from environmentalThresholds.ts's LOW_PRESSURE_THRESHOLD, so it
+  // deliberately isn't unified with that constant.
   if (Math.abs(data.derivative?.delta1h ?? 0) > 0.5)
     activeTriggers.push("Pressure Drop");
-  if (aqi > 45) activeTriggers.push("Air Quality");
+  if (aqi > POOR_AQI_THRESHOLD) activeTriggers.push("Air Quality");
 
   // Personalized patterns for specific conditions. No "matches your history"
   // claim here -- this component has no per-date historical comparison data to
   // back one, so it must not fabricate a specific match (previously a hardcoded
   // "This matches your May 16 pattern" for Migraines, with zero backing data).
   const patterns: Partial<Record<HealthConditionKey, string>> = {
-    sinus: humidity > 90 ? "High humidity is your sinus trigger" : "",
-    mecfs: kpIndex > 4 ? "Geomagnetic storms affect you strongly" : "",
+    sinus:
+      humidity > HIGH_HUMIDITY_THRESHOLD
+        ? "High humidity is your sinus trigger"
+        : "",
+    mecfs:
+      kpIndex > HIGH_KP_THRESHOLD
+        ? "Geomagnetic storms affect you strongly"
+        : "",
     fibromyalgia:
-      kpIndex > 4 && Math.abs(data.derivative?.delta1h ?? 0) > 0.3
+      kpIndex > HIGH_KP_THRESHOLD &&
+      Math.abs(data.derivative?.delta1h ?? 0) > 0.3
         ? "Multiple triggers converging"
         : "",
   };

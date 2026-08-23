@@ -1,5 +1,11 @@
 import type { SymptomLogEntry, CurrentWeather } from "../services/api";
 import { CONDITION_LABELS, type HealthConditionKey } from "../types/health";
+import {
+  HIGH_HUMIDITY_THRESHOLD,
+  LOW_PRESSURE_THRESHOLD,
+  HIGH_KP_THRESHOLD,
+  POOR_AQI_THRESHOLD,
+} from "./environmentalThresholds";
 
 export interface ConditionTrigger {
   key: string;
@@ -43,42 +49,50 @@ interface TriggerFactorDef {
 // Each trigger factor pairs a historical-log predicate with a live-conditions
 // predicate over the same underlying signal, so computeTodayRisk can ask "is the
 // trigger this condition is historically sensitive to actually happening right
-// now" instead of just repeating a historical average forever.
-const TRIGGER_FACTORS: TriggerFactorDef[] = [
+// now" instead of just repeating a historical average forever. Exported so
+// Insights.tsx's "Dangerous Combinations" banner and HealthImpact.tsx's
+// personalization can reuse the exact same predicates instead of re-implementing
+// these thresholds inline.
+export const TRIGGER_FACTORS: TriggerFactorDef[] = [
   {
     key: "humidity",
-    name: "High Humidity (> 85%)",
-    matchesLog: (log) => (log.environmentalSnapshot?.humidity ?? 0) > 85,
-    matchesCurrent: (current) => current.humidity > 85,
+    name: `High Humidity (> ${HIGH_HUMIDITY_THRESHOLD}%)`,
+    matchesLog: (log) =>
+      (log.environmentalSnapshot?.humidity ?? 0) > HIGH_HUMIDITY_THRESHOLD,
+    matchesCurrent: (current) => current.humidity > HIGH_HUMIDITY_THRESHOLD,
     pattern: (matched, total) =>
       `${matched} of ${total} entries with high humidity`,
   },
   {
     key: "geomagnetic",
-    name: "Geomagnetic Activity (Kp > 4)",
+    name: `Geomagnetic Activity (Kp > ${HIGH_KP_THRESHOLD})`,
     matchesLog: (log) =>
-      (log.environmentalSnapshot?.geomagnetic?.kpIndex ?? 0) > 4,
-    matchesCurrent: (current) => (current.geomagnetic?.kpIndex ?? 0) > 4,
+      (log.environmentalSnapshot?.geomagnetic?.kpIndex ?? 0) >
+      HIGH_KP_THRESHOLD,
+    matchesCurrent: (current) =>
+      (current.geomagnetic?.kpIndex ?? 0) > HIGH_KP_THRESHOLD,
     pattern: () => `Occurs when Kp index elevated`,
   },
   {
     key: "pressure",
     // A log with no environmental snapshot must not count as "low pressure" --
     // unlike the other factors here, a missing value defaulted to 0 would satisfy
-    // a "< 990" comparison (fails open), so this checks for a real reading instead.
-    name: "Low Pressure (< 990 hPa)",
+    // a "< threshold" comparison (fails open), so this checks for a real reading
+    // instead.
+    name: `Low Pressure (< ${LOW_PRESSURE_THRESHOLD} hPa)`,
     matchesLog: (log) => {
       const pressure = log.environmentalSnapshot?.pressure;
-      return pressure != null && pressure < 990;
+      return pressure != null && pressure < LOW_PRESSURE_THRESHOLD;
     },
-    matchesCurrent: (current) => current.pressure < 990,
+    matchesCurrent: (current) => current.pressure < LOW_PRESSURE_THRESHOLD,
     pattern: (matched) => `${matched} entries with low pressure`,
   },
   {
     key: "aqi",
-    name: "Poor Air Quality (AQI > 45)",
-    matchesLog: (log) => (log.environmentalSnapshot?.aqi?.usAqi ?? 0) > 45,
-    matchesCurrent: (current) => (current.aqi?.usAqi ?? 0) > 45,
+    name: `Poor Air Quality (AQI > ${POOR_AQI_THRESHOLD})`,
+    matchesLog: (log) =>
+      (log.environmentalSnapshot?.aqi?.usAqi ?? 0) > POOR_AQI_THRESHOLD,
+    matchesCurrent: (current) => (current.aqi?.usAqi ?? 0) > POOR_AQI_THRESHOLD,
     pattern: () => `Correlates with air quality spikes`,
   },
 ];
