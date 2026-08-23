@@ -1,4 +1,3 @@
-import { eq, and, gte, lte } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { pollenData } from "../db/schema.js";
 import { logger } from "../logger.js";
@@ -84,30 +83,15 @@ export async function fetchPollenData(
 
     if (rows.length === 0) return 0;
 
-    // Batch-fetch existing timestamps to avoid N+1 queries
-    const timestamps = rows.map((r) => r.timestamp);
-    const minTs = new Date(Math.min(...timestamps.map((t) => t.getTime())));
-    const maxTs = new Date(Math.max(...timestamps.map((t) => t.getTime())));
-
-    const existingRows = await db
-      .select({ timestamp: pollenData.timestamp })
-      .from(pollenData)
-      .where(
-        and(
-          eq(pollenData.userId, userId),
-          eq(pollenData.location, location),
-          gte(pollenData.timestamp, minTs),
-          lte(pollenData.timestamp, maxTs),
-        ),
-      );
-
-    const existingSet = new Set(existingRows.map((r) => r.timestamp.getTime()));
-    const newRows = rows.filter((r) => !existingSet.has(r.timestamp.getTime()));
-
-    if (newRows.length === 0) return 0;
-
-    await db.insert(pollenData).values(newRows);
-    return newRows.length;
+    // Relies on the (user_id, location, timestamp) unique constraint rather than
+    // a read-then-filter dedup query -- the DB rejects (silently, per row) any
+    // row already present instead of the app having to check first.
+    const inserted = await db
+      .insert(pollenData)
+      .values(rows)
+      .onConflictDoNothing()
+      .returning({ id: pollenData.id });
+    return inserted.length;
   } catch (error) {
     logger.error(
       { service: "tomorrow", err: error },

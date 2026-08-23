@@ -8,6 +8,7 @@ import {
   boolean,
   jsonb,
   index,
+  unique,
 } from "drizzle-orm/pg-core";
 
 // Users table
@@ -56,6 +57,13 @@ export const weatherData = pgTable(
       table.location,
       table.timestamp,
     ),
+    // Natural key for one poll's reading at one location/time -- lets inserts use
+    // onConflictDoNothing()/onConflictDoUpdate() instead of app-level
+    // read-then-insert dedup, and gives the DB a real backstop against duplicate
+    // rows (previously possible from overlapping poll cycles; see task 364).
+    userIdLocationTimestampUnique: unique(
+      "weather_data_user_id_location_timestamp_unique",
+    ).on(table.userId, table.location, table.timestamp),
   }),
 );
 
@@ -79,6 +87,9 @@ export const pressureDerivatives = pgTable(
       table.userId,
       table.timestamp,
     ),
+    userIdLocationTimestampUnique: unique(
+      "pressure_derivatives_user_id_location_timestamp_unique",
+    ).on(table.userId, table.location, table.timestamp),
   }),
 );
 
@@ -106,6 +117,17 @@ export const airQualityData = pgTable(
       table.userId,
       table.timestamp,
     ),
+    // Missing until now, unlike weather_data/pollen_data's equivalent index --
+    // 8 read sites filter by location + timestamp range (api/weather.ts,
+    // api/briefing.ts, jobs/weather-poll.ts) against this, the fastest-growing
+    // table (rewritten every poll), which meant a full scan on that hot path.
+    locationTimestampIdx: index("air_quality_data_location_timestamp_idx").on(
+      table.location,
+      table.timestamp,
+    ),
+    userIdLocationTimestampUnique: unique(
+      "air_quality_data_user_id_location_timestamp_unique",
+    ).on(table.userId, table.location, table.timestamp),
   }),
 );
 
@@ -134,6 +156,12 @@ export const geomagneticData = pgTable(
       table.userId,
       table.timestamp,
     ),
+    // No location column here (geomagnetic conditions aren't location-specific),
+    // so the natural key is user_id + timestamp only, unlike the location-scoped
+    // tables above.
+    userIdTimestampUnique: unique(
+      "geomagnetic_data_user_id_timestamp_unique",
+    ).on(table.userId, table.timestamp),
   }),
 );
 
@@ -161,6 +189,9 @@ export const pollenData = pgTable(
       table.location,
       table.timestamp,
     ),
+    userIdLocationTimestampUnique: unique(
+      "pollen_data_user_id_location_timestamp_unique",
+    ).on(table.userId, table.location, table.timestamp),
   }),
 );
 

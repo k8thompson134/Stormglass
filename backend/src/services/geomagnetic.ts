@@ -1,4 +1,3 @@
-import { eq, and, gte, lte } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { geomagneticData } from "../db/schema.js";
 import { logger } from "../logger.js";
@@ -89,27 +88,13 @@ export async function fetchGeomagneticData(userId: string): Promise<number> {
     solarWindDensity: String(latestPlasma?.density ?? 0),
   }));
 
-  // Batch-fetch existing timestamps to avoid N+1 queries
-  const timestamps = rows.map((r) => r.timestamp);
-  const minTs = new Date(Math.min(...timestamps.map((t) => t.getTime())));
-  const maxTs = new Date(Math.max(...timestamps.map((t) => t.getTime())));
-
-  const existingRows = await db
-    .select({ timestamp: geomagneticData.timestamp })
-    .from(geomagneticData)
-    .where(
-      and(
-        eq(geomagneticData.userId, userId),
-        gte(geomagneticData.timestamp, minTs),
-        lte(geomagneticData.timestamp, maxTs),
-      ),
-    );
-
-  const existingSet = new Set(existingRows.map((r) => r.timestamp.getTime()));
-  const newRows = rows.filter((r) => !existingSet.has(r.timestamp.getTime()));
-
-  if (newRows.length === 0) return 0;
-
-  await db.insert(geomagneticData).values(newRows);
-  return newRows.length;
+  // Relies on the (user_id, timestamp) unique constraint rather than a
+  // read-then-filter dedup query -- the DB rejects (silently, per row) any
+  // timestamp already present instead of the app having to check first.
+  const inserted = await db
+    .insert(geomagneticData)
+    .values(rows)
+    .onConflictDoNothing()
+    .returning({ id: geomagneticData.id });
+  return inserted.length;
 }

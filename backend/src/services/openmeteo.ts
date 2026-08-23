@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, gt } from "drizzle-orm";
+import { eq, and, gt } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { weatherData } from "../db/schema.js";
 
@@ -96,32 +96,15 @@ export async function fetchWeatherData(
   let inserted = 0;
 
   if (pastRows.length > 0) {
-    // Batch-fetch existing timestamps to avoid N+1 queries
-    const timestamps = pastRows.map((r) => r.timestamp);
-    const minTs = new Date(Math.min(...timestamps.map((t) => t.getTime())));
-    const maxTs = new Date(Math.max(...timestamps.map((t) => t.getTime())));
-
-    const existingRows = await db
-      .select({ timestamp: weatherData.timestamp })
-      .from(weatherData)
-      .where(
-        and(
-          eq(weatherData.userId, userId),
-          eq(weatherData.location, location),
-          gte(weatherData.timestamp, minTs),
-          lte(weatherData.timestamp, maxTs),
-        ),
-      );
-
-    const existingSet = new Set(existingRows.map((r) => r.timestamp.getTime()));
-    const newPastRows = pastRows.filter(
-      (r) => !existingSet.has(r.timestamp.getTime()),
-    );
-
-    if (newPastRows.length > 0) {
-      await db.insert(weatherData).values(newPastRows);
-      inserted += newPastRows.length;
-    }
+    // Relies on the (user_id, location, timestamp) unique constraint rather than
+    // a read-then-filter dedup query -- the DB rejects (silently, per row) any
+    // row already present instead of the app having to check first.
+    const newPastRows = await db
+      .insert(weatherData)
+      .values(pastRows)
+      .onConflictDoNothing()
+      .returning({ id: weatherData.id });
+    inserted += newPastRows.length;
   }
 
   if (futureRows.length > 0) {
