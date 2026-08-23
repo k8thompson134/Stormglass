@@ -414,10 +414,11 @@ function getPersonalizedRiskInfo(
     activeTriggers.push("Pressure Drop");
   if (aqi > 45) activeTriggers.push("Air Quality");
 
-  // Personalized patterns for specific conditions
+  // Personalized patterns for specific conditions. No "matches your history"
+  // claim here -- this component has no per-date historical comparison data to
+  // back one, so it must not fabricate a specific match (previously a hardcoded
+  // "This matches your May 16 pattern" for Migraines, with zero backing data).
   const patterns: Record<string, string> = {
-    Migraines:
-      kpIndex > 4 && humidity > 85 ? "This matches your May 16 pattern" : "",
     Sinus: humidity > 90 ? "High humidity is your sinus trigger" : "",
     "ME/CFS": kpIndex > 4 ? "Geomagnetic storms affect you strongly" : "",
     Fibromyalgia:
