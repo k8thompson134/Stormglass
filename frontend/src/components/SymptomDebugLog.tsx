@@ -9,6 +9,13 @@ import {
 } from "../services/api";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import { toF } from "../utils/conversions";
+import { CONDITION_LABELS, type HealthConditionKey } from "../types/health";
+
+// A preset-driven log's tag is a HealthConditionKey (e.g. "mecfs"); a freeform
+// custom tag has no entry in CONDITION_LABELS and displays as-is.
+function tagLabel(tag: string): string {
+  return CONDITION_LABELS[tag as HealthConditionKey] ?? tag;
+}
 
 interface Props {
   open: boolean;
@@ -269,7 +276,7 @@ function LogEntry({
                 key={i}
                 className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/25"
               >
-                {tag}
+                {tagLabel(tag)}
               </span>
             ))}
           </div>
@@ -405,7 +412,7 @@ export default function SymptomDebugLog({ open, onClose }: Props) {
         const date = new Date(log.timestamp);
         const dateStr = date.toLocaleDateString();
         const timeStr = date.toLocaleTimeString();
-        const tags = (log.tags as string[]).join("; ");
+        const tags = (log.tags as string[]).map(tagLabel).join("; ");
         const notes = log.notes || "";
         const snap = log.environmentalSnapshot;
         const pressure = snap?.pressure?.toFixed(1) || "";

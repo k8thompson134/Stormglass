@@ -58,8 +58,21 @@ export default function SymptomLogger({
 
   const addCustomTag = () => {
     const trimmed = customTag.trim();
-    if (trimmed && !selectedTags.includes(trimmed)) {
-      setSelectedTags((prev) => [...prev, trimmed]);
+    if (trimmed) {
+      // If the typed text matches a known condition key or its label (e.g. typing
+      // "mecfs" or "ME/CFS" instead of clicking the preset button), toggle that
+      // preset instead of adding a freeform tag with the same text -- otherwise a
+      // custom tag could silently collide with a HealthConditionKey string and get
+      // grouped into that condition's stats/analysis as if it were the real preset.
+      const matchedKey = HEALTH_CONDITIONS.find(
+        (key) =>
+          key.toLowerCase() === trimmed.toLowerCase() ||
+          CONDITION_LABELS[key].toLowerCase() === trimmed.toLowerCase(),
+      );
+      const tagToAdd = matchedKey ?? trimmed;
+      if (!selectedTags.includes(tagToAdd)) {
+        setSelectedTags((prev) => [...prev, tagToAdd]);
+      }
     }
     setCustomTag("");
   };
