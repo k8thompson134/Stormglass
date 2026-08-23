@@ -39,3 +39,53 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build
+
+  # Catches drift between schema.ts, drizzle/*.sql, and what those migrations
+  # actually produce -- neither `npm test` nor `npm run build` touch a database at
+  # all, so this had never been checked anywhere before (2026-08-21 architecture
+  # review finding #4). Two independent checks:
+  # 1. The committed drizzle/ migrations apply cleanly to a real Postgres (catches
+  #    broken SQL, a migration that depends on something an earlier one didn't
+  #    actually create, etc.)
+  # 2. Regenerating from schema.ts produces no new migration file (catches
+  #    schema.ts being edited without running `db:generate`, which is exactly how
+  #    the pre-existing weather_data/air_quality_data index gap went unnoticed).
+  db-drift-check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: stormglass
+          POSTGRES_USER: stormglass
+          POSTGRES_PASSWORD: ci_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://stormglass:ci_password@localhost:5432/stormglass
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Apply committed migrations to a scratch database
+        working-directory: backend
+        run: npm run db:migrate
+      - name: Check schema.ts has no un-generated drift
+        working-directory: backend
+        run: |
+          npm run db:generate
+          if [ -n "$(git status --porcelain drizzle/)" ]; then
+            echo "::error::schema.ts does not match the committed migrations in drizzle/."
+            echo "Run 'npm run db:generate' locally, review the generated SQL, and commit it."
+            git status --porcelain drizzle/
+            git diff drizzle/
+            exit 1
+          fi
