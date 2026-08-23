@@ -28,6 +28,7 @@ import {
   clearPotsRiskDedupState,
   sendClearAirAlert,
   resetClearAirDedupState,
+  pruneNotificationLog,
 } from "../services/push.js";
 import {
   getMigraineRisk,
@@ -51,6 +52,7 @@ export interface PollConfig {
 
 let currentTask: cron.ScheduledTask | null = null;
 let currentConfig: PollConfig | null = null;
+let retentionTask: cron.ScheduledTask | null = null;
 
 async function runPoll(config: PollConfig): Promise<void> {
   const { userId, latitude, longitude } = config;
@@ -498,6 +500,49 @@ export function startWeatherPolling(config: PollConfig): void {
   });
 
   logger.info({ service: "weather-poll" }, "Scheduled every 30 minutes");
+
+  // Retention is independent of location/config, so it's only ever started here
+  // (not re-scheduled on restartWeatherPolling's location changes) -- guard against
+  // double-scheduling if startWeatherPolling somehow ran twice.
+  if (!retentionTask) {
+    pruneNotificationLog()
+      .then((count) => {
+        if (count > 0) {
+          logger.info(
+            { service: "weather-poll", count },
+            "Pruned old push notification log rows on startup",
+          );
+        }
+      })
+      .catch((err) =>
+        logger.error(
+          { service: "weather-poll", err },
+          "Startup notification log prune failed",
+        ),
+      );
+
+    retentionTask = cron.schedule("0 3 * * *", () => {
+      pruneNotificationLog()
+        .then((count) => {
+          if (count > 0) {
+            logger.info(
+              { service: "weather-poll", count },
+              "Pruned old push notification log rows",
+            );
+          }
+        })
+        .catch((err) =>
+          logger.error(
+            { service: "weather-poll", err },
+            "Notification log prune failed",
+          ),
+        );
+    });
+    logger.info(
+      { service: "weather-poll" },
+      "Notification log retention scheduled daily at 3am",
+    );
+  }
 }
 
 export async function restartWeatherPolling(
@@ -548,5 +593,9 @@ export function stopPolling(): void {
   if (currentTask) {
     currentTask.stop();
     currentTask = null;
+  }
+  if (retentionTask) {
+    retentionTask.stop();
+    retentionTask = null;
   }
 }

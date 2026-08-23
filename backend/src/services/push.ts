@@ -1,5 +1,5 @@
 import webpush from "web-push";
-import { desc, eq, type SQL } from "drizzle-orm";
+import { desc, eq, lt, type SQL } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { pushSubscriptions, pushNotificationLog } from "../db/schema.js";
 import { env } from "../env.js";
@@ -662,4 +662,22 @@ export async function clearAqiCrossingDedupState(): Promise<void> {
     .update(pushSubscriptions)
     .set({ lastNotifiedCategory: null })
     .where(eq(pushSubscriptions.aqiAlertsEnabled, true));
+}
+
+// One row per alert-worthy decision, including every suppressed-by-dedup cycle --
+// a single sustained condition logs roughly one row per subscription per alert type
+// per 30-min poll (~48/device/day), more with several conditions active at once, and
+// nothing previously deleted old rows. getNotificationLog only ever reads the most
+// recent 30 anyway, so this keeps well past that while bounding unbounded growth.
+const NOTIFICATION_LOG_RETENTION_DAYS = 30;
+
+export async function pruneNotificationLog(): Promise<number> {
+  const cutoff = new Date(
+    Date.now() - NOTIFICATION_LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000,
+  );
+  const deleted = await db
+    .delete(pushNotificationLog)
+    .where(lt(pushNotificationLog.createdAt, cutoff))
+    .returning({ id: pushNotificationLog.id });
+  return deleted.length;
 }
