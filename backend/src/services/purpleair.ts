@@ -12,6 +12,11 @@ import { logger } from "../logger.js";
 // (routes/health.py::_fetch_purpleair_aqi) -- keep the two in sync if either changes.
 
 const SENSORS_URL = "https://api.purpleair.com/v1/sensors";
+// Shorter than the other adapters' 15s -- this one is awaited directly in the
+// user-facing /api/weather/current and /api/briefing request paths (the other four
+// adapters only run in the 30-min background poll, where a slow upstream just delays
+// that cycle rather than stalling a live request the user is waiting on).
+const FETCH_TIMEOUT_MS = 4_000;
 
 // This is called on every /api/weather/current and /api/briefing request (frontend
 // auto-refreshes every 5 min; add lair's own polling and manual use and real volume
@@ -23,16 +28,26 @@ const SENSORS_URL = "https://api.purpleair.com/v1/sensors";
 // -- hourly freshness is plenty for a personal health-tracking app, not a real-time
 // dispatch system.
 const CACHE_TTL_MS = 60 * 60 * 1000;
-let cache: {
-  key: string;
-  result: HyperlocalAQI | null;
-  expiresAt: number;
-} | null = null;
+
+// Keyed by location -- a single slot (the previous implementation) thrashes to a 0%
+// hit rate as soon as more than one location is polled (e.g. this location plus lair's
+// own client polling a different one), since each fetch for location B would evict
+// location A's still-fresh entry.
+const cache = new Map<
+  string,
+  { result: HyperlocalAQI | null; expiresAt: number }
+>();
+
+// Dedupes concurrent requests for the same location that land while nothing is
+// cached yet (or the cache just expired) -- without this, N simultaneous callers at
+// TTL expiry each fire their own upstream PurpleAir request instead of sharing one.
+const inFlight = new Map<string, Promise<HyperlocalAQI | null>>();
 
 // Test-only: this module-level cache persists across test cases in the same file,
 // which would otherwise pollute later tests with an earlier test's cached result.
 export function _resetCacheForTests(): void {
-  cache = null;
+  cache.clear();
+  inFlight.clear();
 }
 
 // EPA's published correction equation for PurpleAir PM2.5 during wildfire smoke (the
@@ -107,13 +122,24 @@ export async function fetchHyperlocalAQI(
   if (!apiKey) return null;
 
   const cacheKey = `${latitude},${longitude}`;
-  if (cache && cache.key === cacheKey && cache.expiresAt > Date.now()) {
-    return cache.result;
+  const cached = cache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.result;
   }
 
-  const result = await fetchHyperlocalAQIUncached(latitude, longitude, apiKey);
-  cache = { key: cacheKey, result, expiresAt: Date.now() + CACHE_TTL_MS };
-  return result;
+  const pending = inFlight.get(cacheKey);
+  if (pending) return pending;
+
+  const promise = fetchHyperlocalAQIUncached(latitude, longitude, apiKey)
+    .then((result) => {
+      cache.set(cacheKey, { result, expiresAt: Date.now() + CACHE_TTL_MS });
+      return result;
+    })
+    .finally(() => {
+      inFlight.delete(cacheKey);
+    });
+  inFlight.set(cacheKey, promise);
+  return promise;
 }
 
 async function fetchHyperlocalAQIUncached(
@@ -138,6 +164,7 @@ async function fetchHyperlocalAQIUncached(
 
     const response = await fetch(url.toString(), {
       headers: { "X-API-Key": apiKey },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!response.ok) {
       logger.warn(

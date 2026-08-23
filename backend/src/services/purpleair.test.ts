@@ -267,5 +267,48 @@ describe("fetchHyperlocalAQI", () => {
       expect(second).toBeNull();
       expect(fetchSpy).toHaveBeenCalledTimes(1);
     });
+
+    it("dedupes concurrent requests for the same location instead of firing N upstream calls", async () => {
+      let resolveResponse!: (r: Response) => void;
+      const fetchSpy = vi.fn().mockReturnValue(
+        new Promise<Response>((resolve) => {
+          resolveResponse = resolve;
+        }),
+      );
+      vi.stubGlobal("fetch", fetchSpy);
+
+      const calls = [
+        fetchHyperlocalAQI("40.0", "-74.0"),
+        fetchHyperlocalAQI("40.0", "-74.0"),
+        fetchHyperlocalAQI("40.0", "-74.0"),
+      ];
+
+      resolveResponse({
+        ok: true,
+        status: 200,
+        json: async () => ({ fields: FIELDS, data: [sensorRow()] }),
+      } as Response);
+      const results = await Promise.all(calls);
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(results[0]).toEqual(results[1]);
+      expect(results[1]).toEqual(results[2]);
+    });
+
+    it("does not thrash to 0% hit rate when two locations alternate", async () => {
+      const fetchSpy = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ fields: FIELDS, data: [sensorRow()] }),
+      } as Response);
+      vi.stubGlobal("fetch", fetchSpy);
+
+      await fetchHyperlocalAQI("40.0", "-74.0");
+      await fetchHyperlocalAQI("41.0", "-75.0");
+      await fetchHyperlocalAQI("40.0", "-74.0"); // back to the first -- should still be cached
+      await fetchHyperlocalAQI("41.0", "-75.0"); // back to the second -- should still be cached
+
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    });
   });
 });

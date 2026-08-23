@@ -1,8 +1,10 @@
 import { eq, and, gt } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { airQualityData } from "../db/schema.js";
+import { logger } from "../logger.js";
 
 const BASE_URL = "https://air-quality-api.open-meteo.com/v1/air-quality";
+const FETCH_TIMEOUT_MS = 15_000;
 
 const HOURLY_VARS = [
   "us_aqi",
@@ -48,8 +50,14 @@ export async function fetchAirQualityData(
   // 3-day lookahead gives smoke-trend analysis a 72h forecast window
   url.searchParams.set("forecast_days", "3");
 
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), {
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
   if (!response.ok) {
+    logger.error(
+      { service: "airquality", status: response.status },
+      "Open-Meteo AQ API error",
+    );
     throw new Error(
       `Open-Meteo AQ API error: ${response.status} ${response.statusText}`,
     );

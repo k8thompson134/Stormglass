@@ -1,8 +1,10 @@
 import { eq, and, gt } from "drizzle-orm";
 import { db } from "../db/index.js";
 import { weatherData } from "../db/schema.js";
+import { logger } from "../logger.js";
 
 const BASE_URL = "https://api.open-meteo.com/v1/forecast";
+const FETCH_TIMEOUT_MS = 15_000;
 
 const HOURLY_VARS = [
   "surface_pressure",
@@ -49,8 +51,14 @@ export async function fetchWeatherData(
   url.searchParams.set("past_days", "2");
   url.searchParams.set("forecast_days", "7");
 
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), {
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
   if (!response.ok) {
+    logger.error(
+      { service: "openmeteo", status: response.status },
+      "Open-Meteo API error",
+    );
     throw new Error(
       `Open-Meteo API error: ${response.status} ${response.statusText}`,
     );

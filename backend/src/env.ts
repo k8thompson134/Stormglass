@@ -68,11 +68,18 @@ export const env = {
     ? required("CORS_ORIGIN")
     : process.env.CORS_ORIGIN || null,
 
-  // Optional API key — pollen data will be skipped if missing
+  // Optional API key — pollen data will be skipped if missing.
+  // NOT actually read by tomorrow.ts -- it reads process.env directly instead,
+  // because this object's values are frozen at import time and tomorrow.test.ts
+  // (and purpleair.test.ts below) mutate process.env per-test at runtime, which
+  // routing through here would silently stop reflecting. Kept here anyway so the
+  // "what env vars does this app use" list stays complete; don't add a real
+  // consumer of this field without checking that test-mutation assumption first.
   TOMORROW_API_KEY: process.env.TOMORROW_API_KEY?.trim() || null,
 
   // Optional API key — hyperlocal PurpleAir AQI overlay is skipped (falls back to
   // Open-Meteo's modeled AQI) if missing. Free key: https://develop.purpleair.com
+  // Same caveat as TOMORROW_API_KEY above -- purpleair.ts reads process.env directly.
   PURPLEAIR_API_KEY: process.env.PURPLEAIR_API_KEY?.trim() || null,
 
   // Auth token for API access — auto-generated on first production startup if not set

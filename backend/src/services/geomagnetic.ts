@@ -6,6 +6,7 @@ const KP_URL =
   "https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json";
 const PLASMA_URL =
   "https://services.swpc.noaa.gov/products/solar-wind/plasma-1-day.json";
+const FETCH_TIMEOUT_MS = 15_000;
 
 interface KpEntry {
   timeTag: string;
@@ -51,19 +52,34 @@ function parseLatestPlasma(raw: (string | number)[][]): PlasmaEntry | null {
 
 export async function fetchGeomagneticData(userId: string): Promise<number> {
   // Fetch Kp index data (3-hourly readings, ~7 days)
-  const kpResponse = await fetch(KP_URL);
+  const kpResponse = await fetch(KP_URL, {
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
   if (!kpResponse.ok) {
+    logger.error(
+      { service: "geomagnetic", status: kpResponse.status },
+      "NOAA Kp API error",
+    );
     throw new Error(
       `NOAA Kp API error: ${kpResponse.status} ${kpResponse.statusText}`,
     );
   }
   const kpRaw: NoaaKpObject[] = await kpResponse.json();
-  const kpEntries = parseKpData(kpRaw);
+  // Sorted defensively rather than trusted as-is -- NOAA's feed is chronologically
+  // ascending today (verified live), but nothing in their API contract guarantees
+  // that stays true, and the "stamp the latest plasma reading on the newest row"
+  // fix below silently mis-stamps a historical row instead of erroring if it ever
+  // doesn't.
+  const kpEntries = parseKpData(kpRaw).sort(
+    (a, b) => new Date(a.timeTag).getTime() - new Date(b.timeTag).getTime(),
+  );
 
   // Fetch latest solar wind plasma data
   let latestPlasma: PlasmaEntry | null = null;
   try {
-    const plasmaResponse = await fetch(PLASMA_URL);
+    const plasmaResponse = await fetch(PLASMA_URL, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
     if (plasmaResponse.ok) {
       const plasmaRaw: string[][] = await plasmaResponse.json();
       latestPlasma = parseLatestPlasma(plasmaRaw);
@@ -78,14 +94,24 @@ export async function fetchGeomagneticData(userId: string): Promise<number> {
 
   if (kpEntries.length === 0) return 0;
 
-  // Build all rows first
-  const rows = kpEntries.map((entry) => ({
+  // NOAA only gives us ONE current plasma reading, not a history of one per Kp
+  // timestamp -- stamping it onto every historical row (as this used to do) fabricates
+  // ~56 rows' worth of solar-wind data that never actually applied at those past
+  // times. Only the most recent Kp entry (the one closest to "now") gets the real
+  // reading; older rows get 0, which every consumer (getGeomagneticRisk, the
+  // frontend's `> 0` guards) already treats as "no data" rather than a real zero.
+  const latestEntryIndex = kpEntries.length - 1;
+  const rows = kpEntries.map((entry, i) => ({
     userId,
     timestamp: new Date(entry.timeTag.replace(" ", "T") + "Z"),
     kpIndex: String(entry.kp),
     kpEstimated: String(entry.kp), // NOAA provides observed Kp, use as estimated too
-    solarWindSpeed: String(latestPlasma?.speed ?? 0),
-    solarWindDensity: String(latestPlasma?.density ?? 0),
+    solarWindSpeed: String(
+      i === latestEntryIndex ? (latestPlasma?.speed ?? 0) : 0,
+    ),
+    solarWindDensity: String(
+      i === latestEntryIndex ? (latestPlasma?.density ?? 0) : 0,
+    ),
   }));
 
   // Relies on the (user_id, timestamp) unique constraint rather than a

@@ -54,25 +54,53 @@ let currentTask: cron.ScheduledTask | null = null;
 let currentConfig: PollConfig | null = null;
 let retentionTask: cron.ScheduledTask | null = null;
 
+/**
+ * Unwraps a settled result, logging+returning a fallback on rejection instead of
+ * throwing -- so one adapter failing (network error, timeout) doesn't take down
+ * the rest of the poll cycle, including the downstream push checks that don't
+ * depend on it at all.
+ */
+function logSettled<T>(
+  service: string,
+  result: PromiseSettledResult<T>,
+  fallback: T,
+): T {
+  if (result.status === "fulfilled") return result.value;
+  logger.error(
+    { service: `${service}-poll`, err: result.reason },
+    `${service} fetch failed`,
+  );
+  return fallback;
+}
+
 async function runPoll(config: PollConfig): Promise<void> {
   const { userId, latitude, longitude } = config;
   const location = `${latitude},${longitude}`;
 
   try {
-    const inserted = await fetchWeatherData(userId, latitude, longitude);
+    const [weatherResult] = await Promise.allSettled([
+      fetchWeatherData(userId, latitude, longitude),
+    ]);
+    const inserted = logSettled("openmeteo", weatherResult, 0);
     logger.info(
       { service: "weather-poll", inserted },
       "Fetched new weather readings",
     );
 
-    // Run derivatives and other data fetches in parallel (all depend only on userId/location)
-    const [derivatives, aqInserted, geoInserted, pollenInserted] =
-      await Promise.all([
+    // Run derivatives and other data fetches in parallel (all depend only on
+    // userId/location) -- allSettled so one throwing adapter (e.g. a timeout) can't
+    // reject the whole cycle and skip the push checks below.
+    const [derivativesResult, aqResult, geoResult, pollenResult] =
+      await Promise.allSettled([
         computePressureDerivatives(userId, location),
         fetchAirQualityData(userId, latitude, longitude),
         fetchGeomagneticData(userId),
         fetchPollenData(userId, latitude, longitude),
       ]);
+    const derivatives = logSettled("pressure", derivativesResult, 0);
+    const aqInserted = logSettled("air-quality", aqResult, 0);
+    const geoInserted = logSettled("geomagnetic", geoResult, 0);
+    const pollenInserted = logSettled("pollen", pollenResult, 0);
 
     logger.info(
       { service: "weather-poll", derivatives },

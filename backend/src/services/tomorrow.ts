@@ -3,6 +3,7 @@ import { pollenData } from "../db/schema.js";
 import { logger } from "../logger.js";
 
 const BASE_URL = "https://api.tomorrow.io/v4/weather/forecast";
+const FETCH_TIMEOUT_MS = 15_000;
 
 interface TomorrowDaily {
   time: string;
@@ -25,7 +26,10 @@ export async function fetchPollenData(
   latitude: string,
   longitude: string,
 ): Promise<number> {
-  const apiKey = process.env.TOMORROW_API_KEY;
+  // .trim() matches purpleair.ts's PURPLEAIR_API_KEY handling -- previously this
+  // didn't trim, so a whitespace-only key would be silently sent upstream here
+  // (yielding a 403) while purpleair.ts's equivalent correctly treated it as absent.
+  const apiKey = process.env.TOMORROW_API_KEY?.trim();
   if (!apiKey) {
     logger.warn(
       { service: "tomorrow" },
@@ -41,7 +45,9 @@ export async function fetchPollenData(
   url.searchParams.set("apikey", apiKey);
 
   try {
-    const response = await fetch(url.toString());
+    const response = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
     if (!response.ok) {
       if (response.status === 403) {
         logger.warn(
