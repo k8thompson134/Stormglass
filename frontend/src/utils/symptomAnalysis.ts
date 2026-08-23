@@ -1,4 +1,5 @@
 import type { SymptomLogEntry, CurrentWeather } from "../services/api";
+import { CONDITION_LABELS, type HealthConditionKey } from "../types/health";
 
 export interface ConditionTrigger {
   key: string;
@@ -94,7 +95,10 @@ export function analyzeConditions(
   });
 
   return Object.entries(conditions)
-    .map(([name, condLogs]) => {
+    .map(([tag, condLogs]) => {
+      // A preset-driven log's tag is a HealthConditionKey (e.g. "mecfs"); a
+      // freeform custom tag has no entry in CONDITION_LABELS and displays as-is.
+      const name = CONDITION_LABELS[tag as HealthConditionKey] ?? tag;
       const avgSeverity =
         condLogs.reduce((sum, l) => sum + l.severity, 0) / condLogs.length;
 

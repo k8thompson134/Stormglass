@@ -1,7 +1,12 @@
 import { useState, useRef } from "react";
 import { createSymptomLog } from "../services/api";
 import { useFocusTrap } from "../hooks/useFocusTrap";
-import { HEALTH_CONDITIONS, type HealthToggles } from "../types/health";
+import {
+  HEALTH_CONDITIONS,
+  CONDITION_LABELS,
+  type HealthConditionKey,
+  type HealthToggles,
+} from "../types/health";
 
 interface SymptomLoggerProps {
   open: boolean;
@@ -9,23 +14,6 @@ interface SymptomLoggerProps {
   onLogged: () => void;
   selectedConditions: HealthToggles;
 }
-
-// Labels for each health condition in the canonical HEALTH_CONDITIONS order.
-const CONDITION_LABELS: Record<string, string> = {
-  migraine: "Migraines",
-  cluster: "Cluster Headache",
-  pots: "POTS / Dysautonomia",
-  mecfs: "ME/CFS",
-  joints: "Joint Pain",
-  fibromyalgia: "Fibromyalgia",
-  eds: "EDS",
-  raynauds: "Raynaud's",
-  sinus: "Sinus",
-  sleep: "Sleep Quality",
-  aqi: "Air Quality",
-  geomagnetic: "Geomagnetic",
-  pollen: "Pollen",
-};
 
 const SEVERITY_COLORS: Record<number, string> = {
   1: "bg-emerald-500",
@@ -56,9 +44,11 @@ export default function SymptomLogger({
   const modalRef = useRef<HTMLDivElement>(null);
   useFocusTrap(open, modalRef, { onEscape: onClose });
 
-  const presetTags = HEALTH_CONDITIONS.filter(
-    (key) => selectedConditions[key],
-  ).map((key) => CONDITION_LABELS[key]);
+  // Preset tags are persisted as the stable HealthConditionKey (e.g. "mecfs"), not
+  // the display label (e.g. "ME/CFS") -- Insights/HealthImpact both look symptom
+  // logs up by this same key elsewhere, so keeping the persisted value and the
+  // display label separate is what keeps that lookup an exact match.
+  const presetTags = HEALTH_CONDITIONS.filter((key) => selectedConditions[key]);
 
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) =>
@@ -177,13 +167,13 @@ export default function SymptomLogger({
               Symptoms
             </label>
             <div className="flex flex-wrap gap-2">
-              {presetTags.map((tag) => {
-                const active = selectedTags.includes(tag);
+              {presetTags.map((key) => {
+                const active = selectedTags.includes(key);
                 return (
                   <button
-                    key={tag}
+                    key={key}
                     type="button"
-                    onClick={() => toggleTag(tag)}
+                    onClick={() => toggleTag(key)}
                     className={`
                                             px-3 py-2.5 text-xs font-medium rounded-lg border transition-all duration-200 min-h-[44px]
                                             ${
@@ -193,13 +183,16 @@ export default function SymptomLogger({
                                             }
                                         `}
                   >
-                    {tag}
+                    {CONDITION_LABELS[key]}
                   </button>
                 );
               })}
-              {/* Custom tags not in preset list */}
+              {/* Tags selected but not currently rendered as a preset button above --
+                  either a genuinely custom freeform tag, or a known condition key
+                  that's since been disabled in Settings. Resolve to its label in
+                  either case rather than showing a raw key like "mecfs". */}
               {selectedTags
-                .filter((t) => !presetTags.includes(t))
+                .filter((t) => !(presetTags as string[]).includes(t))
                 .map((tag) => (
                   <button
                     key={tag}
@@ -207,7 +200,7 @@ export default function SymptomLogger({
                     onClick={() => toggleTag(tag)}
                     className="px-3 py-2.5 text-xs font-medium rounded-lg border border-blue-500/50 bg-blue-500/20 text-blue-300 transition-all duration-200 min-h-[44px]"
                   >
-                    {tag} &times;
+                    {CONDITION_LABELS[tag as HealthConditionKey] ?? tag} &times;
                   </button>
                 ))}
             </div>

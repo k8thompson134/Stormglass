@@ -3,7 +3,12 @@ import { useFocusTrap } from "../hooks/useFocusTrap";
 import { createPortal } from "react-dom";
 import { fetchSymptomLogs } from "../services/api";
 import type { CurrentWeather, SymptomLogEntry } from "../services/api";
-import type { HealthRisk, RiskLevel, HealthToggles } from "../types/health";
+import type {
+  HealthRisk,
+  RiskLevel,
+  HealthToggles,
+  HealthConditionKey,
+} from "../types/health";
 import { SEVERITY_THEME } from "../utils/severity";
 import {
   getMigraineRisk,
@@ -26,6 +31,15 @@ interface Props {
   loading: boolean;
   error: string | null;
   healthToggles: HealthToggles;
+}
+
+// healthLogic.ts's HealthRisk.condition is a display string in its own vocabulary
+// (mirrored to the backend, out of scope to change here) -- this file additionally
+// knows which HealthConditionKey produced each risk (it's the toggle that gated the
+// push below), so it's attached here rather than re-derived from `condition` by
+// string matching, which is exactly the mismatch class of bug this fixes.
+interface PersonalizedHealthRisk extends HealthRisk {
+  key: HealthConditionKey;
 }
 
 function RiskCard({
@@ -386,7 +400,7 @@ function calculateConditionStats(logs: SymptomLogEntry[]): SymptomStatsMap {
 }
 
 function getPersonalizedRiskInfo(
-  condition: string,
+  key: HealthConditionKey,
   data: CurrentWeather | null,
   conditionStats: SymptomStatsMap,
 ): {
@@ -402,8 +416,11 @@ function getPersonalizedRiskInfo(
   const pressure = data.pressure ?? 0;
   const aqi = data.aqi?.usAqi ?? 0;
 
-  // Get historical stats for this condition
-  const stats = conditionStats[condition] || { frequency: 0, avgSeverity: 0 };
+  // Get historical stats for this condition -- conditionStats is keyed by
+  // symptom-log tag, which is the same HealthConditionKey a preset-driven log
+  // persists (see SymptomLogger.tsx), so this is an exact match, not a
+  // string-label guess.
+  const stats = conditionStats[key] || { frequency: 0, avgSeverity: 0 };
 
   // Determine active triggers based on current conditions
   const activeTriggers: string[] = [];
@@ -418,10 +435,10 @@ function getPersonalizedRiskInfo(
   // claim here -- this component has no per-date historical comparison data to
   // back one, so it must not fabricate a specific match (previously a hardcoded
   // "This matches your May 16 pattern" for Migraines, with zero backing data).
-  const patterns: Record<string, string> = {
-    Sinus: humidity > 90 ? "High humidity is your sinus trigger" : "",
-    "ME/CFS": kpIndex > 4 ? "Geomagnetic storms affect you strongly" : "",
-    Fibromyalgia:
+  const patterns: Partial<Record<HealthConditionKey, string>> = {
+    sinus: humidity > 90 ? "High humidity is your sinus trigger" : "",
+    mecfs: kpIndex > 4 ? "Geomagnetic storms affect you strongly" : "",
+    fibromyalgia:
       kpIndex > 4 && Math.abs(data.derivative?.delta1h ?? 0) > 0.3
         ? "Multiple triggers converging"
         : "",
@@ -431,7 +448,7 @@ function getPersonalizedRiskInfo(
     frequency: stats.frequency,
     avgSeverity: stats.avgSeverity,
     topTriggers: activeTriggers,
-    matchesPattern: patterns[condition] || undefined,
+    matchesPattern: patterns[key] || undefined,
   };
 }
 
@@ -519,44 +536,66 @@ export default function HealthImpact({
       : data.aqi.usAqi
     : null;
 
-  const risks: HealthRisk[] = [];
+  const risks: PersonalizedHealthRisk[] = [];
   if (healthToggles.migraine)
-    risks.push(getMigraineRisk(delta1h, delta3h, delta6h, currentAqi));
+    risks.push({
+      ...getMigraineRisk(delta1h, delta3h, delta6h, currentAqi),
+      key: "migraine",
+    });
   if (healthToggles.cluster)
-    risks.push(getClusterHeadacheRisk(delta1h, delta3h, delta6h, data.uvIndex));
+    risks.push({
+      ...getClusterHeadacheRisk(delta1h, delta3h, delta6h, data.uvIndex),
+      key: "cluster",
+    });
   if (healthToggles.sinus)
-    risks.push(
-      getSinusRisk(
+    risks.push({
+      ...getSinusRisk(
         delta1h,
         data.humidity,
         data.temperature,
         pollenMax,
         currentAqi,
       ),
-    );
+      key: "sinus",
+    });
   if (healthToggles.pots)
-    risks.push(
-      getPOTSRisk(delta1h, data.humidity, data.temperature, currentAqi),
-    );
+    risks.push({
+      ...getPOTSRisk(delta1h, data.humidity, data.temperature, currentAqi),
+      key: "pots",
+    });
   if (healthToggles.mecfs)
-    risks.push(getMECFSRisk(delta1h, delta3h, delta6h, currentAqi));
+    risks.push({
+      ...getMECFSRisk(delta1h, delta3h, delta6h, currentAqi),
+      key: "mecfs",
+    });
   if (healthToggles.joints)
-    risks.push(
-      getJointPainRisk(delta1h, data.humidity, data.temperature, currentAqi),
-    );
+    risks.push({
+      ...getJointPainRisk(delta1h, data.humidity, data.temperature, currentAqi),
+      key: "joints",
+    });
   if (healthToggles.fibromyalgia)
-    risks.push(
-      getFibromyalgiaRisk(delta1h, data.humidity, data.temperature, currentAqi),
-    );
+    risks.push({
+      ...getFibromyalgiaRisk(
+        delta1h,
+        data.humidity,
+        data.temperature,
+        currentAqi,
+      ),
+      key: "fibromyalgia",
+    });
   if (healthToggles.eds)
-    risks.push(getEDSRisk(delta1h, data.humidity, data.temperature));
+    risks.push({
+      ...getEDSRisk(delta1h, data.humidity, data.temperature),
+      key: "eds",
+    });
   if (healthToggles.raynauds)
-    risks.push(
-      getRaynaudsRisk(data.temperature, data.humidity, data.windSpeed),
-    );
+    risks.push({
+      ...getRaynaudsRisk(data.temperature, data.humidity, data.windSpeed),
+      key: "raynauds",
+    });
   if (healthToggles.sleep)
-    risks.push(
-      getSleepRisk(
+    risks.push({
+      ...getSleepRisk(
         delta1h,
         delta3h,
         delta6h,
@@ -565,11 +604,17 @@ export default function HealthImpact({
         data.geomagnetic?.kpIndex ?? null,
         data.aqi?.usAqi ?? null,
       ),
-    );
-  if (healthToggles.aqi) risks.push(getAQIRisk(data.aqi ?? null));
+      key: "sleep",
+    });
+  if (healthToggles.aqi)
+    risks.push({ ...getAQIRisk(data.aqi ?? null), key: "aqi" });
   if (healthToggles.geomagnetic)
-    risks.push(getGeomagneticRisk(data.geomagnetic ?? null));
-  if (healthToggles.pollen) risks.push(getPollenRisk(data.pollen ?? null));
+    risks.push({
+      ...getGeomagneticRisk(data.geomagnetic ?? null),
+      key: "geomagnetic",
+    });
+  if (healthToggles.pollen)
+    risks.push({ ...getPollenRisk(data.pollen ?? null), key: "pollen" });
 
   if (risks.length === 0) {
     return (
@@ -757,7 +802,7 @@ export default function HealthImpact({
               // no history with this condition."
               symptomLogsError
                 ? undefined
-                : getPersonalizedRiskInfo(risk.condition, data, conditionStats)
+                : getPersonalizedRiskInfo(risk.key, data, conditionStats)
             }
           />
         ))}

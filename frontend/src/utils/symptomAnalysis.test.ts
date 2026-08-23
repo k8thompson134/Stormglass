@@ -45,6 +45,22 @@ function makeCurrent(overrides: Partial<CurrentWeather>): CurrentWeather {
 }
 
 describe("analyzeConditions", () => {
+  // B4/B5: symptom logs persist a HealthConditionKey tag (e.g. "mecfs"), not the
+  // display label -- analyzeConditions must resolve it to the friendly label for
+  // display while still grouping by the raw key.
+  it("resolves a HealthConditionKey tag to its display label", () => {
+    const logs = [makeLog(5, ["mecfs"], null), makeLog(6, ["mecfs"], null)];
+    const [analysis] = analyzeConditions(logs);
+    expect(analysis.name).toBe("ME/CFS");
+    expect(analysis.count).toBe(2);
+  });
+
+  it("displays a genuinely custom tag as-is when it isn't a known condition key", () => {
+    const logs = [makeLog(5, ["Brain Fog"], null)];
+    const [analysis] = analyzeConditions(logs);
+    expect(analysis.name).toBe("Brain Fog");
+  });
+
   // B3: `humidity ?? 0 > 85` parsed as `humidity ?? (0 > 85)`, so any snapshot
   // with humidity <= 85 was still flagged as a "High Humidity" trigger.
   it("does not flag a log with normal humidity as a humidity trigger", () => {
