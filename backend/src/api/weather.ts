@@ -379,6 +379,43 @@ export async function weatherRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
+  // GET /api/weather/pressure-baseline — fixed 7-day trailing average pressure,
+  // independent of whatever range the pressure chart currently has selected.
+  // PressureChart's storm-severity scoring (detectPressureEvents' lowBelowBaseline)
+  // used to compute its own average from just the displayed range, so the exact
+  // same storm scored differently depending on whether the 6h or 7d view was open
+  // (finding surfaced in task 368's PressureChart split, tracked as task 406).
+  // This gives the frontend a baseline that doesn't move when the user changes
+  // the chart's zoom level.
+  app.get("/api/weather/pressure-baseline", async (_request, reply) => {
+    const config = getCurrentConfig();
+    const location = config ? `${config.latitude},${config.longitude}` : null;
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const rows = await db
+      .select({ pressure: weatherData.pressure })
+      .from(weatherData)
+      .where(
+        location
+          ? and(
+              gte(weatherData.timestamp, since),
+              lte(weatherData.timestamp, new Date()),
+              eq(weatherData.location, location),
+            )
+          : and(
+              gte(weatherData.timestamp, since),
+              lte(weatherData.timestamp, new Date()),
+            ),
+      )
+      .limit(2000);
+
+    if (rows.length === 0) return reply.send({ avgPressure: null });
+
+    const avgPressure =
+      rows.reduce((sum, r) => sum + parseFloat(r.pressure), 0) / rows.length;
+    return { avgPressure };
+  });
+
   // GET /api/weather/aqi-forecast — dedicated 72h AQI/PM2.5 forecast series.
   // The pressure history endpoint above caps its forecast window at 48h (pinned to
   // lair's crash-risk forecast needs), so this exposes the fuller 72h AQI forecast

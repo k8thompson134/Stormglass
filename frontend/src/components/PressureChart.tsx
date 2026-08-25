@@ -25,6 +25,12 @@ interface Props {
   loading: boolean;
   hours: number;
   onHoursChange: (hours: number) => void;
+  // Fixed 7-day trailing average, independent of the currently selected chart
+  // range -- used for storm-severity scoring so the same storm doesn't score
+  // differently depending on whether the 6h or 7d view is open. Falls back to
+  // this chart's own locally-computed average (scoped to whatever range is
+  // displayed) when unavailable, e.g. a brand-new location with <7 days of data.
+  baselinePressure?: number | null;
 }
 
 const TIME_RANGES = [
@@ -213,6 +219,7 @@ export default function PressureChart({
   loading,
   hours,
   onHoursChange,
+  baselinePressure,
 }: Props) {
   const [showTemp, setShowTemp] = useState(true);
   const [showForecast, setShowForecast] = useState(false);
@@ -314,9 +321,15 @@ export default function PressureChart({
   );
 
   // --- Detect volatile periods for chart highlighting ---
+  // Scoring uses the fixed 7-day baseline when available so the same storm
+  // doesn't score differently depending on which range is displayed (task 406) --
+  // avgPressure itself (the range-scoped value) is kept separate for the "Avg"
+  // reference line/summary below, where showing "the average of what you're
+  // looking at" is the correct, expected behavior.
+  const scoringBaseline = baselinePressure ?? avgPressure;
   const rawVolatileZones = useMemo(
-    () => detectPressureEvents(validData, avgPressure),
-    [validData, avgPressure],
+    () => detectPressureEvents(validData, scoringBaseline),
+    [validData, scoringBaseline],
   );
   const volatileZones = useMemo(
     () =>

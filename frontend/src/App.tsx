@@ -15,6 +15,7 @@ import TrendsModal from "./components/TrendsModal";
 import {
   fetchCurrentWeather,
   fetchWeatherHistory,
+  fetchPressureBaseline,
   fetchSettings,
   type CurrentWeather,
   type WeatherPoint,
@@ -31,6 +32,7 @@ import { reconcilePushSubscription } from "./utils/pushNotifications";
 function App() {
   const [current, setCurrent] = useState<CurrentWeather | null>(null);
   const [history, setHistory] = useState<WeatherPoint[]>([]);
+  const [pressureBaseline, setPressureBaseline] = useState<number | null>(null);
   const [locationName, setLocationName] = useState<string | null>(null);
   const [hours, setHours] = useState(24);
   const [loading, setLoading] = useState(true);
@@ -142,6 +144,17 @@ function App() {
       );
     } finally {
       setLoading(false);
+    }
+
+    // Fetched independently of the main load above -- a failure here shouldn't
+    // surface the page-level error banner or block the rest of the UI, since
+    // PressureChart already falls back to its own locally-computed average when
+    // this is unavailable (e.g. a brand-new location with <7 days of history).
+    try {
+      const { avgPressure } = await fetchPressureBaseline();
+      setPressureBaseline(avgPressure);
+    } catch {
+      setPressureBaseline(null);
     }
   }, []);
 
@@ -481,6 +494,7 @@ function App() {
               loading={loading}
               hours={hours}
               onHoursChange={handleHoursChange}
+              baselinePressure={pressureBaseline}
             />
           </div>
 

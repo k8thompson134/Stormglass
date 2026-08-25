@@ -61,10 +61,13 @@ describe("detectPressureEvents", () => {
   });
 
   it("scores the same storm shape differently against a different baseline", () => {
-    // Same event shape, but avgPressure (the baseline lowBelowBaseline is
-    // measured against) differs -- this is the caller's responsibility, not
-    // something detectPressureEvents can fix, but the test documents the
-    // dependency so it isn't silently forgotten (architecture review finding).
+    // detectPressureEvents is deliberately baseline-sensitive by design -- the
+    // caller decides what "baseline" means. This used to be a bug (task 406):
+    // PressureChart passed its own range-scoped average, so the same storm
+    // scored differently at 6h vs 7d. Fixed by having the caller pass a fixed
+    // 7-day trailing baseline instead (see PressureChart.tsx's baselinePressure
+    // prop) -- this test now documents that the function itself still needs a
+    // stable baseline supplied to it, not that the dependency is unresolved.
     const data = [
       makePoint(0, 1013, 0.05),
       makePoint(1, 1013, 0.05),

@@ -100,6 +100,20 @@ export async function fetchWeatherHistory(
   return res.json();
 }
 
+// Fixed 7-day trailing average pressure, independent of whatever range the
+// pressure chart currently has selected -- keeps storm-severity scoring stable
+// across zoom levels instead of scoring the same storm differently at 6h vs 7d.
+export async function fetchPressureBaseline(): Promise<{
+  avgPressure: number | null;
+}> {
+  const res = await fetch(`${API_BASE}/weather/pressure-baseline`, {
+    headers: getHeaders(),
+  });
+  if (!res.ok)
+    throw new Error(`Failed to fetch pressure baseline: ${res.status}`);
+  return res.json();
+}
+
 export interface AQIForecastPoint {
   timestamp: string;
   usAqi: number;
