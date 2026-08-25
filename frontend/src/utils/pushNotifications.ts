@@ -14,6 +14,9 @@ export const SECONDARY_ALERT_KINDS: SecondaryAlertKind[] = [
   "mecfs",
   "pots",
   "clear-air",
+  "sinus",
+  "cluster",
+  "fibromyalgia",
 ];
 
 export function isPushSupported(): boolean {
@@ -37,6 +40,9 @@ const SECONDARY_INTENT_KEY: Record<SecondaryAlertKind, string> = {
   mecfs: "stormglass_mecfs_intent",
   pots: "stormglass_pots_intent",
   "clear-air": "stormglass_clear_air_intent",
+  sinus: "stormglass_sinus_intent",
+  cluster: "stormglass_cluster_intent",
+  fibromyalgia: "stormglass_fibromyalgia_intent",
 };
 
 function setPushIntent(enabled: boolean): void {

@@ -20,6 +20,12 @@ import {
   clearMecfsRiskDedupState,
   sendPotsRiskAlert,
   clearPotsRiskDedupState,
+  sendSinusRiskAlert,
+  clearSinusRiskDedupState,
+  sendClusterHeadacheRiskAlert,
+  clearClusterHeadacheRiskDedupState,
+  sendFibromyalgiaRiskAlert,
+  clearFibromyalgiaRiskDedupState,
   sendClearAirAlert,
   resetClearAirDedupState,
 } from "../services/push.js";
@@ -27,12 +33,16 @@ import {
   getMigraineRisk,
   getMECFSRisk,
   getPOTSRisk,
+  getSinusRisk,
+  getClusterHeadacheRisk,
+  getFibromyalgiaRisk,
 } from "../utils/healthLogic.js";
 import { db } from "../db/index.js";
 import {
   airQualityData,
   pressureDerivatives,
   weatherData,
+  pollenData,
 } from "../db/schema.js";
 import { logger } from "../logger.js";
 
@@ -130,9 +140,14 @@ export async function fetchLatestDerivative(
 export interface LatestWeather {
   humidity: number;
   temperature: number;
+  uvIndex: number;
 }
 
-/** Latest humidity/temperature reading -- POTS risk needs both alongside pressure. */
+/**
+ * Latest humidity/temperature/UV reading -- POTS/fibromyalgia risk need the first
+ * two alongside pressure; cluster headache risk needs UV index (bright light is
+ * one of its two triggers, alongside pressure drops).
+ */
 export async function fetchLatestWeather(
   userId: string,
   location: string,
@@ -141,6 +156,7 @@ export async function fetchLatestWeather(
     .select({
       humidity: weatherData.humidity,
       temperature: weatherData.temperature,
+      uvIndex: weatherData.uvIndex,
     })
     .from(weatherData)
     .where(
@@ -153,7 +169,48 @@ export async function fetchLatestWeather(
   return {
     humidity: parseFloat(row.humidity),
     temperature: parseFloat(row.temperature),
+    uvIndex: parseFloat(row.uvIndex),
   };
+}
+
+// Pollen updates once a day (see services/pollen.ts), a much slower cadence than
+// the 30-min weather poll this is read from -- unlike fetchLatestDerivative/
+// fetchLatestWeather (which have no staleness cutoff because a stalled 30-min
+// poll surfaces as an outage everyone notices fast), a stalled DAILY pollen fetch
+// could quietly keep returning a days-old "elevated" index forever, silently
+// biasing sinus risk upward with no visible symptom. Treat anything older than
+// this as "no data" rather than trusting it indefinitely.
+const POLLEN_STALENESS_LIMIT_MS = 48 * 60 * 60 * 1000;
+
+/**
+ * Latest max pollen index across tree/grass/weed/mold -- sinus risk's pollenMax
+ * input. Separate fetch (not folded into fetchLatestWeather) since pollen_data is
+ * its own table on its own polling cadence, not part of weatherData.
+ */
+export async function fetchLatestPollenMax(
+  userId: string,
+  location: string,
+): Promise<number | null> {
+  const [row] = await db
+    .select({
+      timestamp: pollenData.timestamp,
+      treeIndex: pollenData.treeIndex,
+      grassIndex: pollenData.grassIndex,
+      weedIndex: pollenData.weedIndex,
+      moldIndex: pollenData.moldIndex,
+    })
+    .from(pollenData)
+    .where(
+      and(eq(pollenData.userId, userId), eq(pollenData.location, location)),
+    )
+    .orderBy(desc(pollenData.timestamp))
+    .limit(1);
+
+  if (!row) return null;
+  if (Date.now() - row.timestamp.getTime() > POLLEN_STALENESS_LIMIT_MS) {
+    return null;
+  }
+  return Math.max(row.treeIndex, row.grassIndex, row.weedIndex, row.moldIndex);
 }
 
 /**
@@ -257,6 +314,139 @@ export async function checkPotsRisk(
     }
   } catch (error) {
     logger.error({ service: "push" }, `POTS risk check failed: ${error}`);
+  }
+}
+
+/**
+ * Runs every poll cycle -- needs the latest weather reading plus the latest pollen
+ * max, since sinus risk is driven by pressure/humidity/temperature/allergen
+ * exposure stacking together, not pressure alone.
+ */
+export async function checkSinusRisk(
+  latestDerivative: LatestDerivative | null,
+  latestWeather: LatestWeather | null,
+  pollenMax: number | null,
+  currentAqi: number | null,
+): Promise<void> {
+  if (!isPushConfigured() || !latestDerivative || !latestWeather) return;
+
+  try {
+    const risk = getSinusRisk(
+      latestDerivative.delta1h,
+      latestWeather.humidity,
+      latestWeather.temperature,
+      pollenMax ?? 0,
+      currentAqi,
+    );
+
+    if (risk.risk === "high" || risk.risk === "severe") {
+      // Mirrors getSinusRisk's own thresholds (absD>0.4, humidity>65, usAqi>50)
+      // so the alert only names factors that actually crossed the line, rather
+      // than a fixed "pressure and humidity" story that may not be what's
+      // driving this particular score (pollen or AQI alone can also reach
+      // high/severe).
+      await sendSinusRiskAlert({
+        riskLevel: risk.risk,
+        pollenMax: pollenMax ?? 0,
+        pressureElevated: Math.abs(latestDerivative.delta1h) > 0.4,
+        humidityElevated: latestWeather.humidity > 65,
+        aqiElevated: currentAqi !== null && currentAqi > 50,
+      });
+    } else {
+      await clearSinusRiskDedupState();
+    }
+  } catch (error) {
+    logger.error({ service: "push" }, `Sinus risk check failed: ${error}`);
+  }
+}
+
+/**
+ * Runs every poll cycle -- cluster headache is triggered specifically by pressure
+ * DROPS (not rises, unlike migraine) and bright/UV light, so needs the latest UV
+ * reading alongside the pressure derivative.
+ */
+export async function checkClusterHeadacheRisk(
+  latestDerivative: LatestDerivative | null,
+  latestWeather: LatestWeather | null,
+): Promise<void> {
+  if (!isPushConfigured() || !latestDerivative || !latestWeather) return;
+
+  try {
+    const risk = getClusterHeadacheRisk(
+      latestDerivative.delta1h,
+      latestDerivative.delta3h,
+      latestDerivative.delta6h,
+      latestWeather.uvIndex,
+    );
+
+    if (risk.risk === "high" || risk.risk === "severe") {
+      // Mirrors getClusterHeadacheRisk's own thresholds (delta1h<-0.4,
+      // delta3h<-1.5, delta6h<-3.0) to find which window actually triggered --
+      // a 3h/6h-driven score can have delta1h flat or positive, so always
+      // reporting delta1h would misdescribe what's happening right now.
+      const candidates: { window: "1h" | "3h" | "6h"; value: number }[] = [
+        { window: "1h", value: latestDerivative.delta1h },
+        { window: "3h", value: latestDerivative.delta3h },
+        { window: "6h", value: latestDerivative.delta6h },
+      ];
+      const dominant = candidates.reduce((a, b) => (b.value < a.value ? b : a));
+      await sendClusterHeadacheRiskAlert({
+        riskLevel: risk.risk,
+        dominantWindow: dominant.window,
+        dominantValue: dominant.value,
+        uvHigh: latestWeather.uvIndex >= 5,
+      });
+    } else {
+      await clearClusterHeadacheRiskDedupState();
+    }
+  } catch (error) {
+    logger.error(
+      { service: "push" },
+      `Cluster headache risk check failed: ${error}`,
+    );
+  }
+}
+
+/**
+ * Runs every poll cycle -- fibromyalgia risk is driven by cold/damp/pressure
+ * stacking together, same inputs as POTS/joint-pain but its own dedup state since
+ * it oscillates on its own schedule.
+ */
+export async function checkFibromyalgiaRisk(
+  latestDerivative: LatestDerivative | null,
+  latestWeather: LatestWeather | null,
+  currentAqi: number | null,
+): Promise<void> {
+  if (!isPushConfigured() || !latestDerivative || !latestWeather) return;
+
+  try {
+    const risk = getFibromyalgiaRisk(
+      latestDerivative.delta1h,
+      latestWeather.humidity,
+      latestWeather.temperature,
+      currentAqi,
+    );
+
+    if (risk.risk === "high" || risk.risk === "severe") {
+      // Mirrors getFibromyalgiaRisk's own thresholds (absD>0.5, temp<10,
+      // temp>28, humidity>60) -- heat+humidity alone (pressure flat) can also
+      // reach high/severe, so the alert must not unconditionally claim
+      // "cold, damp, and pressure changes."
+      await sendFibromyalgiaRiskAlert({
+        riskLevel: risk.risk,
+        isCold: latestWeather.temperature < 10,
+        isHot: latestWeather.temperature > 28,
+        isDamp: latestWeather.humidity > 60,
+        pressureElevated: Math.abs(latestDerivative.delta1h) > 0.5,
+      });
+    } else {
+      await clearFibromyalgiaRiskDedupState();
+    }
+  } catch (error) {
+    logger.error(
+      { service: "push" },
+      `Fibromyalgia risk check failed: ${error}`,
+    );
   }
 }
 

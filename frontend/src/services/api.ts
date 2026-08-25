@@ -372,13 +372,23 @@ export async function unsubscribeFromPush(endpoint: string): Promise<void> {
 // AQI toggle, but share the exact same read/toggle shape server-side
 // (registerAlertToggleRoutes in backend/src/api/push.ts) -- one parameterized pair
 // here instead of four hand-copied ones.
-export type SecondaryAlertKind = "migraine" | "mecfs" | "pots" | "clear-air";
+export type SecondaryAlertKind =
+  | "migraine"
+  | "mecfs"
+  | "pots"
+  | "clear-air"
+  | "sinus"
+  | "cluster"
+  | "fibromyalgia";
 
 const SECONDARY_ALERT_PATH: Record<SecondaryAlertKind, string> = {
   migraine: "migraine-alerts",
   mecfs: "mecfs-alerts",
   pots: "pots-alerts",
   "clear-air": "clear-air-alerts",
+  sinus: "sinus-alerts",
+  cluster: "cluster-alerts",
+  fibromyalgia: "fibromyalgia-alerts",
 };
 
 export async function fetchSecondaryAlertEnabled(
@@ -418,6 +428,9 @@ export interface PushNotificationLogEntry {
     | "migraine"
     | "mecfs"
     | "pots"
+    | "sinus"
+    | "cluster"
+    | "fibromyalgia"
     | "clear_air"
     | "welcome";
   outcome: "sent" | "suppressed_dedup" | "delivery_failed";

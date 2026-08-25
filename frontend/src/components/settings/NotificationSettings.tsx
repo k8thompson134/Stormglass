@@ -39,7 +39,45 @@ const SECONDARY_ALERT_CONFIG: { kind: SecondaryAlertKind; label: string }[] = [
     label:
       "Clean air window alerts (push notification when a clear stretch is coming up)",
   },
+  {
+    kind: "sinus",
+    label:
+      "Sinus risk alerts (push notification when pressure/humidity/pollen stack up)",
+  },
+  {
+    kind: "cluster",
+    label:
+      "Cluster headache risk alerts (push notification on a fast pressure drop)",
+  },
+  {
+    kind: "fibromyalgia",
+    label:
+      "Fibromyalgia risk alerts (push notification when cold/damp/pressure stack up)",
+  },
 ];
+
+const DEFAULT_SECONDARY_ALERTS: Record<SecondaryAlertKind, boolean> = {
+  migraine: false,
+  mecfs: false,
+  pots: false,
+  "clear-air": false,
+  sinus: false,
+  cluster: false,
+  fibromyalgia: false,
+};
+
+const DEFAULT_SECONDARY_ALERT_ERRORS: Record<
+  SecondaryAlertKind,
+  string | null
+> = {
+  migraine: null,
+  mecfs: null,
+  pots: null,
+  "clear-air": null,
+  sinus: null,
+  cluster: null,
+  fibromyalgia: null,
+};
 
 interface Props {
   open: boolean;
@@ -52,28 +90,13 @@ export default function NotificationSettings({ open }: Props) {
   const [pushSuccess, setPushSuccess] = useState<string | null>(null);
   const [secondaryAlerts, setSecondaryAlerts] = useState<
     Record<SecondaryAlertKind, boolean>
-  >({
-    migraine: false,
-    mecfs: false,
-    pots: false,
-    "clear-air": false,
-  });
+  >(DEFAULT_SECONDARY_ALERTS);
   const [secondaryAlertsBusy, setSecondaryAlertsBusy] = useState<
     Record<SecondaryAlertKind, boolean>
-  >({
-    migraine: false,
-    mecfs: false,
-    pots: false,
-    "clear-air": false,
-  });
+  >(DEFAULT_SECONDARY_ALERTS);
   const [secondaryAlertError, setSecondaryAlertError] = useState<
     Record<SecondaryAlertKind, string | null>
-  >({
-    migraine: null,
-    mecfs: null,
-    pots: null,
-    "clear-air": null,
-  });
+  >(DEFAULT_SECONDARY_ALERT_ERRORS);
   const [logOpen, setLogOpen] = useState(false);
   const [logEntries, setLogEntries] = useState<
     PushNotificationLogEntry[] | null
@@ -192,6 +215,9 @@ export default function NotificationSettings({ open }: Props) {
     migraine: "Migraine risk",
     mecfs: "ME/CFS crash risk",
     pots: "POTS risk",
+    sinus: "Sinus risk",
+    cluster: "Cluster headache risk",
+    fibromyalgia: "Fibromyalgia risk",
     clear_air: "Clean air window",
     welcome: "Setup confirmation",
   };
@@ -208,18 +234,8 @@ export default function NotificationSettings({ open }: Props) {
         // re-enable always creates a brand new one (fresh backend row, every
         // secondary alert defaulting off) -- reset here so stale "on" checkboxes
         // from before disabling can't linger and desync from that backend truth.
-        setSecondaryAlerts({
-          migraine: false,
-          mecfs: false,
-          pots: false,
-          "clear-air": false,
-        });
-        setSecondaryAlertError({
-          migraine: null,
-          mecfs: null,
-          pots: null,
-          "clear-air": null,
-        });
+        setSecondaryAlerts(DEFAULT_SECONDARY_ALERTS);
+        setSecondaryAlertError(DEFAULT_SECONDARY_ALERT_ERRORS);
       } else {
         const result: PushEnableResult = await enablePushNotifications();
         if (result.ok) {
@@ -229,12 +245,7 @@ export default function NotificationSettings({ open }: Props) {
           // from a previous enable/disable cycle earlier in this same modal
           // session -- without this, a checkbox can show "on" when the newly
           // created subscription is actually not opted into that alert at all.
-          setSecondaryAlerts({
-            migraine: false,
-            mecfs: false,
-            pots: false,
-            "clear-air": false,
-          });
+          setSecondaryAlerts(DEFAULT_SECONDARY_ALERTS);
           // In-app confirmation shows immediately regardless of OS-level delivery
           // (Do Not Disturb, notification-style settings, etc. are outside our
           // control) -- the confirmation push itself is sent a few seconds later

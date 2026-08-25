@@ -14,11 +14,15 @@ import {
   fetchAqiWindow,
   fetchLatestDerivative,
   fetchLatestWeather,
+  fetchLatestPollenMax,
   checkAqiCategoryCrossing,
   checkClearAirWindow,
   checkMigraineRisk,
   checkMecfsRisk,
   checkPotsRisk,
+  checkSinusRisk,
+  checkClusterHeadacheRisk,
+  checkFibromyalgiaRisk,
 } from "./alert-checks.js";
 import { logger } from "../logger.js";
 
@@ -95,11 +99,13 @@ async function runPoll(config: PollConfig): Promise<void> {
     // themselves run in parallel -- they read independent tables (pushSubscriptions
     // filtered by different flags, pressureDerivatives vs. airQualityData vs.
     // weatherData) and none depends on another's result.
-    const [aqiWindow, latestDerivative, latestWeather] = await Promise.all([
-      fetchAqiWindow(location),
-      fetchLatestDerivative(userId, location),
-      fetchLatestWeather(userId, location),
-    ]);
+    const [aqiWindow, latestDerivative, latestWeather, pollenMax] =
+      await Promise.all([
+        fetchAqiWindow(location),
+        fetchLatestDerivative(userId, location),
+        fetchLatestWeather(userId, location),
+        fetchLatestPollenMax(userId, location),
+      ]);
     const currentAqi = aqiWindow?.currentPoint.usAqi ?? null;
 
     await Promise.all([
@@ -108,6 +114,9 @@ async function runPoll(config: PollConfig): Promise<void> {
       checkMigraineRisk(latestDerivative, currentAqi),
       checkMecfsRisk(latestDerivative, currentAqi),
       checkPotsRisk(latestDerivative, latestWeather, currentAqi),
+      checkSinusRisk(latestDerivative, latestWeather, pollenMax, currentAqi),
+      checkClusterHeadacheRisk(latestDerivative, latestWeather),
+      checkFibromyalgiaRisk(latestDerivative, latestWeather, currentAqi),
     ]);
   } catch (error) {
     logger.error({ service: "weather-poll", err: error }, "Poll cycle failed");

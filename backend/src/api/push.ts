@@ -199,7 +199,8 @@ export async function pushRoutes(app: FastifyInstance): Promise<void> {
   );
 
   // /api/push/migraine-alerts, /api/push/mecfs-alerts, /api/push/pots-alerts,
-  // /api/push/clear-air-alerts — each a distinct opt-in from the main AQI toggle
+  // /api/push/clear-air-alerts, /api/push/sinus-alerts, /api/push/cluster-alerts,
+  // /api/push/fibromyalgia-alerts — each a distinct opt-in from the main AQI toggle
   // and from each other, since these condition-specific alerts oscillate on their
   // own schedules and bundling them would surprise someone who only wanted one.
   registerAlertToggleRoutes(
@@ -230,6 +231,30 @@ export async function pushRoutes(app: FastifyInstance): Promise<void> {
     (enabled) => ({
       clearAirAlertsEnabled: enabled,
       lastNotifiedClearAirWindowStart: null,
+    }),
+  );
+  registerAlertToggleRoutes(
+    app,
+    "sinus-alerts",
+    (sub) => sub.sinusAlertsEnabled,
+    (enabled) => ({ sinusAlertsEnabled: enabled, lastNotifiedSinusRisk: null }),
+  );
+  registerAlertToggleRoutes(
+    app,
+    "cluster-alerts",
+    (sub) => sub.clusterAlertsEnabled,
+    (enabled) => ({
+      clusterAlertsEnabled: enabled,
+      lastNotifiedClusterRisk: null,
+    }),
+  );
+  registerAlertToggleRoutes(
+    app,
+    "fibromyalgia-alerts",
+    (sub) => sub.fibromyalgiaAlertsEnabled,
+    (enabled) => ({
+      fibromyalgiaAlertsEnabled: enabled,
+      lastNotifiedFibromyalgiaRisk: null,
     }),
   );
 

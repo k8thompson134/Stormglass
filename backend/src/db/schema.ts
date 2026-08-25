@@ -260,6 +260,16 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
   lastNotifiedMecfsRisk: text("last_notified_mecfs_risk"),
   potsAlertsEnabled: boolean("pots_alerts_enabled").default(false).notNull(),
   lastNotifiedPotsRisk: text("last_notified_pots_risk"),
+  sinusAlertsEnabled: boolean("sinus_alerts_enabled").default(false).notNull(),
+  lastNotifiedSinusRisk: text("last_notified_sinus_risk"),
+  clusterAlertsEnabled: boolean("cluster_alerts_enabled")
+    .default(false)
+    .notNull(),
+  lastNotifiedClusterRisk: text("last_notified_cluster_risk"),
+  fibromyalgiaAlertsEnabled: boolean("fibromyalgia_alerts_enabled")
+    .default(false)
+    .notNull(),
+  lastNotifiedFibromyalgiaRisk: text("last_notified_fibromyalgia_risk"),
   // Dedup by window start (not a risk level) -- a clean-air alert isn't "did risk
   // get worse than last time," it's "is this a window we haven't already told this
   // device about." Text (ISO timestamp truncated to the hour), not a risk ordinal.

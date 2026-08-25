@@ -11,6 +11,9 @@ type NotificationType =
   | "migraine"
   | "mecfs"
   | "pots"
+  | "sinus"
+  | "cluster"
+  | "fibromyalgia"
   | "clear_air"
   | "welcome";
 type NotificationOutcome = "sent" | "suppressed_dedup" | "delivery_failed";
@@ -160,6 +163,41 @@ export interface PotsRiskPayload {
   riskLevel: "high" | "severe";
   primaryStressor: "heat" | "cold" | "pressure";
   tempF: number;
+}
+
+export interface SinusRiskPayload {
+  riskLevel: "high" | "severe";
+  pollenMax: number;
+  // Which of getSinusRisk's inputs actually crossed its own threshold -- the
+  // body only names factors that are actually true, rather than asserting a
+  // fixed "pressure and humidity" story that may not match what drove the
+  // score (e.g. pollen or AQI alone can push this to high/severe).
+  pressureElevated: boolean;
+  humidityElevated: boolean;
+  aqiElevated: boolean;
+}
+
+export interface ClusterHeadacheRiskPayload {
+  riskLevel: "high" | "severe";
+  // The dominant pressure signal -- whichever of delta1h/delta3h/delta6h
+  // actually crossed getClusterHeadacheRisk's threshold for that window, since
+  // a 3h/6h-driven score can have delta1h flat or even positive (pressure
+  // recovering after a bottomed-out drop), which would make an always-delta1h
+  // body wrong about what's actually happening right now.
+  dominantWindow: "1h" | "3h" | "6h";
+  dominantValue: number;
+  uvHigh: boolean;
+}
+
+export interface FibromyalgiaRiskPayload {
+  riskLevel: "high" | "severe";
+  // Same reasoning as SinusRiskPayload above -- getFibromyalgiaRisk can reach
+  // high/severe purely from heat+humidity with pressure flat, so the body must
+  // not unconditionally claim "cold, damp, and pressure changes."
+  isCold: boolean;
+  isDamp: boolean;
+  isHot: boolean;
+  pressureElevated: boolean;
 }
 
 export interface ClearAirWindowPayload {
@@ -514,6 +552,162 @@ export async function clearPotsRiskDedupState(): Promise<void> {
     .update(pushSubscriptions)
     .set({ lastNotifiedPotsRisk: null })
     .where(eq(pushSubscriptions.potsAlertsEnabled, true));
+}
+
+/**
+ * Sends a sinus-risk alert -- lists only the factors that actually crossed
+ * getSinusRisk's thresholds (pressure/humidity/pollen/AQI can each independently
+ * push this to high/severe), rather than asserting a fixed "pressure and
+ * humidity" story that may not be what's actually happening.
+ */
+export async function sendSinusRiskAlert(
+  payload: SinusRiskPayload,
+): Promise<void> {
+  const factors: string[] = [];
+  if (payload.pressureElevated) factors.push("pressure is changing fast");
+  if (payload.humidityElevated) factors.push("humidity is elevated");
+  if (payload.pollenMax >= 3)
+    factors.push(`pollen is elevated (index ${payload.pollenMax})`);
+  if (payload.aqiElevated) factors.push("air quality is poor");
+  // All four inputs can independently drive a high/severe score, so at least
+  // one of the flags above should be set whenever this is called -- this
+  // fallback only exists as a defensive net against a future scoring change.
+  const factorClause =
+    factors.length > 0 ? factors.join(" and ") : "conditions are elevated";
+
+  const title =
+    payload.riskLevel === "severe"
+      ? "Sinus risk is severe right now"
+      : "Sinus risk is high right now";
+  const body =
+    payload.riskLevel === "severe"
+      ? `${factorClause[0].toUpperCase()}${factorClause.slice(1)} -- expect significant congestion or pain, use a saline rinse now`
+      : `${factorClause[0].toUpperCase()}${factorClause.slice(1)} -- consider a saline rinse or antihistamine`;
+
+  await dispatchAlert({
+    type: "sinus",
+    subsWhere: eq(pushSubscriptions.sinusAlertsEnabled, true),
+    title,
+    body,
+    tag: "sinus-risk",
+    dedupKey: payload.riskLevel,
+    getLastNotified: (sub) => sub.lastNotifiedSinusRisk,
+    isDuplicate: riskIsDuplicate,
+    buildDedupUpdate: (key) => ({ lastNotifiedSinusRisk: key }),
+  });
+}
+
+/**
+ * Clears sinus-risk dedup state once conditions ease back to moderate/low -- same
+ * reasoning as clearMigraineRiskDedupState above.
+ */
+export async function clearSinusRiskDedupState(): Promise<void> {
+  await db
+    .update(pushSubscriptions)
+    .set({ lastNotifiedSinusRisk: null })
+    .where(eq(pushSubscriptions.sinusAlertsEnabled, true));
+}
+
+/**
+ * Sends a cluster-headache alert -- unlike migraine, only fires on pressure DROPS
+ * (never rises) and bright light. Reports whichever of delta1h/delta3h/delta6h
+ * actually crossed getClusterHeadacheRisk's threshold (a 3h/6h-driven score can
+ * have delta1h flat or even positive, e.g. pressure recovering after a
+ * bottomed-out drop, so always quoting delta1h would misdescribe what's
+ * happening right now).
+ */
+export async function sendClusterHeadacheRiskAlert(
+  payload: ClusterHeadacheRiskPayload,
+): Promise<void> {
+  const magnitude = Math.abs(payload.dominantValue).toFixed(1);
+  const pressureClause =
+    payload.dominantWindow === "1h"
+      ? `Pressure is dropping fast right now (${magnitude} hPa/hr)`
+      : `Pressure has dropped ${magnitude} hPa over the last ${payload.dominantWindow}`;
+  const uvClause = payload.uvHigh ? " and UV is high today" : "";
+
+  const title =
+    payload.riskLevel === "severe"
+      ? "Cluster headache risk is severe right now"
+      : "Cluster headache risk is high right now";
+  const body =
+    payload.riskLevel === "severe"
+      ? `${pressureClause}${uvClause} -- high-risk period, keep any prescribed oxygen/triptans within reach`
+      : `${pressureClause}${uvClause} -- monitor for early cluster warning signs`;
+
+  await dispatchAlert({
+    type: "cluster",
+    subsWhere: eq(pushSubscriptions.clusterAlertsEnabled, true),
+    title,
+    body,
+    tag: "cluster-risk",
+    dedupKey: payload.riskLevel,
+    getLastNotified: (sub) => sub.lastNotifiedClusterRisk,
+    isDuplicate: riskIsDuplicate,
+    buildDedupUpdate: (key) => ({ lastNotifiedClusterRisk: key }),
+  });
+}
+
+/**
+ * Clears cluster-headache dedup state once pressure stabilizes -- same reasoning
+ * as clearMigraineRiskDedupState above.
+ */
+export async function clearClusterHeadacheRiskDedupState(): Promise<void> {
+  await db
+    .update(pushSubscriptions)
+    .set({ lastNotifiedClusterRisk: null })
+    .where(eq(pushSubscriptions.clusterAlertsEnabled, true));
+}
+
+/**
+ * Sends a fibromyalgia flare-risk alert -- lists only the factors that actually
+ * crossed getFibromyalgiaRisk's thresholds. Cold+damp is the classic trigger, but
+ * heat+humidity alone (isHot, with pressure flat) can also reach high/severe, so
+ * an unconditional "cold, damp, and pressure changes" body would misdescribe a
+ * hot-weather flare.
+ */
+export async function sendFibromyalgiaRiskAlert(
+  payload: FibromyalgiaRiskPayload,
+): Promise<void> {
+  const factors: string[] = [];
+  if (payload.isCold) factors.push("it's cold");
+  if (payload.isHot) factors.push("it's hot");
+  if (payload.isDamp) factors.push("humidity is elevated");
+  if (payload.pressureElevated) factors.push("pressure is changing");
+  const factorClause =
+    factors.length > 0 ? factors.join(" and ") : "conditions are elevated";
+
+  const title =
+    payload.riskLevel === "severe"
+      ? "Fibromyalgia flare risk is severe right now"
+      : "Fibromyalgia flare risk is high right now";
+  const body =
+    payload.riskLevel === "severe"
+      ? `${factorClause[0].toUpperCase()}${factorClause.slice(1)} -- one of the most reliable pain amplifiers, pace activity carefully and keep heat packs on hand`
+      : `${factorClause[0].toUpperCase()}${factorClause.slice(1)} -- consider pacing back today`;
+
+  await dispatchAlert({
+    type: "fibromyalgia",
+    subsWhere: eq(pushSubscriptions.fibromyalgiaAlertsEnabled, true),
+    title,
+    body,
+    tag: "fibromyalgia-risk",
+    dedupKey: payload.riskLevel,
+    getLastNotified: (sub) => sub.lastNotifiedFibromyalgiaRisk,
+    isDuplicate: riskIsDuplicate,
+    buildDedupUpdate: (key) => ({ lastNotifiedFibromyalgiaRisk: key }),
+  });
+}
+
+/**
+ * Clears fibromyalgia-risk dedup state once conditions ease back to moderate/low --
+ * same reasoning as clearMigraineRiskDedupState above.
+ */
+export async function clearFibromyalgiaRiskDedupState(): Promise<void> {
+  await db
+    .update(pushSubscriptions)
+    .set({ lastNotifiedFibromyalgiaRisk: null })
+    .where(eq(pushSubscriptions.fibromyalgiaAlertsEnabled, true));
 }
 
 /**
