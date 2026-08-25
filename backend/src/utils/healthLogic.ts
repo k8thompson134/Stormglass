@@ -462,3 +462,378 @@ export function getPollenRisk(
     ],
   };
 }
+
+export function getFibromyalgiaRisk(
+  delta: number,
+  humidity: number,
+  temp: number,
+  usAqi: number | null = null,
+): HealthRisk {
+  const tempF = toF(temp);
+  const absD = Math.abs(delta);
+  // Central sensitization in fibromyalgia is linked to systemic inflammation;
+  // air pollution exposure is associated with increased pain sensitivity in
+  // several studies -- graduated so a Hazardous day contributes more than a bare
+  // Unhealthy-for-Sensitive-Groups one.
+  const aqiBump = aqiScoreBump(usAqi);
+
+  let score = 0;
+  if (absD > 0.5) score += 2;
+  if (absD > 1.0) score += 1; // large pressure swing adds more
+  if (temp < 10) score += 2; // cold is a major fibro trigger
+  if (temp < 5) score += 1;
+  if (temp > 28) score += 1; // heat exhaustion risk
+  if (humidity > 60) score += 1;
+  if (humidity > 75) score += 1;
+  if (temp < 10 && humidity > 60) score += 1; // cold+damp compound effect
+  score += aqiBump;
+
+  let risk: RiskLevel = "low";
+  if (score >= 5) risk = "severe";
+  else if (score >= 3) risk = "high";
+  else if (score >= 1) risk = "moderate";
+
+  const descriptions: Record<RiskLevel, string> = {
+    low: "Environmental conditions are relatively gentle for fibromyalgia right now.",
+    moderate:
+      "Some weather stress present — pain sensitivity and fatigue may be slightly elevated.",
+    high: "Significant weather triggers active. Fibromyalgia symptoms may worsen noticeably today.",
+    severe:
+      "Multiple strong triggers stacking. High risk of flare or increased widespread pain.",
+  };
+
+  const explanations: Record<RiskLevel, string> = {
+    low: "Current temperature, humidity, and pressure are not adding significant stress for fibromyalgia. Relatively stable conditions for managing baseline symptoms.",
+    moderate:
+      "Moderate temperature, humidity, or pressure changes may gently raise pain sensitivity and fatigue. Not extreme, but worth pacing around if you are already near your threshold.",
+    high: "Cold or damp weather combined with pressure changes puts extra load on the sensitised nervous system. This can increase widespread pain, stiffness, and fatigue beyond your usual baseline.",
+    severe:
+      "Cold temperature, damp air, and rapid pressure changes are occurring together — one of the most reliable pain amplifiers for fibromyalgia. The nervous system's already elevated pain signals can intensify significantly under these conditions.",
+  };
+
+  return {
+    condition: "Fibromyalgia",
+    risk,
+    trigger: "Cold / Damp / Pressure",
+    description: descriptions[risk],
+    icon: "🌡️",
+    detailedExplanation: explanations[risk],
+    currentFactors: [
+      `Temperature: ${tempF}°F`,
+      `Humidity: ${humidity.toFixed(0)}%`,
+      `Pressure change: ${delta.toFixed(2)} hPa/hour`,
+      ...(usAqi !== null && usAqi > 50 ? [`AQI: ${usAqi}`] : []),
+    ],
+    recommendations: [
+      "Keep warm and layer clothing in cold or damp conditions",
+      "Use heat packs or warm baths to ease stiffness",
+      "Pace activity carefully — weather flares often lag by several hours",
+      "Stay hydrated and maintain gentle movement within your limits",
+      // Tailored to fibromyalgia's central-sensitization angle, not generic AQI mitigation.
+      ...(usAqi !== null && usAqi > 50
+        ? [
+            "Build in a little extra pacing margin today — air quality may be heightening pain sensitivity",
+          ]
+        : []),
+    ],
+  };
+}
+
+export function getSinusRisk(
+  delta: number,
+  humidity: number,
+  temp: number,
+  pollenMax = 0,
+  usAqi: number | null = null,
+): HealthRisk {
+  const absD = Math.abs(delta);
+  // Airborne particulates and irritants directly inflame the sinus mucosa -- one of
+  // the more direct, well-established air-quality pathways among these conditions.
+  // Graduated so a Hazardous day contributes more than a bare
+  // Unhealthy-for-Sensitive-Groups one.
+  const aqiBump = aqiScoreBump(usAqi);
+  let score = 0;
+
+  if (absD > 0.4) score += 2;
+  if (absD > 0.8) score += 1;
+  if (humidity > 65) score += 1;
+  if (humidity > 80) score += 1;
+  if (temp < 5) score += 1; // cold dry air irritates sinuses
+  if (pollenMax >= 3) score += 1;
+  if (pollenMax >= 5) score += 1;
+  score += aqiBump;
+
+  let risk: RiskLevel = "low";
+  if (score >= 5) risk = "severe";
+  else if (score >= 3) risk = "high";
+  else if (score >= 1) risk = "moderate";
+
+  const descriptions: Record<RiskLevel, string> = {
+    low: "Sinus conditions look relatively comfortable today.",
+    moderate:
+      "Some pressure or humidity changes may cause mild sinus congestion or pressure.",
+    high: "Weather conditions are likely to aggravate sinus symptoms noticeably.",
+    severe:
+      "Multiple sinus triggers active — expect significant pressure, congestion, or pain.",
+  };
+
+  const tempF = toF(temp);
+  return {
+    condition: "Sinus / Sinusitis",
+    risk,
+    trigger: "Pressure / Humidity / Allergens",
+    description: descriptions[risk],
+    icon: "👃",
+    detailedExplanation:
+      "The sinus cavities are air-filled spaces that respond directly to changes in barometric pressure. Rapid pressure shifts can cause sinus membranes to swell or contract, leading to pain and congestion. High humidity promotes mucus production, and pollen, cold air, or airborne pollutants irritate the mucosal lining directly.",
+    currentFactors: [
+      `Pressure change: ${delta.toFixed(2)} hPa/hour`,
+      `Humidity: ${humidity.toFixed(0)}%`,
+      `Temperature: ${tempF}°F`,
+      ...(pollenMax > 0 ? [`Peak pollen index: ${pollenMax}`] : []),
+      ...(usAqi !== null && usAqi > 50 ? [`AQI: ${usAqi}`] : []),
+    ],
+    recommendations: [
+      "Use a saline rinse to clear irritants and equalise sinus pressure",
+      "Stay well hydrated to thin mucus",
+      "Avoid rapid temperature transitions (e.g. heated indoors to cold outdoors)",
+      "Consider an antihistamine if pollen is elevated",
+      // Tailored to sinus's direct-irritation angle, not generic AQI mitigation.
+      ...(usAqi !== null && usAqi > 50
+        ? [
+            "Use saline rinses more frequently today — air pollution directly irritates sinus tissue",
+          ]
+        : []),
+    ],
+  };
+}
+
+export function getRaynaudsRisk(
+  temp: number,
+  humidity: number,
+  windMs: number,
+): HealthRisk {
+  const tempF = toF(temp);
+  const windKph = windMs * 3.6;
+
+  let score = 0;
+  if (temp < 15) score += 1;
+  if (temp < 10) score += 2;
+  if (temp < 5) score += 2;
+  if (temp < 0) score += 1;
+  if (temp < 10 && humidity > 60) score += 1; // cold + damp compound
+  if (temp < 10 && windKph > 20) score += 1; // wind chill
+
+  let risk: RiskLevel = "low";
+  if (score >= 6) risk = "severe";
+  else if (score >= 4) risk = "high";
+  else if (score >= 2) risk = "moderate";
+
+  const descriptions: Record<RiskLevel, string> = {
+    low: "Temperatures are comfortable for Raynaud's — low vasospasm risk.",
+    moderate:
+      "Cooler conditions present. Protect extremities and limit cold exposure.",
+    high: "Cold weather likely to trigger vasospasm in fingers and toes.",
+    severe:
+      "Dangerously cold conditions. Raynaud's attack risk is very high — stay warm.",
+  };
+
+  return {
+    condition: "Raynaud's",
+    risk,
+    trigger: "Cold / Wind Chill",
+    description: descriptions[risk],
+    icon: "🥶",
+    detailedExplanation:
+      "Raynaud's phenomenon causes blood vessels in the fingers and toes to over-react to cold or stress, cutting off circulation and causing colour changes, numbness, and pain. Cold temperature, wind chill, and damp conditions are the most reliable triggers.",
+    currentFactors: [
+      `Temperature: ${tempF}°F`,
+      `Humidity: ${humidity.toFixed(0)}%`,
+      `Wind: ${windKph.toFixed(0)} km/h`,
+    ],
+    recommendations: [
+      "Wear insulated gloves and warm socks before going outside",
+      "Warm up gradually — avoid plunging hands into cold water",
+      "Keep your core warm; peripheral circulation depends on core temperature",
+      "Carry hand warmers on cold or windy days",
+    ],
+  };
+}
+
+export function getSleepRisk(
+  delta1h: number,
+  delta3h: number,
+  delta6h: number,
+  temp: number,
+  humidity: number,
+  kp: number | null,
+  usAqi: number | null,
+): HealthRisk {
+  const tempF = toF(temp);
+  const volatility = Math.abs(delta1h) + Math.abs(delta3h) + Math.abs(delta6h);
+
+  let score = 0;
+  if (volatility > 1.5) score += 2;
+  if (volatility > 3.0) score += 1;
+  if (temp > 24) score += 1; // too warm for good sleep
+  if (temp > 28) score += 1;
+  if (temp < 12) score += 1; // too cold
+  if (humidity > 65) score += 1;
+  if (kp !== null && kp >= 4) score += 1; // geomagnetic disrupts melatonin
+  if (kp !== null && kp >= 6) score += 1;
+  // Graduated so a Hazardous night contributes more than a bare
+  // Unhealthy-for-Sensitive-Groups one, same as the other AQI-amplified risks.
+  score += aqiScoreBump(usAqi);
+
+  let risk: RiskLevel = "low";
+  if (score >= 6) risk = "severe";
+  else if (score >= 4) risk = "high";
+  else if (score >= 2) risk = "moderate";
+
+  const descriptions: Record<RiskLevel, string> = {
+    low: "Environmental conditions are conducive to good sleep tonight.",
+    moderate:
+      "Some weather factors may lightly disrupt sleep quality or make it harder to fall asleep.",
+    high: "Several environmental stressors are present that commonly interfere with sleep architecture.",
+    severe:
+      "Multiple strong sleep disruptors active — expect difficulty falling or staying asleep.",
+  };
+
+  const factors = [
+    `Pressure volatility (6h): ${volatility.toFixed(2)}`,
+    `Temperature: ${tempF}°F`,
+    `Humidity: ${humidity.toFixed(0)}%`,
+  ];
+  if (kp !== null) factors.push(`Kp index: ${kp.toFixed(1)}`);
+  if (usAqi !== null && usAqi > 50) factors.push(`AQI: ${usAqi}`);
+
+  return {
+    condition: "Sleep Quality",
+    risk,
+    trigger: "Pressure / Temp / Geomagnetic",
+    description: descriptions[risk],
+    icon: "🌙",
+    detailedExplanation:
+      "Multiple environmental factors affect sleep quality. Unstable barometric pressure disrupts the body's pressure regulation during rest. Room temperature outside the 15–19°C optimal range fragments sleep cycles. High humidity makes thermoregulation harder. Geomagnetic activity suppresses melatonin production, and poor air quality reduces sleep-stage depth.",
+    currentFactors: factors,
+    recommendations: [
+      "Keep your bedroom cool (15–19°C / 60–67°F) if possible",
+      "Use blackout curtains and white noise to offset light/sound disruption",
+      "Avoid screens 60–90 min before bed on high-Kp nights",
+      "On high-volatility pressure nights, avoid late meals and alcohol",
+      // Tailored to sleep-stage depth specifically, not generic AQI mitigation.
+      ...(usAqi !== null && usAqi > 50
+        ? [
+            "Run an air purifier in the bedroom overnight — poor air quality can reduce sleep-stage depth",
+          ]
+        : []),
+    ],
+  };
+}
+
+export function getClusterHeadacheRisk(
+  delta1h: number,
+  delta3h: number,
+  delta6h: number,
+  uvIndex: number,
+): HealthRisk {
+  // Cluster headaches are triggered specifically by pressure DROPS (not rises)
+  // and bright/UV light — different pattern from migraine
+  let score = 0;
+
+  if (delta1h < -0.4) score += 2;
+  if (delta1h < -0.8) score += 1;
+  if (delta3h < -1.5) score += 1; // sustained drop over 3h
+  if (delta6h < -3.0) score += 1; // significant 6h drop
+  if (uvIndex >= 5) score += 1; // bright light trigger
+
+  let risk: RiskLevel = "low";
+  if (score >= 5) risk = "severe";
+  else if (score >= 3) risk = "high";
+  else if (score >= 1) risk = "moderate";
+
+  const descriptions: Record<RiskLevel, string> = {
+    low: "Pressure is stable — low cluster headache risk from weather today.",
+    moderate:
+      "Mild pressure drop detected. Monitor for early cluster warning signs.",
+    high: "Notable pressure fall — elevated risk of cluster headache onset or cycle break.",
+    severe:
+      "Rapid, sustained pressure drop. High risk period for cluster headache attack.",
+  };
+
+  return {
+    condition: "Cluster Headache",
+    risk,
+    trigger: "Pressure Drop / UV",
+    description: descriptions[risk],
+    icon: "⚡",
+    detailedExplanation:
+      "Unlike migraines, cluster headaches are triggered specifically by falling barometric pressure (not rises) and bright light/UV exposure. Rapid pressure drops activate the trigeminal-autonomic pathway, which is the nerve circuit responsible for the intense, one-sided pain and eye/nasal symptoms of cluster attacks. Seasonal shifts in pressure patterns often coincide with cluster periods.",
+    currentFactors: [
+      `1h pressure change: ${delta1h.toFixed(2)} hPa`,
+      `3h pressure change: ${delta3h.toFixed(2)} hPa`,
+      `6h pressure change: ${delta6h.toFixed(2)} hPa`,
+      `UV index: ${uvIndex}`,
+    ],
+    recommendations: [
+      "At onset: 100% oxygen therapy (if prescribed) is most effective early",
+      "Avoid bright light and glare — wear dark glasses outdoors",
+      "Keep any prescribed triptans or lidocaine close at hand during high-risk periods",
+      "Track pressure patterns alongside your headache diary to identify your personal threshold",
+    ],
+  };
+}
+
+export function getEDSRisk(
+  delta: number,
+  humidity: number,
+  temp: number,
+): HealthRisk {
+  const tempF = toF(temp);
+  const absD = Math.abs(delta);
+
+  let score = 0;
+  if (absD > 0.3) score += 1;
+  if (absD > 0.6) score += 1;
+  if (temp < 10) score += 2; // cold stiffens hypermobile joints
+  if (temp < 5) score += 1;
+  if (temp > 26) score += 1; // heat increases joint laxity/instability
+  if (humidity > 65) score += 1;
+  if (humidity > 75) score += 1;
+  if (temp < 10 && absD > 0.5) score += 1; // cold + pressure compound
+
+  let risk: RiskLevel = "low";
+  if (score >= 5) risk = "severe";
+  else if (score >= 3) risk = "high";
+  else if (score >= 1) risk = "moderate";
+
+  const descriptions: Record<RiskLevel, string> = {
+    low: "Conditions are relatively stable for connective tissue and joint management.",
+    moderate:
+      "Some weather stress present — joint instability or subluxation risk may be slightly elevated.",
+    high: "Weather conditions are likely to worsen joint laxity, pain, or fatigue in EDS.",
+    severe:
+      "Multiple EDS triggers stacking — high risk of subluxations, flare, or significant fatigue.",
+  };
+
+  return {
+    condition: "EDS / Hypermobility",
+    risk,
+    trigger: "Cold / Pressure / Heat",
+    description: descriptions[risk],
+    icon: "🦿",
+    detailedExplanation:
+      "Ehlers-Danlos Syndrome affects collagen and connective tissue throughout the body. Cold temperatures stiffen already-unstable joints, increasing subluxation risk. Heat causes vasodilation and further loosens already-lax ligaments, reducing joint stability. Barometric pressure changes add mechanical stress to joints that lack normal structural support. Humidity compounds both effects.",
+    currentFactors: [
+      `Temperature: ${tempF}°F`,
+      `Humidity: ${humidity.toFixed(0)}%`,
+      `Pressure change: ${delta.toFixed(2)} hPa/hour`,
+    ],
+    recommendations: [
+      "Brace or tape unstable joints before activity in cold or high-pressure-change conditions",
+      "Warm up very gradually — cold muscles and ligaments are much more injury-prone",
+      "In heat, limit standing and activity to reduce laxity-related instability",
+      "Use compression garments to support joints during high-risk weather windows",
+    ],
+  };
+}

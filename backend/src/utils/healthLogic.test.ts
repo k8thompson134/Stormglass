@@ -7,6 +7,12 @@ import {
   getPOTSRisk,
   getJointPainRisk,
   getPollenRisk,
+  getFibromyalgiaRisk,
+  getSinusRisk,
+  getRaynaudsRisk,
+  getSleepRisk,
+  getClusterHeadacheRisk,
+  getEDSRisk,
 } from "./healthLogic.js";
 
 // ---------------------------------------------------------------------------
@@ -569,5 +575,205 @@ describe("getPollenRisk", () => {
       moldIndex: 2,
     });
     expect(result.description).toMatch(/low/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getFibromyalgiaRisk
+// ---------------------------------------------------------------------------
+describe("getFibromyalgiaRisk", () => {
+  it("low — mild conditions", () => {
+    const result = getFibromyalgiaRisk(0.1, 40, 20);
+    expect(result.risk).toBe("low");
+  });
+
+  it("high — cold and damp compound", () => {
+    const result = getFibromyalgiaRisk(0.2, 65, 8);
+    expect(result.risk).toBe("high");
+  });
+
+  it("severe — large pressure swing plus very cold plus damp", () => {
+    const result = getFibromyalgiaRisk(1.2, 80, 3);
+    expect(result.risk).toBe("severe");
+  });
+
+  it("includes temperature, humidity, pressure in currentFactors", () => {
+    const result = getFibromyalgiaRisk(0.3, 50, 15);
+    expect(result.currentFactors.some((f) => f.includes("°F"))).toBe(true);
+    expect(result.currentFactors.some((f) => f.includes("%"))).toBe(true);
+    expect(result.currentFactors.some((f) => f.includes("hPa/hour"))).toBe(
+      true,
+    );
+  });
+
+  it("elevated AQI adds a pacing recommendation", () => {
+    const withAqi = getFibromyalgiaRisk(0.1, 40, 20, 80);
+    const withoutAqi = getFibromyalgiaRisk(0.1, 40, 20, null);
+    expect(
+      withAqi.recommendations.some((r) => r.toLowerCase().includes("pacing")),
+    ).toBe(true);
+    expect(
+      withoutAqi.recommendations.some((r) =>
+        r.toLowerCase().includes("pacing margin"),
+      ),
+    ).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getSinusRisk
+// ---------------------------------------------------------------------------
+describe("getSinusRisk", () => {
+  it("low — stable pressure, moderate humidity, no pollen", () => {
+    const result = getSinusRisk(0.1, 40, 20);
+    expect(result.risk).toBe("low");
+  });
+
+  it("moderate — pressure change crosses 0.4", () => {
+    const result = getSinusRisk(0.5, 40, 20);
+    expect(result.risk).toBe("moderate");
+  });
+
+  it("severe — pressure drop, high humidity, and high pollen all stack", () => {
+    const result = getSinusRisk(0.9, 85, 20, 5);
+    expect(result.risk).toBe("severe");
+  });
+
+  it("includes peak pollen index in currentFactors only when provided", () => {
+    const withPollen = getSinusRisk(0.1, 40, 20, 4);
+    const withoutPollen = getSinusRisk(0.1, 40, 20);
+    expect(withPollen.currentFactors.some((f) => f.includes("pollen"))).toBe(
+      true,
+    );
+    expect(withoutPollen.currentFactors.some((f) => f.includes("pollen"))).toBe(
+      false,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getRaynaudsRisk
+// ---------------------------------------------------------------------------
+describe("getRaynaudsRisk", () => {
+  it("low — mild temperature", () => {
+    const result = getRaynaudsRisk(20, 40, 2);
+    expect(result.risk).toBe("low");
+  });
+
+  it("moderate — crosses the 10°C threshold", () => {
+    const result = getRaynaudsRisk(9, 40, 2);
+    expect(result.risk).toBe("moderate");
+  });
+
+  it("severe — freezing with wind chill", () => {
+    const result = getRaynaudsRisk(-2, 70, 8);
+    expect(result.risk).toBe("severe");
+  });
+
+  it("includes temperature, humidity, and wind in currentFactors", () => {
+    const result = getRaynaudsRisk(10, 50, 3);
+    expect(result.currentFactors.some((f) => f.includes("°F"))).toBe(true);
+    expect(result.currentFactors.some((f) => f.includes("%"))).toBe(true);
+    expect(result.currentFactors.some((f) => f.includes("km/h"))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getSleepRisk
+// ---------------------------------------------------------------------------
+describe("getSleepRisk", () => {
+  it("low — stable pressure, comfortable temp, quiet geomagnetic", () => {
+    const result = getSleepRisk(0.1, 0.1, 0.1, 18, 40, 1, null);
+    expect(result.risk).toBe("low");
+  });
+
+  it("moderate — volatility crosses 1.5", () => {
+    const result = getSleepRisk(1.0, 0.5, 0.2, 18, 40, 1, null);
+    expect(result.risk).toBe("moderate");
+  });
+
+  it("severe — high volatility, hot, damp, and elevated Kp all stack", () => {
+    const result = getSleepRisk(2.0, 1.5, 1.0, 30, 70, 7, null);
+    expect(result.risk).toBe("severe");
+  });
+
+  it("includes Kp index in currentFactors only when provided", () => {
+    const withKp = getSleepRisk(0.1, 0.1, 0.1, 18, 40, 3, null);
+    const withoutKp = getSleepRisk(0.1, 0.1, 0.1, 18, 40, null, null);
+    expect(withKp.currentFactors.some((f) => f.includes("Kp index"))).toBe(
+      true,
+    );
+    expect(withoutKp.currentFactors.some((f) => f.includes("Kp index"))).toBe(
+      false,
+    );
+  });
+
+  it("elevated AQI adds an air-purifier recommendation", () => {
+    const result = getSleepRisk(0.1, 0.1, 0.1, 18, 40, 1, 80);
+    expect(
+      result.recommendations.some((r) => r.toLowerCase().includes("purifier")),
+    ).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getClusterHeadacheRisk
+// ---------------------------------------------------------------------------
+describe("getClusterHeadacheRisk", () => {
+  it("low — stable pressure, low UV", () => {
+    const result = getClusterHeadacheRisk(0.1, 0.1, 0.1, 2);
+    expect(result.risk).toBe("low");
+  });
+
+  it("moderate — crosses -0.4 1h drop threshold", () => {
+    const result = getClusterHeadacheRisk(-0.5, -0.5, -0.5, 2);
+    expect(result.risk).toBe("moderate");
+  });
+
+  it("severe — sharp sustained drop across all windows plus bright UV", () => {
+    const result = getClusterHeadacheRisk(-0.9, -1.6, -3.1, 6);
+    expect(result.risk).toBe("severe");
+  });
+
+  it("a rising pressure does not trigger risk regardless of magnitude", () => {
+    const result = getClusterHeadacheRisk(0.9, 1.6, 3.1, 2);
+    expect(result.risk).toBe("low");
+  });
+
+  it("includes all three delta values and UV index in currentFactors", () => {
+    const result = getClusterHeadacheRisk(-0.5, -1.0, -2.0, 4);
+    expect(result.currentFactors.length).toBe(4);
+    expect(result.currentFactors.some((f) => f.includes("UV index"))).toBe(
+      true,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getEDSRisk
+// ---------------------------------------------------------------------------
+describe("getEDSRisk", () => {
+  it("low — mild conditions", () => {
+    const result = getEDSRisk(0.1, 40, 20);
+    expect(result.risk).toBe("low");
+  });
+
+  it("high — cold plus pressure change compound", () => {
+    const result = getEDSRisk(0.6, 40, 8);
+    expect(result.risk).toBe("high");
+  });
+
+  it("severe — cold, damp, and pressure swing all stack", () => {
+    const result = getEDSRisk(0.7, 80, 3);
+    expect(result.risk).toBe("severe");
+  });
+
+  it("includes temperature, humidity, and pressure change in currentFactors", () => {
+    const result = getEDSRisk(0.3, 50, 15);
+    expect(result.currentFactors.some((f) => f.includes("°F"))).toBe(true);
+    expect(result.currentFactors.some((f) => f.includes("%"))).toBe(true);
+    expect(result.currentFactors.some((f) => f.includes("hPa/hour"))).toBe(
+      true,
+    );
   });
 });

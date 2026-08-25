@@ -132,15 +132,14 @@ describe("aqiWindows.ts classification math stays in sync with frontend aqiCateg
   });
 });
 
-describe("healthLogic.ts function-parity gap (known, tracked separately)", () => {
-  // This intentionally documents a KNOWN gap rather than silently ignoring it --
-  // backend healthLogic.ts implements only 7 of the 13 conditions the frontend
-  // copy does (fibromyalgia/sinus/raynauds/sleep/cluster/eds are frontend-only),
-  // so push alerts and /api/briefing structurally can't cover those 6. If this
-  // count ever changes on either side, this test breaks and forces a conscious
-  // update -- either the gap grew (bad, investigate) or someone closed it
-  // (good, update the expected counts to match).
-  it("backend has 7 shared risk functions; frontend has 13 (6 frontend-only)", () => {
+describe("healthLogic.ts function parity between frontend and backend", () => {
+  // Closed 2026-08-24 (task 403) -- backend now ports all 13 risk functions the
+  // frontend has (fibromyalgia/sinus/raynauds/sleep/cluster/eds were previously
+  // frontend-only, meaning push alerts and /api/briefing structurally couldn't
+  // cover those 6 conditions). This asserts full parity rather than documenting
+  // a gap -- if either side adds/removes a function without the other, this
+  // breaks and forces a conscious update.
+  it("backend and frontend export the exact same 13 risk functions", () => {
     const backendSource = readFileSync(
       resolve(__dirname, "./healthLogic.ts"),
       "utf-8",
@@ -156,13 +155,7 @@ describe("healthLogic.ts function-parity gap (known, tracked separately)", () =>
     const backendFns = extractFunctionNames(backendSource).sort();
     const frontendFns = extractFunctionNames(frontendSource).sort();
 
-    expect(backendFns.length).toBe(7);
-    expect(frontendFns.length).toBe(13);
-    // Every backend function must still exist on the frontend side (the shared
-    // subset, not an independent divergent 7) -- if this fails, the two files
-    // have drifted to cover different conditions, not just different COUNTS.
-    for (const fn of backendFns) {
-      expect(frontendFns).toContain(fn);
-    }
+    expect(backendFns.length).toBe(13);
+    expect(backendFns).toEqual(frontendFns);
   });
 });

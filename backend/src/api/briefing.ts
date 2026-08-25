@@ -19,6 +19,12 @@ import {
   getPOTSRisk,
   getJointPainRisk,
   getPollenRisk,
+  getFibromyalgiaRisk,
+  getSinusRisk,
+  getRaynaudsRisk,
+  getSleepRisk,
+  getClusterHeadacheRisk,
+  getEDSRisk,
 } from "../utils/healthLogic.js";
 import type { RiskLevel } from "../utils/healthTypes.js";
 
@@ -193,6 +199,8 @@ export async function briefingRoutes(app: FastifyInstance): Promise<void> {
     const pressure = parseFloat(latest.pressure);
     const temp = parseFloat(latest.temperature);
     const humidity = parseFloat(latest.humidity);
+    const windMs = parseFloat(latest.windSpeed);
+    const uvIndex = parseFloat(latest.uvIndex);
     const delta1h = derivative ? parseFloat(derivative.delta1h) : 0;
     const delta3h = derivative ? parseFloat(derivative.delta3h) : 0;
     const delta6h = derivative ? parseFloat(derivative.delta6h) : 0;
@@ -237,7 +245,16 @@ export async function briefingRoutes(app: FastifyInstance): Promise<void> {
         : aqiInput.usAqi
       : null;
 
-    // Compute all 7 health risks
+    const pollenMax = pollenInput
+      ? Math.max(
+          pollenInput.treeIndex,
+          pollenInput.grassIndex,
+          pollenInput.weedIndex,
+          pollenInput.moldIndex,
+        )
+      : 0;
+
+    // Compute all 13 health risks
     const risks = [
       getMigraineRisk(delta1h, delta3h, delta6h, currentAqi),
       getMECFSRisk(delta1h, delta3h, delta6h, currentAqi),
@@ -246,6 +263,20 @@ export async function briefingRoutes(app: FastifyInstance): Promise<void> {
       getAQIRisk(aqiInput),
       getGeomagneticRisk(geoInput),
       getPollenRisk(pollenInput),
+      getFibromyalgiaRisk(delta1h, humidity, temp, currentAqi),
+      getSinusRisk(delta1h, humidity, temp, pollenMax, currentAqi),
+      getRaynaudsRisk(temp, humidity, windMs),
+      getSleepRisk(
+        delta1h,
+        delta3h,
+        delta6h,
+        temp,
+        humidity,
+        geoInput?.kpIndex ?? null,
+        currentAqi,
+      ),
+      getClusterHeadacheRisk(delta1h, delta3h, delta6h, uvIndex),
+      getEDSRisk(delta1h, humidity, temp),
     ];
 
     const overallRisk = highestRisk(risks.map((r) => r.risk));
@@ -276,8 +307,8 @@ export async function briefingRoutes(app: FastifyInstance): Promise<void> {
         weather: {
           tempC: temp,
           humidity,
-          windMs: parseFloat(latest.windSpeed),
-          uvIndex: parseFloat(latest.uvIndex),
+          windMs,
+          uvIndex,
           precipMm: parseFloat(latest.precipitation),
         },
         aqi: aqiInput,
