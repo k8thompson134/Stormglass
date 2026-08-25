@@ -14,12 +14,11 @@ import {
   Label,
 } from "recharts";
 import type { WeatherPoint } from "../services/api";
+import { classifyPressureRate, SEVERITY_THEME } from "../utils/severity";
 import {
-  classifyPressureRate,
-  computeEventSeverity,
-  SEVERITY_THEME,
-  type EnvSeverity,
-} from "../utils/severity";
+  detectPressureEvents,
+  clampZonesToVisibleRange,
+} from "../utils/pressureEvents";
 
 interface Props {
   data: WeatherPoint[];
@@ -315,188 +314,19 @@ export default function PressureChart({
   );
 
   // --- Detect volatile periods for chart highlighting ---
-  const volatileZones = useMemo(() => {
-    const zones: {
-      start: string;
-      end: string;
-      severity: EnvSeverity;
-      pressureChange: number;
-      score: number;
-    }[] = [];
-
-    const MAX_EVENT_HOURS = 18;
-    const MAX_GAP_POINTS = 2;
-
-    const finalizeZone = (
-      zoneStartIdx: number | null,
-      zoneEndIdx: number | null,
-      peakIdx: number | null,
-    ) => {
-      if (
-        zoneStartIdx === null ||
-        zoneEndIdx === null ||
-        zoneEndIdx <= zoneStartIdx
-      )
-        return;
-
-      const baseStartIdx = zoneStartIdx;
-      const baseEndIdx = zoneEndIdx;
-      const startBase = validData[baseStartIdx];
-      const endBase = validData[baseEndIdx];
-      if (!startBase || !endBase) return;
-
-      const effectivePeakIdx =
-        peakIdx !== null
-          ? peakIdx
-          : Math.floor((baseStartIdx + baseEndIdx) / 2);
-      const peakPoint = validData[effectivePeakIdx];
-      if (!peakPoint) return;
-
-      const peakMs = new Date(peakPoint.timestamp).getTime();
-      const baseStartMs = new Date(startBase.timestamp).getTime();
-      const baseEndMs = new Date(endBase.timestamp).getTime();
-      if (
-        Number.isNaN(peakMs) ||
-        Number.isNaN(baseStartMs) ||
-        Number.isNaN(baseEndMs)
-      )
-        return;
-
-      const halfWindowMs = (MAX_EVENT_HOURS / 2) * 3600000;
-      const targetStartMs = Math.max(baseStartMs, peakMs - halfWindowMs);
-      const targetEndMs = Math.min(baseEndMs, peakMs + halfWindowMs);
-      if (targetEndMs <= targetStartMs) return;
-
-      let clippedStartIdx = baseStartIdx;
-      for (let i = baseStartIdx; i <= baseEndIdx; i++) {
-        const t = new Date(validData[i].timestamp).getTime();
-        if (!Number.isNaN(t) && t >= targetStartMs) {
-          clippedStartIdx = i;
-          break;
-        }
-      }
-
-      let clippedEndIdx = baseEndIdx;
-      for (let i = baseEndIdx; i >= baseStartIdx; i--) {
-        const t = new Date(validData[i].timestamp).getTime();
-        if (!Number.isNaN(t) && t <= targetEndMs) {
-          clippedEndIdx = i;
-          break;
-        }
-      }
-      if (clippedEndIdx <= clippedStartIdx) return;
-
-      let localMaxAbsDelta = 0;
-      let localMinP = Infinity;
-      let localMaxP = -Infinity;
-      for (let i = clippedStartIdx; i <= clippedEndIdx; i++) {
-        const d = validData[i];
-        const absDelta = Math.abs(d.delta1h ?? 0);
-        if (absDelta > localMaxAbsDelta) localMaxAbsDelta = absDelta;
-        if (d.pressureNum < localMinP) localMinP = d.pressureNum;
-        if (d.pressureNum > localMaxP) localMaxP = d.pressureNum;
-      }
-
-      const startTs = new Date(validData[clippedStartIdx].timestamp).getTime();
-      const endTs = new Date(validData[clippedEndIdx].timestamp).getTime();
-      if (Number.isNaN(startTs) || Number.isNaN(endTs) || endTs <= startTs)
-        return;
-
-      const durationHours = Math.max(1, (endTs - startTs) / 3600000);
-      const swing = Math.abs(localMaxP - localMinP);
-      const lowBelowBaseline = Math.max(0, avgPressure - localMinP);
-
-      const { score, severity: eventSeverity } = computeEventSeverity({
-        maxRate: localMaxAbsDelta,
-        swing,
-        durationHours,
-        lowBelowBaseline,
-      });
-
-      // Filter out low-intensity events so only meaningful swings appear
-      if (eventSeverity === "low") return;
-
-      zones.push({
-        start: validData[clippedStartIdx].timestamp,
-        end: validData[clippedEndIdx].timestamp,
-        severity: eventSeverity,
-        pressureChange:
-          validData[clippedEndIdx].pressureNum -
-          validData[clippedStartIdx].pressureNum,
-        score,
-      });
-    };
-
-    let zoneStartIdx: number | null = null;
-    let peakIdx: number | null = null;
-    let gapCount = 0;
-
-    for (let i = 0; i < validData.length; i++) {
-      const absDelta = Math.abs(validData[i].delta1h ?? 0);
-      const sev = classifyPressureRate(absDelta);
-      if (sev && sev !== "low") {
-        gapCount = 0;
-        if (zoneStartIdx === null) {
-          zoneStartIdx = i;
-          peakIdx = i;
-        } else if (
-          peakIdx === null ||
-          absDelta > Math.abs(validData[peakIdx].delta1h ?? 0)
-        ) {
-          peakIdx = i;
-        }
-      } else if (zoneStartIdx !== null) {
-        gapCount++;
-        if (gapCount > MAX_GAP_POINTS) {
-          const endIdx = i - 1;
-          finalizeZone(
-            zoneStartIdx,
-            endIdx >= zoneStartIdx ? endIdx : zoneStartIdx,
-            peakIdx,
-          );
-          zoneStartIdx = null;
-          peakIdx = null;
-          gapCount = 0;
-        }
-      }
-    }
-
-    if (zoneStartIdx !== null) {
-      const endIdx = validData.length - 1;
-      finalizeZone(zoneStartIdx, endIdx, peakIdx);
-    }
-
-    // Trim zones to only show past portion when forecast is off (except on 6h scale)
-    if (!showForecast && hours > 6) {
-      return (
-        zones
-          .map((zone) => {
-            // If we don't know the last past sample, fall back to original behavior
-            if (!lastPastTimestamp) return zone;
-
-            const zoneEndMs = new Date(zone.end).getTime();
-            const lastPastMs = new Date(lastPastTimestamp).getTime();
-
-            // Cap the event end at the last real past data point so x2
-            // always matches an existing category on the X axis.
-            const cappedEnd =
-              zoneEndMs > lastPastMs ? lastPastTimestamp : zone.end;
-
-            return {
-              ...zone,
-              end: cappedEnd,
-            };
-          })
-          // Drop purely future events once forecast is hidden, but keep
-          // zones that collapse to a single past timestamp at the boundary.
-          .filter(
-            (zone) =>
-              new Date(zone.start).getTime() <= new Date(zone.end).getTime(),
-          )
-      );
-    }
-    return zones;
-  }, [validData, showForecast, hours, nowTs, avgPressure, lastPastTimestamp]);
+  const rawVolatileZones = useMemo(
+    () => detectPressureEvents(validData, avgPressure),
+    [validData, avgPressure],
+  );
+  const volatileZones = useMemo(
+    () =>
+      clampZonesToVisibleRange(rawVolatileZones, {
+        showForecast,
+        hours,
+        lastPastTimestamp,
+      }),
+    [rawVolatileZones, showForecast, hours, lastPastTimestamp],
+  );
 
   // --- Detect front passage (deepest pressure trough) ---
   const frontPassage = useMemo(() => {
