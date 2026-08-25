@@ -50,7 +50,7 @@ Analyzes your symptom history to identify which environmental factors correlate 
 | **Open-Meteo Air Quality** | PM2.5, PM10, ozone, NO2, SO2, CO, US/European AQI, 3-day forecast | Free, no API key |
 | **PurpleAir** *(optional)* | Hyperlocal ground-sensor AQI, EPA-corrected, nearest 3 sensors averaged | Requires free API key; points-based rate limit, so responses are cached 60 min |
 | **NOAA Space Weather** | Kp index, solar wind speed/density | Free, no API key |
-| **Tomorrow.io** *(optional)* | Tree, grass, weed, mold pollen indices | Requires API key; skipped if unset |
+| **Google Pollen API** *(optional)* | Tree, grass, weed pollen indices (0-5 Universal Pollen Index, no mold coverage) | Requires API key; skipped if unset |
 
 ## Quick Start
 
@@ -68,8 +68,8 @@ npm install
 # Copy and edit environment config
 cp .env.example .env
 # Set DATABASE_URL at minimum (e.g. postgresql://user:pass@localhost:5432/stormglass)
-# PURPLEAIR_API_KEY and TOMORROW_API_KEY are optional — those features degrade
-# gracefully (fall back to the regional model / skip pollen) if left unset.
+# PURPLEAIR_API_KEY and GOOGLE_POLLEN_API_KEY are optional — those features
+# degrade gracefully (fall back to the regional model / skip pollen) if unset.
 
 # Run database migrations and seed default user
 npm run db:migrate
@@ -115,7 +115,7 @@ stormglass/
 │       │   ├── briefing.ts     # Combined daily risk briefing endpoint
 │       │   ├── settings.ts     # User preferences (location, timezone)
 │       │   └── symptoms.ts     # Symptom log CRUD
-│       ├── services/   # Data fetching (Open-Meteo, PurpleAir, NOAA, Tomorrow.io)
+│       ├── services/   # Data fetching (Open-Meteo, PurpleAir, NOAA, Google Pollen)
 │       ├── utils/       # smoke.ts, aqiWindows.ts, aqiBurden.ts, healthLogic.ts
 │       ├── db/          # Drizzle schema and migrations
 │       ├── jobs/        # Cron scheduler (weather polling every 30 min)
@@ -137,7 +137,7 @@ stormglass/
 | `DEFAULT_LATITUDE` | No (40.7128) | Default polling location latitude (only used to seed the first-ever user; location is persisted after) |
 | `DEFAULT_LONGITUDE` | No (-74.0060) | Default polling location longitude |
 | `DEFAULT_TIMEZONE` | No (America/New_York) | Default timezone for the first-ever user |
-| `TOMORROW_API_KEY` | No | Enables pollen data from Tomorrow.io |
+| `GOOGLE_POLLEN_API_KEY` | No | Enables pollen data from Google's Pollen API (Maps Platform) |
 | `PURPLEAIR_API_KEY` | No | Enables hyperlocal ground-sensor AQI; falls back to the regional model if unset |
 | `CORS_ORIGIN` | Prod only | Comma-separated allowed origins |
 | `API_TOKEN` | Prod only | Bearer token for API authentication (auto-generated on first production startup if unset) |
