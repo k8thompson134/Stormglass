@@ -1,15 +1,16 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 import {
   HEALTH_CONDITIONS,
   type HealthToggles,
   type HealthConditionKey,
 } from "../types/health";
-import { geocodeSearch, updateLocation, type GeoResult } from "../services/api";
+import { updateLocation, type GeoResult } from "../services/api";
 import {
   AQI_SENSITIVITY_OPTIONS,
   DEFAULT_AQI_SENSITIVITY,
   type AqiSensitivity,
 } from "../utils/aqiCategory";
+import { useGeocodeSearch } from "../hooks/useGeocodeSearch";
 import logo from "../assets/logo.png";
 
 interface Props {
@@ -98,9 +99,12 @@ export default function Onboarding({ onComplete }: Props) {
   const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
   const [selected, setSelected] = useState<Set<HealthConditionKey>>(new Set());
   const [locationQuery, setLocationQuery] = useState("");
-  const [locationResults, setLocationResults] = useState<GeoResult[]>([]);
-  const [locationSearching, setLocationSearching] = useState(false);
-  const [locationSearchError, setLocationSearchError] = useState(false);
+  const {
+    results: locationResults,
+    searching: locationSearching,
+    searchError: locationSearchError,
+    clearResults: clearLocationResults,
+  } = useGeocodeSearch(locationQuery);
   const [pendingLocation, setPendingLocation] = useState<GeoResult | null>(
     null,
   );
@@ -109,8 +113,6 @@ export default function Onboarding({ onComplete }: Props) {
   );
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const latestQueryRef = useRef("");
 
   const toggle = (key: HealthConditionKey) => {
     setSelected((prev) => {
@@ -129,44 +131,10 @@ export default function Onboarding({ onComplete }: Props) {
     onComplete(toggles, DEFAULT_AQI_SENSITIVITY);
   };
 
-  const handleLocationQueryChange = (query: string) => {
-    setLocationQuery(query);
-    latestQueryRef.current = query;
-
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    if (query.length < 2) {
-      setLocationResults([]);
-      setLocationSearchError(false);
-      return;
-    }
-
-    setLocationSearching(true);
-    setLocationSearchError(false);
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const results = await geocodeSearch(query);
-        // A slower, now-superseded request can resolve after a newer
-        // one -- only apply results if this is still the latest query.
-        if (latestQueryRef.current !== query) return;
-        setLocationResults(results);
-      } catch {
-        if (latestQueryRef.current === query) {
-          setLocationResults([]);
-          // Distinct from "no matching city" -- a failed request must not look
-          // identical to a legitimate empty search result.
-          setLocationSearchError(true);
-        }
-      } finally {
-        if (latestQueryRef.current === query) setLocationSearching(false);
-      }
-    }, 300);
-  };
-
   const handleLocationSelect = (result: GeoResult) => {
     setPendingLocation(result);
     setLocationQuery("");
-    setLocationResults([]);
+    clearLocationResults();
   };
 
   const handleComplete = async () => {
@@ -388,9 +356,7 @@ export default function Onboarding({ onComplete }: Props) {
                       type="text"
                       placeholder="Search by city or ZIP code..."
                       value={locationQuery}
-                      onChange={(e) =>
-                        handleLocationQueryChange(e.target.value)
-                      }
+                      onChange={(e) => setLocationQuery(e.target.value)}
                       className="w-full bg-gray-800/40 border border-gray-700/50 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500/50 mb-2"
                     />
                     {locationSearching && (
