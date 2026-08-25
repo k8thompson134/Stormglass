@@ -3,7 +3,7 @@ import { fetchWeatherData } from "../services/openmeteo.js";
 import { computePressureDerivatives } from "../services/pressure.js";
 import { fetchAirQualityData } from "../services/airquality.js";
 import { fetchGeomagneticData } from "../services/geomagnetic.js";
-import { fetchPollenData } from "../services/tomorrow.js";
+import { fetchPollenData } from "../services/pollen.js";
 import { pruneNotificationLog } from "../services/push.js";
 import {
   type PollConfig,

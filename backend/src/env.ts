@@ -68,18 +68,18 @@ export const env = {
     ? required("CORS_ORIGIN")
     : process.env.CORS_ORIGIN || null,
 
-  // Optional API key — pollen data will be skipped if missing.
-  // NOT actually read by tomorrow.ts -- it reads process.env directly instead,
-  // because this object's values are frozen at import time and tomorrow.test.ts
-  // (and purpleair.test.ts below) mutate process.env per-test at runtime, which
-  // routing through here would silently stop reflecting. Kept here anyway so the
-  // "what env vars does this app use" list stays complete; don't add a real
-  // consumer of this field without checking that test-mutation assumption first.
-  TOMORROW_API_KEY: process.env.TOMORROW_API_KEY?.trim() || null,
+  // Optional API key — Google Pollen API (Maps Platform). Pollen data is skipped
+  // if missing. Replaced Tomorrow.io (task 251): Tomorrow's free tier silently
+  // returned all-zero pollen fields instead of erroring, so the pollen card had
+  // never reflected real conditions.
+  GOOGLE_POLLEN_API_KEY: process.env.GOOGLE_POLLEN_API_KEY?.trim() || null,
 
   // Optional API key — hyperlocal PurpleAir AQI overlay is skipped (falls back to
   // Open-Meteo's modeled AQI) if missing. Free key: https://develop.purpleair.com
-  // Same caveat as TOMORROW_API_KEY above -- purpleair.ts reads process.env directly.
+  // Unlike GOOGLE_POLLEN_API_KEY above, purpleair.ts reads process.env directly
+  // instead of importing this field -- this object's values are frozen at import
+  // time, and purpleair.test.ts mutates process.env per-test at runtime, which
+  // routing through here would silently stop reflecting.
   PURPLEAIR_API_KEY: process.env.PURPLEAIR_API_KEY?.trim() || null,
 
   // Auth token for API access — auto-generated on first production startup if not set

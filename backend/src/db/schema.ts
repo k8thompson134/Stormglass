@@ -178,6 +178,11 @@ export const pollenData = pgTable(
     treeIndex: integer("tree_index").notNull(), // 0-5
     grassIndex: integer("grass_index").notNull(), // 0-5
     weedIndex: integer("weed_index").notNull(), // 0-5
+    // Always 0 as of task 251 -- Google's Pollen API (the current source, see
+    // services/pollen.ts) doesn't report mold at all. Kept as a column rather than
+    // dropped since it's cheap to populate again if a future source covers it, and
+    // getPollenRisk's maxIndex-across-four-fields calc still works unchanged with
+    // this pinned at 0.
     moldIndex: integer("mold_index").notNull(), // 0-5
   },
   (table) => ({

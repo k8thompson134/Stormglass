@@ -265,7 +265,7 @@ export default function Info({ open, onClose }: Props) {
                       Pollen
                     </h4>
                     <p className="text-[12px] text-gray-400">
-                      Tree, grass, weed, and mold indices from Tomorrow.io.
+                      Tree, grass, and weed indices from Google's Pollen API.
                       Skipped if no API key is configured.
                     </p>
                   </div>
