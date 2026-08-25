@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { db } from "../db/index.js";
 import { pushSubscriptions } from "../db/schema.js";
-import { getCurrentConfig } from "../jobs/weather-poll.js";
+import { getCurrentConfig } from "../services/runtime-config.js";
 import { env } from "../env.js";
 import {
   isPushConfigured,

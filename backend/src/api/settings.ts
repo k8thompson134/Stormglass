@@ -2,10 +2,8 @@ import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { db } from "../db/index.js";
 import { users } from "../db/schema.js";
-import {
-  getCurrentConfig,
-  restartWeatherPolling,
-} from "../jobs/weather-poll.js";
+import { restartWeatherPolling } from "../jobs/weather-poll.js";
+import { getCurrentConfig } from "../services/runtime-config.js";
 
 interface LocationBody {
   latitude: string;

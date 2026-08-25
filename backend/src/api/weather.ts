@@ -10,7 +10,7 @@ import {
   pollenData,
   users,
 } from "../db/schema.js";
-import { getCurrentConfig } from "../jobs/weather-poll.js";
+import { getCurrentConfig } from "../services/runtime-config.js";
 import { fetchHyperlocalAQI } from "../services/purpleair.js";
 import { analyzeSmokeTrend } from "../utils/smoke.js";
 import {

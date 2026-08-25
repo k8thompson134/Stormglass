@@ -31,12 +31,14 @@ let restartResult: {
   name?: string;
 } | null = null;
 vi.mock("../jobs/weather-poll.js", () => ({
+  restartWeatherPolling: vi.fn(async () => restartResult),
+}));
+vi.mock("../services/runtime-config.js", () => ({
   getCurrentConfig: vi.fn(() => ({
     userId: USER_ID,
     latitude: "41.85003",
     longitude: "-87.65005",
   })),
-  restartWeatherPolling: vi.fn(async () => restartResult),
 }));
 
 import { settingsRoutes } from "./settings.js";

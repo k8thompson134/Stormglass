@@ -58,7 +58,7 @@ const aqiRow = {
 vi.mock("../db/index.js", () => ({
   db: { select: vi.fn() },
 }));
-vi.mock("../jobs/weather-poll.js", () => ({
+vi.mock("../services/runtime-config.js", () => ({
   getCurrentConfig: vi.fn(() => ({
     userId: USER_ID,
     latitude: "40",

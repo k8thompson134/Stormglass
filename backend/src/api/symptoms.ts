@@ -2,7 +2,7 @@ import { eq, and, gte, desc } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { db } from "../db/index.js";
 import { symptomLogs } from "../db/schema.js";
-import { getCurrentConfig } from "../jobs/weather-poll.js";
+import { getCurrentConfig } from "../services/runtime-config.js";
 import { assembleCurrentSnapshot } from "../services/snapshot.js";
 
 interface CreateSymptomBody {
