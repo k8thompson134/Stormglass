@@ -9,6 +9,7 @@ interface Props {
   onClose: () => void;
   onOpenSymptomLogger: () => void;
   current: CurrentWeather | null;
+  currentFetchError?: string | null;
 }
 
 export default function TrendsModal({
@@ -16,6 +17,7 @@ export default function TrendsModal({
   onClose,
   onOpenSymptomLogger,
   current,
+  currentFetchError,
 }: Props) {
   const modalRef = useRef<HTMLDivElement>(null);
   useFocusTrap(open, modalRef, { onEscape: onClose });
@@ -60,6 +62,7 @@ export default function TrendsModal({
           <Insights
             onOpenSymptomLogger={onOpenSymptomLogger}
             current={current}
+            currentFetchError={currentFetchError}
           />
         </div>
       </div>

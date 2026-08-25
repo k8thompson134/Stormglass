@@ -164,6 +164,18 @@ describe("computeTodayRisk", () => {
       expect(risk.primaryTrigger.key).toBe("aqi");
     }
   });
+
+  // A later fetch failure leaves `current` holding the last successful (possibly
+  // hours-old) snapshot -- computeTodayRisk must flag that instead of silently
+  // computing a fresh-looking "clear"/"active" read off stale data.
+  it("returns stale when a current-conditions fetch has failed, even though current still holds old data", () => {
+    const logs = [makeLog(8, ["migraine"], { humidity: 90 } as never)];
+    const [topCondition] = analyzeConditions(logs);
+    const current = makeCurrent({ humidity: 92 }); // would otherwise be "active"
+    expect(computeTodayRisk(topCondition, current, true)).toEqual({
+      status: "stale",
+    });
+  });
 });
 
 describe("computeProtectiveFactors", () => {

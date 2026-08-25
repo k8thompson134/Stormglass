@@ -23,6 +23,10 @@ import {
 interface InsightsProps {
   onOpenSymptomLogger: () => void;
   current: CurrentWeather | null;
+  // Set when the most recent weather-conditions fetch failed -- `current` still
+  // holds the last successful snapshot in that case, so this is what distinguishes
+  // "live and clear" from "we don't actually know right now, showing old data."
+  currentFetchError?: string | null;
 }
 
 const RISK_THEME = {
@@ -59,6 +63,7 @@ const RISK_THEME = {
 export default function Insights({
   onOpenSymptomLogger,
   current,
+  currentFetchError,
 }: InsightsProps) {
   const [symptomLogs, setSymptomLogs] = useState<SymptomLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -94,8 +99,8 @@ export default function Insights({
   );
 
   const todayRisk = useMemo(
-    () => computeTodayRisk(conditionAnalysis[0], current),
-    [conditionAnalysis, current],
+    () => computeTodayRisk(conditionAnalysis[0], current, !!currentFetchError),
+    [conditionAnalysis, current, currentFetchError],
   );
 
   const protectiveFactors = useMemo(
@@ -182,6 +187,18 @@ export default function Insights({
           <p className="text-[11px] text-gray-400">
             Current conditions unavailable — can't assess today's risk right
             now.
+          </p>
+        </div>
+      )}
+
+      {todayRisk?.status === "stale" && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4">
+          <p className="text-[10px] font-bold text-amber-300 uppercase tracking-widest mb-1">
+            Today's Symptom Risk
+          </p>
+          <p className="text-[11px] text-gray-300">
+            Couldn't refresh current conditions — showing risk based on the last
+            known reading, which may be out of date.
           </p>
         </div>
       )}

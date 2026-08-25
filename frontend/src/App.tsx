@@ -578,6 +578,7 @@ function App() {
           onClose={() => setTrendsOpen(false)}
           onOpenSymptomLogger={() => setSymptomLoggerOpen(true)}
           current={current}
+          currentFetchError={error}
         />
       </main>
     </div>

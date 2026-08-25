@@ -30,6 +30,7 @@ export interface ProtectiveFactor {
 
 export type TodayRisk =
   | { status: "no-current-data" }
+  | { status: "stale" }
   | { status: "clear"; riskLevel: "low" }
   | {
       status: "active";
@@ -155,9 +156,14 @@ export function analyzeConditions(
 export function computeTodayRisk(
   topCondition: ConditionAnalysis | undefined,
   current: CurrentWeather | null,
+  isStale = false,
 ): TodayRisk | null {
   if (!topCondition) return null;
   if (!current) return { status: "no-current-data" };
+  // A later fetch failure leaves `current` holding the last successful (possibly
+  // hours-old) snapshot -- computing a fresh-looking risk off it would present
+  // stale data as a live "clear"/"active" read with no indication it's outdated.
+  if (isStale) return { status: "stale" };
 
   const activeTriggers = topCondition.triggers.filter((t) => {
     const factor = TRIGGER_FACTORS.find((f) => f.key === t.key);
